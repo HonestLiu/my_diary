@@ -1,0 +1,53 @@
+{
+  "name": "my-diary",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A local-first, open-format journal app. Your data belongs to you.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@radix-ui/react-scroll-area": "^1.1.0",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-tooltip": "^1.1.2",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-fs": "^2.0.0",
+    "@tiptap/extension-image": "^2.11.5",
+    "@tiptap/extension-placeholder": "^2.11.5",
+    "@tiptap/extension-underline": "^2.11.5",
+    "@tiptap/pm": "^2.11.5",
+    "@tiptap/react": "^2.11.5",
+    "@tiptap/starter-kit": "^2.11.5",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "fflate": "^0.8.3",
+    "framer-motion": "^11.3.19",
+    "js-yaml": "^4.1.0",
+    "lucide-react": "^0.408.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0",
+    "tailwind-merge": "^2.4.0",
+    "tiptap-markdown": "^0.8.10",
+    "zustand": "^4.5.4"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.40",
+    "tailwindcss": "^3.4.7",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}

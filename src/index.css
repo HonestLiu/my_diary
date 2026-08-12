@@ -1,0 +1,204 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Warm, paper-like journal theme — premium, calm, lots of whitespace */
+    --background: 40 33% 98%;
+    --foreground: 25 18% 16%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 25 18% 16%;
+
+    --primary: 24 70% 54%;
+    --primary-foreground: 30 40% 99%;
+
+    --secondary: 36 30% 94%;
+    --secondary-foreground: 25 18% 22%;
+
+    --muted: 38 24% 95%;
+    --muted-foreground: 28 10% 46%;
+
+    --accent: 22 60% 95%;
+    --accent-foreground: 24 60% 38%;
+
+    --border: 34 20% 90%;
+    --input: 34 20% 90%;
+    --ring: 24 70% 54%;
+
+    --radius: 0.9rem;
+  }
+
+  .dark {
+    --background: 25 14% 10%;
+    --foreground: 38 20% 92%;
+
+    --card: 25 12% 13%;
+    --card-foreground: 38 20% 92%;
+
+    --primary: 24 72% 58%;
+    --primary-foreground: 25 14% 10%;
+
+    --secondary: 25 10% 18%;
+    --secondary-foreground: 38 20% 92%;
+
+    --muted: 25 10% 18%;
+    --muted-foreground: 33 12% 62%;
+
+    --accent: 25 14% 20%;
+    --accent-foreground: 38 24% 88%;
+
+    --border: 25 10% 22%;
+    --input: 25 10% 22%;
+    --ring: 24 72% 58%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Soft, premium scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
+    background-clip: content-box;
+  }
+}
+
+@layer utilities {
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+  /* Subtle paper grain for the app background */
+  .paper-grain {
+    background-image: radial-gradient(
+      hsl(var(--foreground) / 0.025) 1px,
+      transparent 1px
+    );
+    background-size: 22px 22px;
+  }
+}
+
+/* ---- Journal editor typography (no typography plugin needed) ---- */
+.prose-diary {
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: hsl(var(--foreground));
+}
+.prose-diary:focus {
+  outline: none;
+}
+.prose-diary h1 {
+  font-size: 1.7rem;
+  font-weight: 700;
+  margin: 1.2em 0 0.5em;
+  letter-spacing: -0.01em;
+}
+.prose-diary h2 {
+  font-size: 1.35rem;
+  font-weight: 650;
+  margin: 1.1em 0 0.45em;
+}
+.prose-diary h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 1em 0 0.4em;
+}
+.prose-diary p {
+  margin: 0.55em 0;
+}
+.prose-diary ul {
+  list-style: disc;
+  padding-left: 1.4em;
+  margin: 0.5em 0;
+}
+.prose-diary ol {
+  list-style: decimal;
+  padding-left: 1.4em;
+  margin: 0.5em 0;
+}
+.prose-diary li {
+  margin: 0.2em 0;
+}
+.prose-diary li > p {
+  margin: 0.1em 0;
+}
+.prose-diary blockquote {
+  border-left: 3px solid hsl(var(--primary) / 0.5);
+  padding-left: 1em;
+  margin: 0.8em 0;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+.prose-diary hr {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 1.4em 0;
+}
+.prose-diary a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-diary strong {
+  font-weight: 650;
+}
+.prose-diary u {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-diary s {
+  color: hsl(var(--muted-foreground));
+}
+
+/* Placeholder for the empty editor (TipTap Placeholder extension) */
+.prose-diary p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground) / 0.7);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Route enter fade — CSS-driven so it always settles at opacity:1 and can
+   never get stuck invisible the way a JS-controlled AnimatePresence fade can
+   (that was the cause of intermittent blank pages on navigation). The keyed
+   wrapper in AppLayout replays this on every route change. */
+@keyframes routeFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.route-fade {
+  animation: routeFade 0.22s ease-out both;
+}
