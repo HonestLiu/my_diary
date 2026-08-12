@@ -48,7 +48,8 @@ export function CommandPalette() {
   const activeVaultId = useAppStore((s) => s.activeVaultId);
   const switchVault = useAppStore((s) => s.switchVault);
 
-  // Global ⌘K / Ctrl+K toggle.
+  // Global ⌘K / Ctrl+K toggle, plus an event the top-bar search trigger fires
+  // so the palette can be opened from a mouse click without prop drilling.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -56,8 +57,13 @@ export function CommandPalette() {
         setOpen((o) => !o);
       }
     };
+    const onOpen = () => setOpen(true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("open-command-palette", onOpen);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("open-command-palette", onOpen);
+    };
   }, []);
 
   useEffect(() => {

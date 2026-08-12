@@ -45,7 +45,7 @@ export default function OnThisDay() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-3xl px-8 py-10">
+      <div className="mx-auto max-w-5xl px-6 py-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">一年前的今天</h1>
@@ -66,7 +66,7 @@ export default function OnThisDay() {
             <p className="mt-1 text-sm">继续记录，明年此时就能在这里与过去的自己重逢。</p>
           </div>
         ) : (
-          <ul className="mt-8 space-y-3">
+          <ul className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {matches.map((e) => (
               <li key={e.date}>
                 <button

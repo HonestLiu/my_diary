@@ -159,11 +159,15 @@ export default function Settings() {
   });
 
   return (
-    <div className="h-full overflow-y-auto px-8 py-10">
-      <div className="mx-auto max-w-2xl">
-        <h1 className="mb-8 text-3xl font-semibold text-foreground">设置</h1>
+    <div className="h-full overflow-y-auto px-6 py-6">
+      <div className="mx-auto max-w-5xl">
+        <h1 className="mb-6 text-2xl font-semibold tracking-tight text-foreground">
+          设置
+        </h1>
 
-        {/* Appearance */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-6">
+            {/* Appearance */}
         <Card title="外观">
           <div className="flex gap-2">
             {(["light", "dark", "system"] as const).map((t) => (
@@ -311,8 +315,11 @@ export default function Settings() {
           </div>
         </Card>
 
-        {/* Sync */}
-        <Card title="云同步（对象存储）">
+          </div>
+          {/* Right column */}
+          <div className="space-y-6">
+            {/* Sync */}
+            <Card title="云同步（对象存储）">
           <p className="mb-4 text-sm text-muted-foreground">
             兼容 AWS S3 / Cloudflare R2 / MinIO / 阿里云 OSS。你的日记正文始终以开放
             Markdown 存于本地，云端仅为备份镜像。
@@ -521,6 +528,9 @@ export default function Settings() {
           )}
         </Card>
 
+          </div>
+        </div>
+
         <p className="mt-6 text-center text-xs text-muted-foreground">
           数据格式：MyDiary/entries/YYYY/MM/YYYY-MM-DD.md — 停止维护后你仍可直接读取。
         </p>
@@ -531,7 +541,7 @@ export default function Settings() {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="mb-6 rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <h2 className="mb-3 text-lg font-semibold text-foreground">{title}</h2>
       {children}
     </div>

@@ -37,9 +37,11 @@ export default function Search() {
   };
 
   return (
-    <div className="h-full overflow-y-auto px-8 py-10">
-      <div className="mx-auto max-w-3xl">
-        <h1 className="mb-6 text-3xl font-semibold text-foreground">搜索</h1>
+    <div className="h-full overflow-y-auto px-6 py-6">
+      <div className="mx-auto max-w-5xl">
+        <h1 className="mb-6 text-2xl font-semibold tracking-tight text-foreground">
+          搜索
+        </h1>
 
         <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
           <SearchIcon className="h-5 w-5 text-muted-foreground" />
@@ -58,7 +60,7 @@ export default function Search() {
             : "输入关键词开始搜索"}
         </p>
 
-        <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {results.map((r, i) => {
             const mood = MOOD_MAP[r.mood as keyof typeof MOOD_MAP];
             return (

@@ -8,7 +8,9 @@ import type { JournalEntry } from "@/types/journal";
 
 /**
  * Timeline — a "life timeline" view: years contain months, months contain the
- * days that have entries. Clicking a day opens that entry in the editor.
+ * days that have entries. On desktop the months within a year flow into a
+ * multi-column grid so the wide canvas is actually used. Clicking a day opens
+ * that entry in the editor.
  */
 export default function Timeline() {
   const entries = useAppStore((s) => s.entries);
@@ -31,9 +33,11 @@ export default function Timeline() {
   }
 
   return (
-    <div className="h-full overflow-y-auto px-8 py-10">
-      <div className="mx-auto max-w-3xl">
-        <h1 className="mb-8 text-3xl font-semibold text-foreground">时间轴</h1>
+    <div className="h-full overflow-y-auto px-6 py-6">
+      <div className="mx-auto max-w-6xl">
+        <h1 className="mb-6 text-2xl font-semibold tracking-tight text-foreground">
+          时间轴
+        </h1>
         {years.map((year) => (
           <section key={year.year} className="mb-10">
             <div className="mb-4 flex items-baseline gap-3">
@@ -44,13 +48,13 @@ export default function Timeline() {
                 {year.total} 篇日记
               </span>
             </div>
-            <div className="border-l-2 border-border pl-6">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
               {year.months.map((month) => (
-                <div key={month.key} className="mb-6">
+                <div key={month.key} className="border-l-2 border-border pl-4">
                   <p className="mb-2 text-sm font-medium text-muted-foreground">
                     {month.label}
                   </p>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-1.5">
                     {month.days.map((e, i) => {
                       const mood = MOOD_MAP[e.mood];
                       return (
@@ -59,12 +63,11 @@ export default function Timeline() {
                           type="button"
                           initial={{ opacity: 0, x: -8 }}
                           animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.02 }}
+                          transition={{ delay: i * 0.015 }}
                           onClick={() => open(e.date)}
                           className="group relative flex items-start gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-muted"
                         >
-                          <span className="absolute -left-[31px] top-3 h-2.5 w-2.5 rounded-full border-2 border-white bg-amber-400" />
-                          <span className="mt-0.5 w-12 shrink-0 text-right text-xs text-muted-foreground">
+                          <span className="mt-0.5 w-8 shrink-0 text-right text-xs text-muted-foreground">
                             {e.date.slice(8)}
                           </span>
                           <span className="text-lg leading-none">
@@ -75,7 +78,7 @@ export default function Timeline() {
                               {e.title || "未命名"}
                             </p>
                             <p className="line-clamp-1 text-xs text-muted-foreground">
-                              {e.body.replace(/[#>*_`~]/g, "").slice(0, 60) ||
+                              {e.body.replace(/[#>*_`~]/g, "").slice(0, 48) ||
                                 formatHumanDate(new Date(e.date + "T00:00:00"))}
                             </p>
                           </div>

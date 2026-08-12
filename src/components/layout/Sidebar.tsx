@@ -8,7 +8,7 @@ import {
   Search,
   Settings,
   BookHeart,
-  Stars,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/appStore";
@@ -19,38 +19,50 @@ const navItems = [
   { to: "/timeline", label: "时间轴", icon: History },
   { to: "/calendar", label: "日历", icon: CalendarDays },
   { to: "/search", label: "搜索", icon: Search },
-  { to: "/on-this-day", label: "回忆", icon: Stars },
+  { to: "/on-this-day", label: "回忆", icon: BookHeart },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNewEntry }: { onNewEntry?: () => void }) {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
 
   return (
     <aside
       className={cn(
         "flex h-full flex-col border-r border-border bg-card/60 backdrop-blur-sm transition-[width] duration-300 ease-out",
-        collapsed ? "w-[76px]" : "w-[240px]",
+        collapsed ? "w-[76px]" : "w-[224px]",
       )}
     >
       {/* Brand */}
-      <div className="drag-region flex h-16 items-center gap-3 px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-soft">
-          <BookHeart className="h-5 w-5" />
+      <div className="drag-region flex h-14 items-center gap-2.5 px-4">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-soft">
+          <BookHeart className="h-[18px] w-[18px]" />
         </div>
         {!collapsed && (
           <div className="leading-tight">
             <div className="text-[15px] font-semibold tracking-tight">
               MyDiary
             </div>
-            <div className="text-[11px] text-muted-foreground">
-              你的数据属于你
-            </div>
           </div>
         )}
       </div>
 
+      {/* Quick new entry */}
+      <div className="no-drag px-3">
+        <button
+          type="button"
+          onClick={onNewEntry}
+          className={cn(
+            "flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-soft transition-colors hover:bg-primary/90",
+            collapsed && "px-0",
+          )}
+        >
+          <Plus className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>记录今日</span>}
+        </button>
+      </div>
+
       {/* Nav */}
-      <nav className="no-drag mt-2 flex flex-1 flex-col gap-1 px-3">
+      <nav className="no-drag mt-3 flex flex-1 flex-col gap-1 px-3">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
@@ -58,7 +70,7 @@ export function Sidebar() {
             end={item.end}
             className={({ isActive }) =>
               cn(
-                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
@@ -88,14 +100,14 @@ export function Sidebar() {
           to="/settings"
           className={({ isActive }) =>
             cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+              "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
               isActive
                 ? "bg-accent text-accent-foreground"
                 : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             )
           }
         >
-          <Settings className="h-[18px] w-[18px]" />
+          <Settings className="h-[18px] w-[18px] shrink-0" />
           {!collapsed && <span>设置</span>}
         </NavLink>
       </div>

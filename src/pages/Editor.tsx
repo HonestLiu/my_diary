@@ -148,7 +148,7 @@ export default function Editor() {
 
       {/* Center: editor */}
       <main className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between px-8 pt-6">
+        <div className="flex items-center justify-between px-6 pt-5">
           <div>
             <p className="text-sm text-muted-foreground">{humanDate}</p>
             <h1 className="text-2xl font-semibold text-foreground">
@@ -175,11 +175,12 @@ export default function Editor() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex-1 overflow-y-auto px-8 pb-16 pt-4"
+          className="flex-1 overflow-y-auto px-6 pb-16 pt-4"
         >
           {loading || !entry ? (
             <div className="py-20 text-center text-muted-foreground">加载中…</div>
           ) : (
+            <div className="mx-auto w-full max-w-3xl">
             <EditorCanvas
               entryKey={activeDate}
               reloadKey={reloadKey}
@@ -191,6 +192,7 @@ export default function Editor() {
                 onAssetsAdded(refs);
               }}
             />
+            </div>
           )}
         </motion.div>
       </main>

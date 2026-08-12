@@ -32,33 +32,30 @@ export default function Dashboard() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-8 py-10">
+      <div className="mx-auto max-w-[1400px] px-6 py-6">
         {/* Hero */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
-          className="flex flex-col gap-6"
+          className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-soft md:flex-row md:items-center md:justify-between"
         >
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Sparkles className="h-4 w-4 text-primary" />
               欢迎回来
             </div>
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight">
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">
               {formatHumanDate(today)}
             </h1>
-            <p className="mt-2 text-muted-foreground">
+            <p className="mt-1.5 text-muted-foreground">
               记录此刻的想法，文字会替你记住生活。
             </p>
           </div>
 
-          {/* Mood + CTA row */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-soft sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="mb-2 text-sm font-medium text-muted-foreground">
-                今天的心情
-              </div>
+          <div className="flex flex-col gap-3 md:items-end">
+            <div className="flex items-center gap-2 self-start md:self-auto">
+              <span className="text-sm text-muted-foreground">今天的心情</span>
               <MoodSelector />
             </div>
             <Button size="lg" onClick={startRecording} className="shrink-0">
@@ -68,8 +65,8 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Stats */}
-        <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {/* Stats row */}
+        <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard
             icon={FileText}
             label="日记"
@@ -103,14 +100,14 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Insights */}
-        <div className="mt-8">
-          <MoodTrend />
-        </div>
-
-        {/* Recent */}
-        <div className="mt-8">
-          <RecentEntries entries={recentEntries} />
+        {/* Body: recent entries (wide) + mood trend (narrow) */}
+        <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <div className="xl:col-span-2">
+            <RecentEntries entries={recentEntries} />
+          </div>
+          <div className="xl:col-span-1">
+            <MoodTrend />
+          </div>
         </div>
       </div>
     </div>
