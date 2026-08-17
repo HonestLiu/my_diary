@@ -3,6 +3,7 @@ import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/calendar_screen.dart';
 import 'package:my_diary_mobile/ui/editor_screen.dart';
 import 'package:my_diary_mobile/ui/home_screen.dart';
+import 'package:my_diary_mobile/ui/map_screen.dart';
 import 'package:my_diary_mobile/ui/media_screen.dart';
 import 'package:my_diary_mobile/ui/profile_screen.dart';
 import 'package:provider/provider.dart';
@@ -30,9 +31,10 @@ class _AppShellState extends State<AppShell> {
         icon: Icons.photo_library_outlined,
         active: Icons.photo_library,
         label: '媒体'),
-    _TabInfo(
-        icon: Icons.person_outline, active: Icons.person, label: '我的'),
-  ];
+  _TabInfo(
+      icon: Icons.person_outline, active: Icons.person, label: '我的'),
+  _TabInfo(icon: Icons.map_outlined, active: Icons.map, label: '地图'),
+];
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +47,7 @@ class _AppShellState extends State<AppShell> {
           const CalendarScreen(),
           const MediaScreen(),
           const ProfileScreen(),
+          const MapScreen(),
         ],
       ),
       floatingActionButton: _index == 0
