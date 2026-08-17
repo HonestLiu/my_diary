@@ -33,7 +33,7 @@ Future<void> main() async {
         ChangeNotifierProvider<AuthService>.value(value: auth),
         ChangeNotifierProvider<AppStore>.value(value: store),
         ChangeNotifierProvider<LocatorData>.value(value: locatorData),
-        ChangeNotifierProvider<LocatorService>.value(value: locator),
+        Provider<LocatorService>.value(value: locator),
       ],
       child: MyApp(store: store),
     ),
