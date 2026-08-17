@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:my_diary_mobile/config/map_config.dart';
+import 'package:my_diary_mobile/config/weather_config.dart';
 import 'package:my_diary_mobile/editor/doc_model.dart';
 import 'package:my_diary_mobile/editor/inline_style.dart';
 import 'package:my_diary_mobile/editor/markdown_doc.dart';
@@ -15,6 +16,7 @@ import 'package:my_diary_mobile/editor/rich_text_controller.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/services/locator_data.dart';
 import 'package:my_diary_mobile/services/locator_service.dart';
+import 'package:my_diary_mobile/services/weather_service.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/map_picker_page.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
@@ -543,7 +545,7 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   /// 一键定位：GPS 获取当前位置 + 天地图逆地理编码回填地点名称，
-  /// 同时记录经纬度 —— 保存后该日记即出现在「足迹」地图上。
+  /// 同时记录经纬度（保存后即出现在「足迹」地图上）并联动查询天气填充天气栏。
   Future<void> _locateCurrentLocation() async {
     if (!MapConfig.isConfigured) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -580,7 +582,29 @@ class _EditorScreenState extends State<EditorScreen> {
             : (locatorData.status ?? '定位失败'),
       ),
     ));
+    // 定位同时查天气：仅当天气尚未设置（如新建日记）时自动填充。
+    if (p != null && _weather == Weather.unknown) {
+      await _fetchWeatherForPosition();
+    }
     _markDirty();
+  }
+
+  /// 用当前位置拉取心知天气，并把结果填充到天气栏（仅在未设置天气时调用）。
+  Future<void> _fetchWeatherForPosition() async {
+    if (!WeatherConfig.isConfigured) return;
+    final p = context.read<LocatorData>().currentPosition;
+    if (p == null) return;
+    final loc =
+        '${p.latitude.toStringAsFixed(2)}:${p.longitude.toStringAsFixed(2)}';
+    final svc = WeatherService(location: loc);
+    try {
+      final now = await svc.fetchNow();
+      if (!mounted) return;
+      final w = weatherFromSeniverseCode(now.code);
+      if (w != Weather.unknown) setState(() => _weather = w);
+    } catch (_) {
+      // 天气获取失败不打扰用户，保持原天气。
+    }
   }
 
   Future<void> _save() async {
