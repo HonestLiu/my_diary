@@ -63,11 +63,10 @@ class MediaScreen extends StatelessWidget {
   }
 }
 
-/// 根据可用宽度决定每行列数：窄屏 2 列，宽屏最多 5 列。
+/// 以扑克扇的大尺寸为主：窄屏 / 平板默认 2 列，仅在很宽的屏幕（≥1024）才放宽到 3 列；
+/// 一行放不多也无妨，优先保证扑克卡清晰可辨。
 int _columns(double w) {
-  if (w >= 720) return 5;
-  if (w >= 540) return 4;
-  if (w >= 380) return 3;
+  if (w >= 1024) return 3;
   return 2;
 }
 
@@ -85,136 +84,142 @@ class _EntryTile extends StatelessWidget {
     final cover = assets.first;
     // 副卡：封面之后的前两张，作为扑克扇的后半部分。
     final backs = assets.skip(1).take(2).toList();
-
-    // 扑克扇：副卡在封面右后方微旋露出，营造"一摞卡片"的层次。
-    const backAngles = [7.0, -8.0];
-    const backOffX = [11.0, -9.0];
-    const backOffY = [9.0, -7.0];
-
-    Widget buildBack(AssetRef a, double angle, double offX, double offY) {
-      return Positioned.fill(
-        child: Transform.translate(
-          offset: Offset(offX, offY),
-          child: Transform.rotate(
-            angle: angle * pi / 180,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(t.radiusCard),
-                border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.7), width: 1.5),
-                boxShadow: const [
-                  BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 6,
-                      offset: Offset(0, 2)),
-                ],
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(t.radiusCard),
-                child: _tileThumb(context, a, dim: 0.3),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
+    // 扑克扇角度固定，偏移随卡片宽度等比放大——卡片越大扇得越开。
+    const angles = [7.0, -8.0];
 
     return GestureDetector(
       onTap: onOpen,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // 副卡（先画在底层）。
-          for (int i = 0; i < backs.length; i++)
-            buildBack(backs[i], backAngles[i], backOffX[i], backOffY[i]),
-          // 封面（最上层），承载日期 / 角标与 hero 过渡。
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(t.radiusCard),
-                border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.85), width: 1.5),
-                boxShadow: const [
-                  BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 8,
-                      offset: Offset(0, 3)),
-                ],
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Hero(
-                tag: 'media-${entry.id}',
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _tileThumb(context, cover),
-                    // 顶部渐隐遮罩，保证日期 / 角标在浅色图上也清晰可读。
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.center,
-                            colors: [
-                              Colors.black.withValues(alpha: 0.55),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
+      child: LayoutBuilder(
+        builder: (_, c) {
+          final w = c.maxWidth;
+          final offX = [w * 0.08, -w * 0.06];
+          final offY = [w * 0.06, -w * 0.05];
+          final borderW = max(1.5, w * 0.012);
+
+          Widget buildBack(AssetRef a, int i) => Positioned.fill(
+                child: Transform.translate(
+                  offset: Offset(offX[i], offY[i]),
+                  child: Transform.rotate(
+                    angle: angles[i] * pi / 180,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(t.radiusCard),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            width: borderW),
+                        boxShadow: const [
+                          BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 6,
+                              offset: Offset(0, 2)),
+                        ],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(t.radiusCard),
+                        child: _tileThumb(context, a, dim: 0.3),
                       ),
                     ),
-                    Positioned(
-                      left: 7,
-                      top: 7,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(t.radiusChip),
+                  ),
+                ),
+              );
+
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // 副卡（先画在底层）。
+              for (int i = 0; i < backs.length; i++) buildBack(backs[i], i),
+              // 封面（最上层），承载日期 / 角标与 hero 过渡。
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(t.radiusCard),
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        width: borderW),
+                    boxShadow: const [
+                      BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 8,
+                          offset: Offset(0, 3)),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Hero(
+                    tag: 'media-${entry.id}',
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _tileThumb(context, cover),
+                        // 顶部渐隐遮罩，保证日期 / 角标在浅色图上也清晰可读。
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.center,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.55),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                        child: Text(
-                          _formatDate(_entryDate(entry)),
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700),
+                        Positioned(
+                          left: 7,
+                          top: 7,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              borderRadius: BorderRadius.circular(t.radiusChip),
+                            ),
+                            child: Text(
+                              _formatDate(_entryDate(entry)),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                          ),
                         ),
-                      ),
+                        if (entry.assets.length > 1)
+                          Positioned(
+                            right: 7,
+                            top: 7,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                borderRadius:
+                                    BorderRadius.circular(t.radiusChip),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.collections_outlined,
+                                      size: 12, color: Colors.white),
+                                  const SizedBox(width: 2),
+                                  Text('${entry.assets.length}',
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700)),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                    if (entry.assets.length > 1)
-                      Positioned(
-                        right: 7,
-                        top: 7,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.45),
-                            borderRadius: BorderRadius.circular(t.radiusChip),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.collections_outlined,
-                                  size: 12, color: Colors.white),
-                              const SizedBox(width: 2),
-                              Text('${entry.assets.length}',
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
