@@ -72,8 +72,10 @@ class _EntryFan extends StatelessWidget {
     final t = context.tokens;
     // 只有多篇媒体才展开扑克扇；单媒体只显示普通卡片。
     final hasFan = entry.assets.length > 1;
-    final deckW = hasFan ? _cardW + 22 : _cardW;
-    final deckH = hasFan ? _cardH + 16 : _cardH;
+    // 单卡与扑克扇共用同一外框尺寸，封面都锚定在左下角，
+    // 从而保证单图卡与扑克扇的置顶图片位置完全平行。
+    final deckW = _cardW + 22;
+    final deckH = _cardH + 16;
     final cover = entry.assets.first;
     final file = context.read<AppStore>().resolveAsset(cover.path);
     final isImage = cover.kind == AssetKind.image;
