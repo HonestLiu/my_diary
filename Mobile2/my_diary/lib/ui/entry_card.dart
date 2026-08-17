@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:provider/provider.dart';
+import 'package:my_diary_mobile/editor/doc_view.dart';
+import 'package:my_diary_mobile/editor/markdown_doc.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/detail_screen.dart';
@@ -14,7 +16,12 @@ class EntryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final imgs = entry.assets.where((a) => a.kind == AssetKind.image);
     final cover = imgs.isEmpty ? null : imgs.first;
-    final preview = entry.body.replaceAll(RegExp(r'\s+'), ' ').trim();
+    // 渲染后的预览：解码正文为文档块，再压平成带行内样式的 span（保留加粗/斜体等）。
+    final previewSpans = docBlocksToPreviewSpans(
+      context,
+      decodeEntryBody(entry.body, entry.assets),
+      baseStyle: context.caption,
+    );
     final loc = entry.location?.trim() ?? '';
 
     return Card(
@@ -44,8 +51,12 @@ class EntryCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 5),
-                        Text(
-                          preview.isEmpty ? '（暂无内容）' : preview,
+                        Text.rich(
+                          TextSpan(
+                            children: previewSpans.isEmpty
+                                ? [const TextSpan(text: '（暂无内容）')]
+                                : previewSpans,
+                          ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: context.caption,
