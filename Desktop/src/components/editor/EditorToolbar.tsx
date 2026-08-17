@@ -13,6 +13,7 @@ import {
   Quote,
   Minus,
   Image as ImageIcon,
+  Paperclip,
   Undo2,
   Redo2,
 } from "lucide-react";
@@ -21,12 +22,14 @@ import { AIAssist } from "@/components/editor/AIAssist";
 
 interface Props {
   editor: Editor | null;
-  onPickImages: (files: File[]) => void;
+  /** Fires with the files picked from either the image or the attachment button. */
+  onPickFiles: (files: File[]) => void;
 }
 
 /** Floating formatting toolbar — Apple Journal / Bear style. */
-export function EditorToolbar({ editor, onPickImages }: Props) {
+export function EditorToolbar({ editor, onPickFiles }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const attachRef = useRef<HTMLInputElement>(null);
 
   if (!editor) return null;
 
@@ -155,7 +158,28 @@ export function EditorToolbar({ editor, onPickImages }: Props) {
         className="hidden"
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);
-          if (files.length) onPickImages(files);
+          if (files.length) onPickFiles(files);
+          e.target.value = "";
+        }}
+      />
+      <button
+        type="button"
+        title="添加音频、视频或附件"
+        aria-label="添加音频、视频或附件"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => attachRef.current?.click()}
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      >
+        <Paperclip className="h-4 w-4" />
+      </button>
+      <input
+        ref={attachRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          if (files.length) onPickFiles(files);
           e.target.value = "";
         }}
       />

@@ -4,7 +4,6 @@ import { Plus, History } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { byRecency } from "@/lib/journal";
 import { formatDateKey, formatHumanDate } from "@/lib/utils";
-import { saveDroppedAssets } from "@/lib/editor/assets";
 import type { AssetRef, JournalEntry, Mood, Weather } from "@/types/journal";
 import { EditorCanvas } from "@/components/editor/EditorCanvas";
 import { PropertyPanel } from "@/components/editor/PropertyPanel";
@@ -216,10 +215,6 @@ export default function Editor() {
               initialContent={entry.body}
               onUpdate={onBodyChange}
               onAssetsAdded={onAssetsAdded}
-              onPickImages={async (files) => {
-                const refs = await saveDroppedAssets(files);
-                onAssetsAdded(refs);
-              }}
             />
             </div>
           )}

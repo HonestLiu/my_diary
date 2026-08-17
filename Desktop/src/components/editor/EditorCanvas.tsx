@@ -17,7 +17,6 @@ interface Props {
   reloadKey?: number;
   onUpdate: (markdown: string) => void;
   onAssetsAdded: (refs: AssetRef[]) => void;
-  onPickImages: (files: File[]) => void;
 }
 
 export function EditorCanvas({
@@ -26,7 +25,6 @@ export function EditorCanvas({
   reloadKey = 0,
   onUpdate,
   onAssetsAdded,
-  onPickImages,
 }: Props) {
   const editorRef = useRef<Editor | null>(null);
   const loadedKey = useRef<string>("");
@@ -108,7 +106,13 @@ export function EditorCanvas({
 
   return (
     <div className="flex flex-col">
-      <EditorToolbar editor={editor} onPickImages={onPickImages} />
+      <EditorToolbar
+        editor={editor}
+        onPickFiles={async (files) => {
+          const refs = await saveDroppedAssets(files);
+          insertAssetRefs(refs);
+        }}
+      />
       <EditorContent editor={editor} className="w-full" />
     </div>
   );
