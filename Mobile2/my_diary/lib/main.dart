@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/repository/journal_repository.dart';
+import 'package:my_diary_mobile/services/locator_data.dart';
+import 'package:my_diary_mobile/services/locator_service.dart';
 import 'package:my_diary_mobile/sync/auth_service.dart';
 import 'package:my_diary_mobile/ui/app_shell.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
@@ -22,12 +24,16 @@ Future<void> main() async {
   final repo = JournalRepository(vault);
   final auth = AuthService(prefs);
   final store = AppStore(auth: auth, prefs: prefs, repo: repo);
+  final locatorData = LocatorData();
+  final locator = LocatorService(locatorData);
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthService>.value(value: auth),
         ChangeNotifierProvider<AppStore>.value(value: store),
+        ChangeNotifierProvider<LocatorData>.value(value: locatorData),
+        ChangeNotifierProvider<LocatorService>.value(value: locator),
       ],
       child: MyApp(store: store),
     ),
