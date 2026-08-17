@@ -28,6 +28,8 @@ class _MapScreenState extends State<MapScreen> {
   final LatLng _center = const LatLng(39.909187, 116.397451); // 北京兜底
   static const double _minZoom = 0;
   static const double _maxZoom = 20;
+  // 自动定位后的缩放级别：像日记卡片那样放大到当前位置附近（城市级）。
+  static const double _autoZoom = 14;
   double _currentZoom = 4;
   bool _mapReady = false;
   bool _locating = false;
@@ -161,8 +163,8 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// 地图就绪后触发一次定位；若此前未定位过，在首次定位完成后自动居中；
-  /// 若已有定位且地图仍停在初始中心，也自动居中一次（对齐原版行为）。
+  /// 地图就绪后触发一次定位；若此前未定位过，在首次定位完成后自动居中并放大
+  /// 到当前位置附近（_autoZoom）；若已有定位且地图仍停在初始中心，也自动居中放大一次。
   void _maybeAutoLocate() {
     final locatorData = context.read<LocatorData>();
     final p = locatorData.currentPosition;
@@ -170,7 +172,7 @@ class _MapScreenState extends State<MapScreen> {
       if (_mapReady && _mapController.camera.center == _center) {
         _mapController.move(
           LatLng(p.latitude, p.longitude),
-          _mapController.camera.zoom,
+          _autoZoom,
         );
       }
       return;
@@ -185,7 +187,7 @@ class _MapScreenState extends State<MapScreen> {
       if (mounted && _mapReady) {
         _mapController.move(
           LatLng(pos.latitude, pos.longitude),
-          _mapController.camera.zoom,
+          _autoZoom,
         );
       }
     };
@@ -209,7 +211,7 @@ class _MapScreenState extends State<MapScreen> {
           .showSnackBar(SnackBar(content: Text(locatorData.status ?? '无法获取定位')));
       return;
     }
-    _mapController.move(LatLng(p.latitude, p.longitude), 14);
+    _mapController.move(LatLng(p.latitude, p.longitude), _autoZoom);
   }
 
   void _zoomBy(double delta) {
