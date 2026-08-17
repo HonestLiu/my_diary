@@ -8,7 +8,15 @@ import 'package:provider/provider.dart';
 class SearchScreen extends StatefulWidget {
   /// 进入时预填的搜索词（如「我的」页标签云点选某标签），空则不预填。
   final String initialQuery;
-  const SearchScreen({super.key, this.initialQuery = ''});
+
+  /// 标签搜索模式：仅按标签匹配（不含标题 / 正文 / 地点）。
+  /// 标签云点选默认开启，保证只返回真的打了该标签的日记。
+  final bool tagOnly;
+  const SearchScreen({
+    super.key,
+    this.initialQuery = '',
+    this.tagOnly = false,
+  });
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -42,7 +50,7 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
     final store = context.read<AppStore>();
-    final res = await store.search(q);
+    final res = widget.tagOnly ? await store.searchByTag(q) : await store.search(q);
     if (mounted) setState(() => _results = res);
   }
 
@@ -55,9 +63,13 @@ class _SearchScreenState extends State<SearchScreen> {
           controller: _ctl,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: '搜索标题、正文、标签、地点…',
+            hintText: widget.tagOnly ? '搜索标签…' : '搜索标题、正文、标签、地点…',
             border: InputBorder.none,
             hintStyle: TextStyle(color: t.textTertiary),
+            prefixIcon: widget.tagOnly
+                ? Icon(Icons.sell_outlined,
+                    size: 18, color: t.textTertiary)
+                : null,
           ),
           style: TextStyle(color: t.textPrimary, fontSize: 16),
         ),

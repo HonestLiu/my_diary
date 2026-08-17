@@ -206,6 +206,17 @@ class JournalRepository {
     }).toList();
   }
 
+  /// 仅按标签精确匹配（不含标题 / 正文 / 地点），用于标签云点选：只返回
+  /// 真的打了该标签的日记，避免通用搜索把正文里偶现该词的作品也捞进来。
+  Future<List<JournalEntry>> searchByTag(String tag) async {
+    final all = await listEntries();
+    final q = tag.trim().toLowerCase();
+    if (q.isEmpty) return all;
+    return all
+        .where((e) => e.tags.any((t) => t.toLowerCase().contains(q)))
+        .toList();
+  }
+
   /// 简单统计。
   Future<({int entries, int words, Map<Mood, int> moodCounts})> stats() async {
     final all = await listEntries();

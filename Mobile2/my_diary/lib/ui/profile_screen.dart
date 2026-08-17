@@ -507,7 +507,8 @@ class _TagCloudCard extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => SearchScreen(initialQuery: e.key),
+                    builder: (_) => SearchScreen(
+                        initialQuery: e.key, tagOnly: true),
                   ),
                 ),
                 borderRadius: BorderRadius.circular(t.radiusChip),

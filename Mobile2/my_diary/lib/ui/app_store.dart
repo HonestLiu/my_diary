@@ -93,6 +93,10 @@ class AppStore extends ChangeNotifier {
 
   Future<List<JournalEntry>> search(String q) => repo.search(q);
 
+  /// 仅按标签搜索（标签云点选入口）。
+  Future<List<JournalEntry>> searchByTag(String tag) =>
+      repo.searchByTag(tag);
+
   Future<void> saveSettings(AppSettings s) async {
     _settings = s;
     await repo.saveSettings(s);
