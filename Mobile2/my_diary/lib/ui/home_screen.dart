@@ -249,34 +249,46 @@ List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
   ];
 }
 
-/// 计算回忆卡片数据：往年的今天优先，再用 2 个月前的随机补足，合计 ≤ 10。
+/// 计算回忆卡片数据：往年的今天优先，再用「2 个月之前（含更早）」的随机补足，合计 ≤ 10。
 List<_MemoryItem> _buildMemories(List<JournalEntry> entries) {
   final now = DateTime.now();
   final todayMd = _md(now);
 
   // ① 往年的今天：月日相同、且年份早于今年。
   final onThisDay = <_MemoryItem>[];
+  final onThisDayIds = <String>{};
   for (final e in entries) {
     final d = DateTime.tryParse(e.date);
     if (d == null || d.year >= now.year) continue;
     if (_md(d) != todayMd) continue;
-    onThisDay
-        .add(_MemoryItem(e, '往年的今天 · ${d.year}', 'onThisDay'));
+    onThisDay.add(_MemoryItem(e, '往年的今天 · ${d.year}', 'onThisDay'));
+    onThisDayIds.add(e.id);
   }
 
-  // ② 约 2 个月前：按 year-month 匹配（now - 2 个月）。
-  final target = DateTime(now.year, now.month - 2, 1);
-  final ym = '${target.year}-${_ym(target)}';
-  final recent = entries.where((e) => e.date.startsWith(ym)).toList();
+  // ② 2 个月之前：日期早于 (now - 2 个月) 的全部日记，随机抽补。
+  //    注意是「之前的全部」，不只 2 个月那一月——更早（如 5 月及以前）都纳入。
+  final cutoff = DateTime(now.year, now.month - 2, now.day);
+  final recent = entries.where((e) {
+    if (onThisDayIds.contains(e.id)) return false; // 不重复计入
+    final d = DateTime.tryParse(e.date);
+    if (d == null) return false;
+    return d.isBefore(cutoff);
+  }).toList();
   // 以「当天」为种子随机打乱：同一天内稳定（不会每次 rebuild 抖动），跨天自然变化。
   final rng = Random(now.year * 372 + now.month * 31 + now.day);
   recent.shuffle(rng);
 
-  // 合并：往年的今天在前（更值得回味的「锚点」），2 个月前的随机补后，封顶 10。
+  // 合并：往年的今天在前（更值得回味的「锚点」），2 个月之前的随机补后，封顶 10。
   final items = <_MemoryItem>[...onThisDay];
   for (final e in recent) {
     if (items.length >= 10) break;
-    items.add(_MemoryItem(e, '2 个月前', 'recent'));
+    final d = DateTime.tryParse(e.date);
+    final label = d == null
+        ? '回忆'
+        : (d.year == now.year
+            ? '${d.month}月'
+            : '${d.year}年${d.month}月');
+    items.add(_MemoryItem(e, label, 'recent'));
   }
   return items.take(10).toList();
 }
@@ -478,4 +490,3 @@ String _memoDate(JournalEntry e) {
 
 String _md(DateTime d) =>
     '${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-String _ym(DateTime d) => d.month.toString().padLeft(2, '0');
