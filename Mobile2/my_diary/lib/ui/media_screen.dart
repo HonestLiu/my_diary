@@ -72,8 +72,10 @@ class _EntryFan extends StatelessWidget {
     final t = context.tokens;
     // 只有多篇媒体才展开扑克扇；单媒体只显示普通卡片。
     final hasFan = entry.assets.length > 1;
-    final deckW = hasFan ? _cardW + 22 : _cardW;
-    final deckH = hasFan ? _cardH + 16 : _cardH;
+    // 单卡与扑克扇共用同一外框尺寸，封面都锚定在左下角，
+    // 从而保证单图卡与扑克扇的置顶图片位置完全平行。
+    final deckW = _cardW + 22;
+    final deckH = _cardH + 16;
     final cover = entry.assets.first;
     final file = context.read<AppStore>().resolveAsset(cover.path);
     final isImage = cover.kind == AssetKind.image;
@@ -86,6 +88,41 @@ class _EntryFan extends StatelessWidget {
                   child: const Icon(Icons.broken_image_outlined),
                 ))
         : _kindPlaceholder(context, cover.kind, cover.name);
+
+    // 日期胶囊：缩小、置于封面右下角、收入卡内。
+    final datePill = Material(
+      elevation: 4,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(t.radiusChip),
+      color: context.cs.surface,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+        child: Text(
+          _formatDate(_entryDate(entry)),
+          style: context.caption.copyWith(
+              fontWeight: FontWeight.w700, color: t.textPrimary, fontSize: 10.5),
+        ),
+      ),
+    );
+
+    // 顶/底轻微暗化，保证卡内白胶囊在浅色图上依旧可读。
+    final scrim = Positioned.fill(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.2, 0.82, 1.0],
+            colors: [
+              Colors.black.withValues(alpha: 0.24),
+              Colors.transparent,
+              Colors.transparent,
+              Colors.black.withValues(alpha: 0.32),
+            ],
+          ),
+        ),
+      ),
+    );
 
     final coverCard = Hero(
       tag: 'media-${entry.id}',
@@ -101,7 +138,39 @@ class _EntryFan extends StatelessWidget {
             borderRadius: BorderRadius.circular(t.radiusCard),
             border: Border.all(color: t.border, width: 0.5),
           ),
-          child: coverInner,
+          child: Stack(
+            children: [
+              coverInner,
+              scrim,
+              // 日期胶囊：右下角、卡内。
+              Positioned(
+                right: 6,
+                bottom: 6,
+                child: datePill,
+              ),
+              // 多篇媒体时，右上角小计数徽章提示「还有更多」。
+              if (hasFan)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Material(
+                    elevation: 4,
+                    shadowColor: Colors.black26,
+                    borderRadius: BorderRadius.circular(t.radiusChip),
+                    color: context.cs.surface,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 3),
+                      child: Text('${entry.assets.length}',
+                          style: context.caption.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: t.textPrimary,
+                              fontSize: 10.5)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -140,54 +209,13 @@ class _EntryFan extends StatelessWidget {
       child: Stack(clipBehavior: Clip.none, children: deckChildren),
     );
 
-    // 日期胶囊：浮动于卡片上缘；有扇时略高于卡片，单卡时贴边上缘。
-    final datePill = Positioned(
-      left: 6,
-      top: hasFan ? -4 : 6,
-      child: Material(
-        elevation: 6,
-        shadowColor: Colors.black26,
-        borderRadius: BorderRadius.circular(t.radiusChip),
-        color: context.cs.surface,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-          child: Text(
-            _formatDate(_entryDate(entry)),
-            style: context.caption.copyWith(
-                fontWeight: FontWeight.w700, color: t.textPrimary),
-          ),
-        ),
-      ),
-    );
-
-    final children = <Widget>[deck, datePill];
-    // 多于 1 个媒体时，右下角小计数徽章提示「还有更多」。
-    if (hasFan) {
-      children.add(Positioned(
-        right: 0,
-        bottom: -2,
-        child: Material(
-          elevation: 4,
-          shadowColor: Colors.black26,
-          borderRadius: BorderRadius.circular(t.radiusChip),
-          color: context.cs.surface,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            child: Text('${entry.assets.length}',
-                style: context.caption.copyWith(
-                    fontWeight: FontWeight.w700, color: t.textPrimary)),
-          ),
-        ),
-      ));
-    }
-
     return GestureDetector(
       onTap: onOpen,
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: deckW,
         height: deckH + 8,
-        child: Stack(clipBehavior: Clip.none, children: children),
+        child: Stack(clipBehavior: Clip.none, children: [deck]),
       ),
     );
   }
