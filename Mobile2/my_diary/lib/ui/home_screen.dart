@@ -479,16 +479,16 @@ class _MemoryCard extends StatelessWidget {
                   Text(e.displayTitle,
                       style: TextStyle(
                           color: t.textPrimary,
-                          fontSize: 15,
+                          fontSize: 14,
                           fontWeight: FontWeight.w700),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),
                   if (preview.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(preview,
                         style: TextStyle(
                             color: t.textSecondary, fontSize: 12),
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                   ],
                 ],
