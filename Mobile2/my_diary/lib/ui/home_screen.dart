@@ -65,7 +65,7 @@ class HomeScreenState extends State<HomeScreen> {
                 for (final d in dates) ...[
                   _DayHeader(dateKey: d),
                   for (var i = 0; i < groups[d]!.length; i++) ...[
-                    if (i > 0) Divider(height: 1, thickness: 1),
+                    if (i > 0) const SizedBox(height: 12),
                     EntryCard(entry: groups[d]![i]),
                   ],
                 ],
@@ -102,29 +102,22 @@ class _DayHeader extends StatelessWidget {
   const _DayHeader({required this.dateKey});
 
   @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 与上一日期组的分割线：让不同日期的卡片组一眼区分，避免「粘在一起」。
-          Divider(height: 1, thickness: 1),
-          Padding(
-            padding: const EdgeInsets.only(top: 14, bottom: 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 3,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(_dayLabel(dateKey, context), style: context.titleMedium),
-              ],
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 24, bottom: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 3,
+              height: 16,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Text(_dayLabel(dateKey, context), style: context.titleMedium),
+          ],
+        ),
       );
 }
 
@@ -308,6 +301,13 @@ class _MemoryEmptyCard extends StatelessWidget {
             t.surfaceVariant,
           ],
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -531,9 +531,19 @@ class _MemoryCard extends StatelessWidget {
         context,
         MaterialPageRoute(builder: (_) => DetailScreen(entry: e)),
       ),
-      child: SizedBox(
+      child: Container(
         width: 145,
         height: 145,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
           clipBehavior: Clip.antiAlias,

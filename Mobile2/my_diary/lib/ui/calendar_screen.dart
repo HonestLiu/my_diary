@@ -211,7 +211,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               const EdgeInsets.fromLTRB(16, 10, 16, 24),
                           itemCount: items.length,
                           separatorBuilder: (_, __) =>
-                              Divider(height: 25, thickness: 1),
+                              const SizedBox(height: 12),
                           itemBuilder: (_, i) =>
                               EntryCard(entry: items[i]),
                         ),
