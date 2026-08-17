@@ -44,16 +44,25 @@ class MediaScreen extends StatelessWidget {
           ? _EmptyMedia()
           : SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 22, 16, 36),
-              child: Wrap(
-                spacing: 20,
-                runSpacing: 32,
-                children: [
-                  for (final e in entries)
-                    _EntryFan(
-                      entry: e,
-                      onOpen: () => _openPreview(context, e),
-                    ),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // 两列铺满：牌背右探 22 已计入 deck 尺寸，两个 deck + 一个间隔恰好占满行宽，
+                  // 不再像固定宽度那样右侧空出一大块。
+                  final deckW = (constraints.maxWidth - 20) / 2;
+                  final coverW = deckW - 22;
+                  return Wrap(
+                    spacing: 20,
+                    runSpacing: 32,
+                    children: [
+                      for (final e in entries)
+                        _EntryFan(
+                          entry: e,
+                          coverW: coverW,
+                          onOpen: () => _openPreview(context, e),
+                        ),
+                    ],
+                  );
+                },
               ),
             ),
     );
@@ -62,13 +71,19 @@ class MediaScreen extends StatelessWidget {
 
 /// 一篇日记的媒体单元：多篇媒体时展开扑克扇（封面 + 两张纯色牌背做堆叠暗示），
 /// 单媒体时只显示普通卡片；左上浮动该日记自己的日期。点击展开预览。
+/// 封面尺寸按可用宽度等比缩放（基准 118 x 150），保证两列铺满。
 class _EntryFan extends StatelessWidget {
-  static const double _cardW = 118;
-  static const double _cardH = 150;
+  static const double _baseCardW = 118;
+  static const double _baseCardH = 150;
 
   final JournalEntry entry;
+  final double coverW;
   final VoidCallback onOpen;
-  const _EntryFan({required this.entry, required this.onOpen});
+  const _EntryFan({
+    required this.entry,
+    required this.coverW,
+    required this.onOpen,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -77,8 +92,10 @@ class _EntryFan extends StatelessWidget {
     final hasFan = entry.assets.length > 1;
     // 单卡与扑克扇共用同一外框尺寸，封面都锚定在左下角，
     // 从而保证单图卡与扑克扇的置顶图片位置完全平行。
-    final deckW = _cardW + 22;
-    final deckH = _cardH + 16;
+    final cardW = coverW;
+    final cardH = coverW * (_baseCardH / _baseCardW);
+    final deckW = cardW + 22;
+    final deckH = cardH + 16;
     final cover = entry.assets.first;
     final file = context.read<AppStore>().resolveAsset(cover.path);
     final isImage = cover.kind == AssetKind.image;
@@ -100,8 +117,8 @@ class _EntryFan extends StatelessWidget {
         borderRadius: BorderRadius.circular(t.radiusCard),
         clipBehavior: Clip.antiAlias,
         child: Container(
-          width: _cardW,
-          height: _cardH,
+          width: cardW,
+          height: cardH,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(t.radiusCard),
           ),
@@ -116,8 +133,8 @@ class _EntryFan extends StatelessWidget {
           child: Transform.rotate(
             angle: deg * pi / 180,
             child: Container(
-              width: _cardW,
-              height: _cardH,
+              width: cardW,
+              height: cardH,
               decoration: BoxDecoration(
                 color: t.surfaceVariant,
                 borderRadius: BorderRadius.circular(t.radiusCard),
