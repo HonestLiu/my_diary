@@ -267,7 +267,7 @@ List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
   ];
 }
 
-/// 回忆区空态卡：与文字回忆卡同风格（品牌色淡染渐变底），给一句简短提醒。
+/// 回忆区空态卡：与文字回忆卡同风格（品牌色淡染渐变底），给一句简短提醒。尺寸偏小。
 class _MemoryEmptyCard extends StatelessWidget {
   const _MemoryEmptyCard();
 
@@ -276,10 +276,10 @@ class _MemoryEmptyCard extends StatelessWidget {
     final t = context.tokens;
     final accent = Theme.of(context).colorScheme.primary;
     return Container(
-      width: 196,
-      height: 200,
+      width: 168,
+      height: 116,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -289,20 +289,20 @@ class _MemoryEmptyCard extends StatelessWidget {
           ],
         ),
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('✨', style: TextStyle(fontSize: 22)),
-          const SizedBox(height: 12),
+          const Text('✨', style: TextStyle(fontSize: 18)),
+          const SizedBox(height: 6),
           Text('还没有回忆',
-              style: context.titleMedium.copyWith(color: t.textPrimary)),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Text(
-              '写下更多日记吧，将来的你会在「回忆」里遇见此刻的自己。',
-              style: context.caption.copyWith(color: t.textSecondary),
-            ),
+              style: context.titleMedium
+                  .copyWith(color: t.textPrimary, fontSize: 15)),
+          const SizedBox(height: 4),
+          Text(
+            '写下第一篇日记，未来的你会在这里遇见此刻。',
+            style: context.caption.copyWith(color: t.textSecondary),
           ),
         ],
       ),
