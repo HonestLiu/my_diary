@@ -106,6 +106,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _StatsCard(entries: store.entries),
           const SizedBox(height: 14),
 
+          // 本月心情 / 天气分布柱状图
+          _BarChartCard(
+              title: '本月心情',
+              icon: Icons.mood_outlined,
+              data: _distribution(
+                store.entries,
+                (e) => e.mood,
+                Mood.ordered,
+                (m) => m.emoji,
+                (m) => m.label,
+              )),
+          const SizedBox(height: 14),
+          _BarChartCard(
+              title: '本月天气',
+              icon: Icons.wb_sunny_outlined,
+              data: _distribution(
+                store.entries,
+                (e) => e.weather,
+                Weather.ordered.where((w) => w != Weather.unknown),
+                (w) => w.emoji,
+                (w) => w.label,
+              )),
+          const SizedBox(height: 14),
+
           // 账户
           _Card(children: [
             if (auth.isCloudAuthenticated) ...[
@@ -342,6 +366,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return '阿里云 OSS';
     }
   }
+
+  /// 统计某维度（心情 / 天气）在本月的分布，返回降序排列、且只含「有记录」的类别。
+  List<_BarDatum> _distribution<T>(
+    List<JournalEntry> entries,
+    T Function(JournalEntry) pick,
+    Iterable<T> ordered,
+    String Function(T) emoji,
+    String Function(T) label,
+  ) {
+    final ym = DateFormat('yyyy-MM').format(DateTime.now());
+    final counts = <T, int>{};
+    for (final e in entries) {
+      if (!e.date.startsWith(ym)) continue;
+      final k = pick(e);
+      counts[k] = (counts[k] ?? 0) + 1;
+    }
+    final list = ordered
+        .map((k) => _BarDatum(emoji(k), label(k), counts[k] ?? 0))
+        .where((d) => d.count > 0)
+        .toList()
+      ..sort((a, b) => b.count.compareTo(a.count));
+    return list;
+  }
 }
 
 class _Card extends StatelessWidget {
@@ -401,84 +448,155 @@ class _StatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
     final ym = DateFormat('yyyy-MM').format(DateTime.now());
     var count = 0;
-    final moodCounts = <Mood, int>{};
     for (final e in entries) {
-      if (e.date.startsWith(ym)) {
-        count++;
-        moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
-      }
+      if (e.date.startsWith(ym)) count++;
     }
-    final ranked = moodCounts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final top = ranked.take(5).toList();
 
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Text('本月', style: context.caption),
+            const SizedBox(height: 2),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
-                Text('本月', style: context.caption),
-                const SizedBox(height: 2),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text('$count',
-                        style: const TextStyle(
-                            fontSize: 34,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1)),
-                    const SizedBox(width: 5),
-                    Text('篇', style: context.caption),
-                  ],
-                ),
+                Text('$count',
+                    style: const TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1)),
+                const SizedBox(width: 5),
+                Text('篇', style: context.caption),
               ],
-            ),
-            const SizedBox(width: 16),
-            Container(width: 1, height: 44, color: t.border),
-            const SizedBox(width: 16),
-            Expanded(
-              child: top.isEmpty
-                  ? Text('本月还没有心情记录', style: context.caption)
-                  : Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: top
-                          .map((e) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: t.fill,
-                                  borderRadius:
-                                      BorderRadius.circular(t.radiusChip),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(e.key.emoji,
-                                        style: const TextStyle(fontSize: 15)),
-                                    const SizedBox(width: 5),
-                                    Text('${e.value}',
-                                        style: TextStyle(
-                                            fontSize: 13,
-                                            color: t.textSecondary,
-                                            fontWeight: FontWeight.w600)),
-                                  ],
-                                ),
-                              ))
-                          .toList(),
-                    ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 柱状图单条数据：emoji 图标 + 中文标签 + 计数。
+class _BarDatum {
+  final String emoji;
+  final String label;
+  final int count;
+  const _BarDatum(this.emoji, this.label, this.count);
+}
+
+/// 一道漂亮的分布柱状图卡片（竖向柱 + 计数 + emoji 轴标）。
+/// 用于「我的」页的心情 / 天气统计，跟随当前品牌强调色。
+class _BarChartCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final List<_BarDatum> data;
+  const _BarChartCard({
+    required this.title,
+    required this.icon,
+    required this.data,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final primary = Theme.of(context).colorScheme.primary;
+    final total = data.fold<int>(0, (s, d) => s + d.count);
+    final maxCount =
+        data.isEmpty ? 1 : data.map((d) => d.count).reduce((a, b) => a > b ? a : b);
+
+    return _Card(
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 18, color: t.textSecondary),
+            const SizedBox(width: 8),
+            Text(title, style: context.titleMedium),
+            const Spacer(),
+            Text(total == 0 ? '暂无记录' : '共 $total 次',
+                style: context.caption),
+          ],
+        ),
+        const SizedBox(height: 18),
+        if (total == 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 22),
+            child: Center(
+              child: Text('本月还没有记录', style: context.caption),
+            ),
+          )
+        else
+          SizedBox(
+            height: 132,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: data.map((d) {
+                final ratio = maxCount == 0 ? 0.0 : d.count / maxCount;
+                final barH = 10.0 + ratio * 100.0; // 最小 10，最大 110
+                return Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text('${d.count}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: d.count == 0
+                                  ? t.textTertiary
+                                  : t.textPrimary)),
+                      const SizedBox(height: 5),
+                      Container(
+                        width: double.infinity,
+                        height: barH,
+                        margin: const EdgeInsets.symmetric(horizontal: 5),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              primary,
+                              primary.withValues(alpha: 0.5),
+                            ],
+                          ),
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(6)),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: data
+              .map((d) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      child: Column(
+                        children: [
+                          Text(d.emoji, style: const TextStyle(fontSize: 17)),
+                          const SizedBox(height: 3),
+                          Text(d.label,
+                              style: TextStyle(
+                                  fontSize: 11, color: t.textTertiary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center),
+                        ],
+                      ),
+                    ),
+                  ))
+              .toList(),
+        ),
+      ],
     );
   }
 }
