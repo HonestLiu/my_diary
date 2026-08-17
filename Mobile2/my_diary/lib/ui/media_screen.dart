@@ -7,10 +7,10 @@ import 'package:my_diary_mobile/ui/detail_screen.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
 
-/// 媒体画廊：按日记所属日期（entry.date）降序，用紧凑网格横向铺满、自动换行；
-/// 每篇含媒体的日记是一张封面瓦片，呈现扑克扇效果（封面在前、最多两张副卡在右后方微旋露出），
-/// 日期直接叠在封面图左上，多媒体的篇在右上标数量；
-/// 点瓦片展开该日记全部图片预览，预览窗下方一条白色信息条（类似首页卡片），点条跳转对应日记。
+/// 媒体画廊：按日记所属日期（entry.date）降序，按行优先横向铺满、排不下自动换行；
+/// 每篇含媒体的日记是一个「扑克扇」单元（封面 + 两张纯色牌背做堆叠暗示），
+/// 扇内浮动该日记自己的日期（entry.date）；点扇展开该日记全部图片预览，
+/// 预览窗下方一条白色信息条（类似首页卡片），点条跳转对应日记。
 class MediaScreen extends StatelessWidget {
   const MediaScreen({super.key});
 
@@ -39,215 +39,158 @@ class MediaScreen extends StatelessWidget {
       ),
       body: entries.isEmpty
           ? _EmptyMedia()
-          : LayoutBuilder(
-              builder: (ctx, constraints) {
-                final cols = _columns(constraints.maxWidth);
-                const gap = 8.0;
-                return GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: cols,
-                    mainAxisSpacing: gap,
-                    crossAxisSpacing: gap,
-                    childAspectRatio: 1,
-                  ),
-                  itemCount: entries.length,
-                  itemBuilder: (c, i) => _EntryTile(
-                    entry: entries[i],
-                    onOpen: () => _openPreview(c, entries[i]),
-                  ),
-                );
-              },
+          : SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 22, 16, 36),
+              child: Wrap(
+                spacing: 20,
+                runSpacing: 32,
+                children: [
+                  for (final e in entries)
+                    _EntryFan(
+                      entry: e,
+                      onOpen: () => _openPreview(context, e),
+                    ),
+                ],
+              ),
             ),
     );
   }
 }
 
-/// 以扑克扇的大尺寸为主：窄屏 / 平板默认 2 列，仅在很宽的屏幕（≥1024）才放宽到 3 列；
-/// 一行放不多也无妨，优先保证扑克卡清晰可辨。
-int _columns(double w) {
-  if (w >= 1024) return 3;
-  return 2;
-}
+/// 一篇日记的扑克扇：封面（首个媒体）+ 两张纯色牌背做堆叠暗示，
+/// 左上浮动该日记自己的日期。点击展开预览。
+class _EntryFan extends StatelessWidget {
+  static const double _cardW = 118;
+  static const double _cardH = 150;
 
-/// 一篇日记的封面瓦片：扑克扇（封面在前、最多两张副卡在右后方微旋露出），
-/// 日期叠在封面左上，多媒体的篇在右上标数量。点瓦片展开该日记全部图片预览。
-class _EntryTile extends StatelessWidget {
   final JournalEntry entry;
   final VoidCallback onOpen;
-  const _EntryTile({required this.entry, required this.onOpen});
+  const _EntryFan({required this.entry, required this.onOpen});
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final assets = entry.assets;
-    final cover = assets.first;
-    // 副卡：封面之后的前两张，作为扑克扇的后半部分。
-    final backs = assets.skip(1).take(2).toList();
-    // 扑克扇角度固定，偏移随卡片宽度等比放大——卡片越大扇得越开。
-    const angles = [7.0, -8.0];
+    final deckW = _cardW + 22;
+    final deckH = _cardH + 16;
+    final cover = entry.assets.first;
+    final file = context.read<AppStore>().resolveAsset(cover.path);
+    final isImage = cover.kind == AssetKind.image;
+
+    final coverInner = isImage
+        ? Image.file(file,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+                  color: t.fill,
+                  child: const Icon(Icons.broken_image_outlined),
+                ))
+        : _kindPlaceholder(context, cover.kind, cover.name);
+
+    // 牌背：纯色圆角矩形，仅做堆叠暗示，不显示图片。
+    Widget echo(double dx, double dy, double deg) => Transform.translate(
+          offset: Offset(dx, dy),
+          child: Transform.rotate(
+            angle: deg * pi / 180,
+            child: Container(
+              width: _cardW,
+              height: _cardH,
+              decoration: BoxDecoration(
+                color: t.surfaceVariant,
+                borderRadius: BorderRadius.circular(t.radiusCard),
+                border: Border.all(color: t.border, width: 1),
+                boxShadow: const [
+                  BoxShadow(
+                      color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    final deck = SizedBox(
+      width: deckW,
+      height: deckH,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          echo(16, -14, 7),
+          echo(8, -7, 3.5),
+          Positioned(
+            left: 0,
+            bottom: 0,
+            child: Hero(
+              tag: 'media-${entry.id}',
+              child: Material(
+                elevation: 8,
+                shadowColor: Colors.black38,
+                borderRadius: BorderRadius.circular(t.radiusCard),
+                clipBehavior: Clip.antiAlias,
+                child: Container(
+                  width: _cardW,
+                  height: _cardH,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(t.radiusCard),
+                    border: Border.all(color: t.border, width: 0.5),
+                  ),
+                  child: coverInner,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // 日期胶囊：浮在扇内左上，压在卡片上缘。
+    final datePill = Positioned(
+      left: 6,
+      top: -4,
+      child: Material(
+        elevation: 6,
+        shadowColor: Colors.black26,
+        borderRadius: BorderRadius.circular(t.radiusChip),
+        color: context.cs.surface,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+          child: Text(
+            _formatDate(_entryDate(entry)),
+            style: context.caption.copyWith(
+                fontWeight: FontWeight.w700, color: t.textPrimary),
+          ),
+        ),
+      ),
+    );
+
+    final children = <Widget>[deck, datePill];
+    // 多于 1 个媒体时，右下角小计数徽章提示「还有更多」。
+    if (entry.assets.length > 1) {
+      children.add(Positioned(
+        right: 0,
+        bottom: -2,
+        child: Material(
+          elevation: 4,
+          shadowColor: Colors.black26,
+          borderRadius: BorderRadius.circular(t.radiusChip),
+          color: context.cs.surface,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            child: Text('${entry.assets.length}',
+                style: context.caption.copyWith(
+                    fontWeight: FontWeight.w700, color: t.textPrimary)),
+          ),
+        ),
+      ));
+    }
 
     return GestureDetector(
       onTap: onOpen,
-      child: LayoutBuilder(
-        builder: (_, c) {
-          final w = c.maxWidth;
-          final offX = [w * 0.08, -w * 0.06];
-          final offY = [w * 0.06, -w * 0.05];
-          final borderW = max(1.5, w * 0.012);
-
-          Widget buildBack(AssetRef a, int i) => Positioned.fill(
-                child: Transform.translate(
-                  offset: Offset(offX[i], offY[i]),
-                  child: Transform.rotate(
-                    angle: angles[i] * pi / 180,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(t.radiusCard),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            width: borderW),
-                        boxShadow: const [
-                          BoxShadow(
-                              color: Colors.black26,
-                              blurRadius: 6,
-                              offset: Offset(0, 2)),
-                        ],
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(t.radiusCard),
-                        child: _tileThumb(context, a, dim: 0.3),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // 副卡（先画在底层）。
-              for (int i = 0; i < backs.length; i++) buildBack(backs[i], i),
-              // 封面（最上层），承载日期 / 角标与 hero 过渡。
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(t.radiusCard),
-                    border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        width: borderW),
-                    boxShadow: const [
-                      BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 8,
-                          offset: Offset(0, 3)),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Hero(
-                    tag: 'media-${entry.id}',
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        _tileThumb(context, cover),
-                        // 顶部渐隐遮罩，保证日期 / 角标在浅色图上也清晰可读。
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.center,
-                                colors: [
-                                  Colors.black.withValues(alpha: 0.55),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          left: 7,
-                          top: 7,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.45),
-                              borderRadius: BorderRadius.circular(t.radiusChip),
-                            ),
-                            child: Text(
-                              _formatDate(_entryDate(entry)),
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ),
-                        if (entry.assets.length > 1)
-                          Positioned(
-                            right: 7,
-                            top: 7,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.45),
-                                borderRadius:
-                                    BorderRadius.circular(t.radiusChip),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.collections_outlined,
-                                      size: 12, color: Colors.white),
-                                  const SizedBox(width: 2),
-                                  Text('${entry.assets.length}',
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700)),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: deckW,
+        height: deckH + 8,
+        child: Stack(clipBehavior: Clip.none, children: children),
       ),
     );
   }
-}
-
-/// 单张卡片缩略图：图片直接铺满，非图片用占位；dim 不为空则叠一层暗化遮罩增强层次。
-Widget _tileThumb(BuildContext context, AssetRef a, {double? dim}) {
-  final t = context.tokens;
-  final file = context.read<AppStore>().resolveAsset(a.path);
-  final isImage = a.kind == AssetKind.image;
-  final child = isImage
-      ? Image.file(file,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
-                color: t.fill,
-                child: Icon(Icons.broken_image_outlined, color: t.textTertiary),
-              ))
-      : _kindPlaceholder(context, a.kind, a.name);
-  if (dim != null) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        child,
-        Container(color: Colors.black.withValues(alpha: dim)),
-      ],
-    );
-  }
-  return child;
 }
 
 /// 弹出预览：上部图片查看器（该日记全部媒体），下部透明毛玻璃条（类似首页卡片）。
