@@ -42,8 +42,8 @@ class MediaScreen extends StatelessWidget {
           : SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 22, 16, 36),
               child: Wrap(
-                spacing: 8,
-                runSpacing: 20,
+                spacing: 20,
+                runSpacing: 32,
                 children: [
                   for (final e in entries)
                     _EntryFan(
@@ -60,7 +60,7 @@ class MediaScreen extends StatelessWidget {
 /// 一篇日记的媒体单元：多篇媒体时展开扑克扇（封面 + 两张纯色牌背做堆叠暗示），
 /// 单媒体时只显示普通卡片；左上浮动该日记自己的日期。点击展开预览。
 class _EntryFan extends StatelessWidget {
-  static const double _cardW = 90;
+  static const double _cardW = 118;
   static const double _cardH = 150;
 
   final JournalEntry entry;
