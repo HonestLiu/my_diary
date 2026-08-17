@@ -520,7 +520,7 @@ class _TagCloudCard extends StatelessWidget {
                   ),
                   child: Text('#${e.key}',
                       style: TextStyle(
-                        fontSize: 12 + ratio * 6,
+                        fontSize: 11 + ratio * 4,
                         fontWeight: FontWeight.w600,
                         color: primary.withValues(alpha: 0.55 + ratio * 0.45),
                       )),
