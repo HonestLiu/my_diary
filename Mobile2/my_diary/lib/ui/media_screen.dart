@@ -1,80 +1,454 @@
+import 'dart:math' show pi;
+
 import 'package:flutter/material.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
+import 'package:my_diary_mobile/ui/detail_screen.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
 
-/// 媒体画廊：聚合所有日记里的图片附件，网格浏览 + 大图查看。
+/// 媒体画廊：每篇含媒体的日记是一个「扑克扇」单元（封面 + 两张牌背做堆叠暗示），
+/// 扇内浮动该日记自己的日期（entry.date）；点扇展开该日记全部图片预览，
+/// 预览窗下方一条白色信息条（类似首页卡片），点条跳转对应日记。
 class MediaScreen extends StatelessWidget {
   const MediaScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final items = <MediaItem>[];
-    for (final e in store.entries) {
-      for (final a in e.assets.where((x) => x.kind == AssetKind.image)) {
-        items.add(MediaItem(asset: a, title: e.displayTitle));
-      }
-    }
+
+    // 含媒体的日记，按日记所属日期（entry.date）降序排列。
+    final entries = store.entries
+        .where((e) => e.assets.isNotEmpty)
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+
+    final total = entries.fold(0, (s, e) => s + e.assets.length);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('媒体'),
         actions: [
-          if (items.isNotEmpty)
+          if (total > 0)
             Padding(
               padding: const EdgeInsets.only(right: 16),
-              child: Center(
-                child: Text('${items.length}',
-                    style: context.caption),
-              ),
+              child: Center(child: Text('$total', style: context.caption)),
             ),
         ],
       ),
-      body: items.isEmpty
+      body: entries.isEmpty
           ? _EmptyMedia()
-          : GridView.builder(
-              padding: const EdgeInsets.all(10),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                mainAxisSpacing: 6,
-                crossAxisSpacing: 6,
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 22, 16, 36),
+              itemCount: entries.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 28),
+              itemBuilder: (c, i) => _EntryFan(
+                entry: entries[i],
+                onOpen: () => _openPreview(c, entries[i]),
               ),
-              itemCount: items.length,
-              itemBuilder: (_, i) {
-                final file =
-                    context.read<AppStore>().resolveAsset(items[i].asset.path);
-                return InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          _MediaViewer(items: items, index: i),
-                    ),
-                  ),
-                  child: Hero(
-                    tag: items[i].asset.path,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.file(file,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.broken_image_outlined)),
-                    ),
-                  ),
-                );
-              },
             ),
     );
   }
 }
 
-class MediaItem {
-  final AssetRef asset;
-  final String title;
-  const MediaItem({required this.asset, required this.title});
+/// 一篇日记的扑克扇：封面（首个媒体）+ 两张纯色牌背做堆叠暗示，
+/// 左上浮动该日记自己的日期。点击展开预览。
+class _EntryFan extends StatelessWidget {
+  static const double _cardW = 118;
+  static const double _cardH = 150;
+
+  final JournalEntry entry;
+  final VoidCallback onOpen;
+  const _EntryFan({required this.entry, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final deckW = _cardW + 22;
+    final deckH = _cardH + 16;
+    final cover = entry.assets.first;
+    final file = context.read<AppStore>().resolveAsset(cover.path);
+    final isImage = cover.kind == AssetKind.image;
+
+    final coverInner = isImage
+        ? Image.file(file,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+                  color: t.fill,
+                  child: const Icon(Icons.broken_image_outlined),
+                ))
+        : _kindPlaceholder(context, cover.kind, cover.name);
+
+    // 牌背：纯色圆角矩形，仅做堆叠暗示，不显示图片。
+    Widget echo(double dx, double dy, double deg) => Transform.translate(
+          offset: Offset(dx, dy),
+          child: Transform.rotate(
+            angle: deg * pi / 180,
+            child: Container(
+              width: _cardW,
+              height: _cardH,
+              decoration: BoxDecoration(
+                color: t.surfaceVariant,
+                borderRadius: BorderRadius.circular(t.radiusCard),
+                border: Border.all(color: t.border, width: 1),
+                boxShadow: const [
+                  BoxShadow(
+                      color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    final deck = SizedBox(
+      width: deckW,
+      height: deckH,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          echo(16, -14, 7),
+          echo(8, -7, 3.5),
+          Positioned(
+            left: 0,
+            bottom: 0,
+            child: Hero(
+              tag: 'media-${entry.id}',
+              child: Material(
+                elevation: 8,
+                shadowColor: Colors.black38,
+                borderRadius: BorderRadius.circular(t.radiusCard),
+                clipBehavior: Clip.antiAlias,
+                child: Container(
+                  width: _cardW,
+                  height: _cardH,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(t.radiusCard),
+                    border: Border.all(color: t.border, width: 0.5),
+                  ),
+                  child: coverInner,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // 日期胶囊：浮在扇内左上，压在卡片上缘。
+    final datePill = Positioned(
+      left: 6,
+      top: -4,
+      child: Material(
+        elevation: 6,
+        shadowColor: Colors.black26,
+        borderRadius: BorderRadius.circular(t.radiusChip),
+        color: context.cs.surface,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+          child: Text(
+            _formatDate(_entryDate(entry)),
+            style: context.caption.copyWith(
+                fontWeight: FontWeight.w700, color: t.textPrimary),
+          ),
+        ),
+      ),
+    );
+
+    final children = <Widget>[deck, datePill];
+    // 多于 1 个媒体时，右下角小计数徽章提示「还有更多」。
+    if (entry.assets.length > 1) {
+      children.add(Positioned(
+        right: 0,
+        bottom: -2,
+        child: Material(
+          elevation: 4,
+          shadowColor: Colors.black26,
+          borderRadius: BorderRadius.circular(t.radiusChip),
+          color: context.cs.surface,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            child: Text('${entry.assets.length}',
+                style: context.caption.copyWith(
+                    fontWeight: FontWeight.w700, color: t.textPrimary)),
+          ),
+        ),
+      ));
+    }
+
+    return GestureDetector(
+      onTap: onOpen,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: deckW,
+        height: deckH + 8,
+        child: Stack(clipBehavior: Clip.none, children: children),
+      ),
+    );
+  }
+}
+
+/// 弹出预览：上部图片查看器（该日记全部媒体），下部透明毛玻璃条（类似首页卡片）。
+void _openPreview(BuildContext context, JournalEntry entry) {
+  final root = Navigator.of(context, rootNavigator: true);
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black54,
+    builder: (_) => _PreviewSheet(
+      entry: entry,
+      onOpenDiary: () {
+        root.pop();
+        root.push(
+          MaterialPageRoute(builder: (_) => DetailScreen(entry: entry)),
+        );
+      },
+    ),
+  );
+}
+
+class _PreviewSheet extends StatelessWidget {
+  final JournalEntry entry;
+  final VoidCallback onOpenDiary;
+  const _PreviewSheet({required this.entry, required this.onOpenDiary});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final media = entry.assets;
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.9,
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(t.radiusSheet)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          _PreviewHeader(entry: entry),
+          Expanded(
+            child: media.isEmpty
+                ? const Center(
+                    child: Text('该日记暂无媒体',
+                        style: TextStyle(color: Colors.white70)))
+                : PageView.builder(
+                    itemCount: media.length,
+                    itemBuilder: (_, i) {
+                      final a = media[i];
+                      final file =
+                          context.read<AppStore>().resolveAsset(a.path);
+                      if (a.kind == AssetKind.image) {
+                        final img = Image.file(
+                          file,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Icon(
+                              Icons.broken_image_outlined,
+                              color: Colors.white),
+                        );
+                        return InteractiveViewer(
+                          child: Center(
+                            child: i == 0
+                                ? Hero(tag: 'media-${entry.id}', child: img)
+                                : img,
+                          ),
+                        );
+                      }
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _kindPlaceholder(context, a.kind, a.name),
+                            const SizedBox(height: 18),
+                            FilledButton.icon(
+                              onPressed: () => OpenFilex.open(file.path),
+                              icon: const Icon(Icons.open_in_new_outlined),
+                              label: const Text('用其他应用打开'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          _PreviewBar(entry: entry, onOpenDiary: onOpenDiary),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewHeader extends StatelessWidget {
+  final JournalEntry entry;
+  const _PreviewHeader({required this.entry});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
+      decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Colors.white12))),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(entry.displayTitle,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 预览窗下方白色信息条：内容类似首页日记卡片（标题 + 预览 + 心情/天气/定位/标签），
+/// 点击跳转对应日记。
+class _PreviewBar extends StatelessWidget {
+  final JournalEntry entry;
+  final VoidCallback onOpenDiary;
+  const _PreviewBar({required this.entry, required this.onOpenDiary});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final preview = entry.body.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final loc = entry.location ?? '';
+    return Material(
+      color: Colors.white,
+      child: InkWell(
+        onTap: onOpenDiary,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 10, 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: t.border)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(entry.displayTitle,
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: t.textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    Text(
+                      preview.isEmpty ? '（暂无内容）' : preview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.caption,
+                    ),
+                    _metaRow(context, entry, loc),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right, color: t.textTertiary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 复刻首页卡片底部：心情 / 天气 / 定位 / 标签 同一行（空间不足自动换行）。
+Widget _metaRow(BuildContext context, JournalEntry entry, String loc) {
+  final t = context.tokens;
+  final chips = <Widget>[
+    _metaItem(context, '${entry.mood.emoji} ${entry.mood.label}'),
+    _metaItem(context, '${entry.weather.emoji} ${entry.weather.label}'),
+    if (loc.isNotEmpty) _metaItem(context, loc, icon: Icons.place_outlined),
+    ...entry.tags.map((tag) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+          decoration: BoxDecoration(
+            color: t.fill,
+            borderRadius: BorderRadius.circular(t.radiusChip),
+          ),
+          child: Text('#$tag',
+              style: TextStyle(fontSize: 12, color: t.textSecondary)),
+        )),
+  ];
+  if (chips.isEmpty) return const SizedBox.shrink();
+  return Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Wrap(
+      spacing: 14,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: chips,
+    ),
+  );
+}
+
+Widget _metaItem(BuildContext context, String text, {IconData? icon}) {
+  final tertiary = context.tokens.textTertiary;
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      if (icon != null) ...[
+        Icon(icon, size: 13, color: tertiary),
+        const SizedBox(width: 3),
+      ],
+      Text(text, style: TextStyle(fontSize: 12, color: tertiary)),
+    ],
+  );
+}
+
+Widget _kindPlaceholder(
+    BuildContext context, AssetKind kind, String? name) {
+  final t = context.tokens;
+  final icon = kind == AssetKind.video
+      ? Icons.play_circle_outline
+      : kind == AssetKind.audio
+          ? Icons.audiotrack
+          : Icons.insert_drive_file;
+  final tint = kind == AssetKind.video
+      ? Colors.blueGrey
+      : kind == AssetKind.audio
+          ? Colors.deepPurple
+          : Colors.teal;
+  return Container(
+    width: double.infinity,
+    height: double.infinity,
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [t.surfaceVariant, t.fill],
+      ),
+    ),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 34, color: tint),
+        if (name != null && name.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+            child: Text(name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: context.caption),
+          ),
+      ],
+    ),
+  );
 }
 
 class _EmptyMedia extends StatelessWidget {
@@ -99,10 +473,10 @@ class _EmptyMedia extends StatelessWidget {
                   size: 36, color: t.textTertiary),
             ),
             const SizedBox(height: 18),
-            Text('还没有图片', style: context.titleMedium),
+            Text('还没有媒体', style: context.titleMedium),
             const SizedBox(height: 6),
-            Text('在日记里添加照片，会在这里汇总。',
-                style: context.caption),
+            Text('在日记里添加照片、视频或音频，会按日记在这里汇总。',
+                style: context.caption, textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -110,62 +484,15 @@ class _EmptyMedia extends StatelessWidget {
   }
 }
 
-class _MediaViewer extends StatefulWidget {
-  final List<MediaItem> items;
-  final int index;
-  const _MediaViewer({required this.items, required this.index});
-
-  @override
-  State<_MediaViewer> createState() => _MediaViewerState();
+DateTime _entryDate(JournalEntry e) {
+  // 以日记所属日期为准（用户可手动修改），仅当 date 非法时回退到创建时间。
+  final d = DateTime.tryParse(e.date);
+  if (d != null) return d;
+  final p = DateTime.tryParse(e.createdAt);
+  return p ?? DateTime.now();
 }
 
-class _MediaViewerState extends State<_MediaViewer> {
-  late final PageController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = PageController(initialPage: widget.index);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text(widget.items[widget.index].title,
-            style: const TextStyle(color: Colors.white)),
-      ),
-      body: PageView.builder(
-        controller: _controller,
-        itemCount: widget.items.length,
-        itemBuilder: (_, i) {
-          final file = context
-              .read<AppStore>()
-              .resolveAsset(widget.items[i].asset.path);
-          return InteractiveViewer(
-            child: Center(
-              child: Hero(
-                tag: widget.items[i].asset.path,
-                child: Image.file(file,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.broken_image_outlined,
-                            color: Colors.white)),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
+String _formatDate(DateTime d) {
+  const wk = ['日', '一', '二', '三', '四', '五', '六'];
+  return '${d.year}年${d.month}月${d.day}日 周${wk[d.weekday % 7]}';
 }
