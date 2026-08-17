@@ -30,7 +30,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
   // 每个范围对应的图标，供 FilterChip 展示。
   static const Map<SearchScope, IconData> _icons = {
-    SearchScope.content: Icons.article_outlined,
+    SearchScope.title: Icons.title,
+    SearchScope.body: Icons.article_outlined,
     SearchScope.tags: Icons.sell_outlined,
     SearchScope.location: Icons.place_outlined,
   };

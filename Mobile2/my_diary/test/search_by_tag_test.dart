@@ -1,7 +1,5 @@
-// Regression: search with SearchScope filters only matches the selected fields;
-// tags-only must NOT pick up body/title matches, and location-only must NOT
-// pick up body/tag matches.
-// Pins the search-filter contract for the new FilterChip UI.
+// Regression: search with SearchScope filters only matches the selected fields.
+// Pins the 4-scope contract: title / body / tags / location — each separate.
 
 import 'dart:io';
 
@@ -35,11 +33,11 @@ void main() {
     repo = JournalRepository(LocalVault(dir.path));
     await repo.init(dir.path);
 
-    await repo.saveEntry(e('a', '日记A', '今天天气很好，日常的快乐',
+    await repo.saveEntry(e('a', '关于日常的记录', '今天天气很好',
         tags: ['生活', '日常'], location: '上海'));
     await repo.saveEntry(e('b', '日记B', '吃了个苹果'));
-    // C 的正文含「日常」但没打标签，地点是北京。
-    await repo.saveEntry(e('c', '日记C', '无事发生，平凡的日常', location: '北京'));
+    await repo.saveEntry(
+        e('c', '日记C', '无事发生，平凡的日常', location: '北京'));
   });
 
   tearDown(() async {
@@ -48,10 +46,23 @@ void main() {
 
   test('no filters: searches all fields (backward-compatible)', () async {
     final res = await repo.search('日常');
-    expect(res.length, 2); // A + C (body matches)
+    expect(res.length, 2); // A (title) + C (body)
   });
 
-  test('tags-only: matches only tagged entries, not body', () async {
+  test('title-only: matches title only, not body', () async {
+    // A's title contains「日常」, C's body contains「日常」but title does not.
+    final res = await repo.search('日常', filters: {SearchScope.title});
+    expect(res.length, 1);
+    expect(res.first.id, 'a');
+  });
+
+  test('body-only: matches body only, not title', () async {
+    final res = await repo.search('苹果', filters: {SearchScope.body});
+    expect(res.length, 1);
+    expect(res.first.id, 'b');
+  });
+
+  test('tags-only: matches only tagged entries', () async {
     final res = await repo.search('日常', filters: {SearchScope.tags});
     expect(res.length, 1);
     expect(res.first.id, 'a');
@@ -63,19 +74,10 @@ void main() {
     expect(res.first.id, 'a');
   });
 
-  test('content-only: matches title + body only, not tags/location', () async {
-    // A's body contains 「日常」, title does not; but '苹果' is only in B's body.
-    final res = await repo.search('苹果', filters: {SearchScope.content});
-    expect(res.length, 1);
-    expect(res.first.id, 'b');
-  });
-
-  test('multi-select: tags + location union', () async {
-    // '日常' matches: A (tag) + C (body — excluded by filter). C has location 北京.
-    // But '日常' is NOT a location. Only A's tag matches.
+  test('multi-select: title + body union', () async {
     final res = await repo.search('日常',
-        filters: {SearchScope.tags, SearchScope.location});
-    expect(res.length, 1); // only A (tag match)
+        filters: {SearchScope.title, SearchScope.body});
+    expect(res.length, 2); // A (title) + C (body)
   });
 
   test('case-insensitive', () async {

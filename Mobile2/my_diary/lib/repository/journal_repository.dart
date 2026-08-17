@@ -11,13 +11,15 @@ import 'package:uuid/uuid.dart';
 /// 搜索范围：内容（标题+正文）/ 标签 / 地点。
 /// 用于搜索页的类别筛选器（FilterChip），同时驱动搜索逻辑。
 enum SearchScope {
-  content,
+  title,
+  body,
   tags,
   location;
 
   /// 中文标签（UI FilterChip 展示用）。
   String get label => switch (this) {
-        SearchScope.content => '内容',
+        SearchScope.title => '标题',
+        SearchScope.body => '正文',
         SearchScope.tags => '标签',
         SearchScope.location => '地点',
       };
@@ -217,16 +219,17 @@ class JournalRepository {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return all;
     return all.where((e) {
-      final matchContent =
-          e.title.toLowerCase().contains(q) || e.body.toLowerCase().contains(q);
+      final matchTitle = e.title.toLowerCase().contains(q);
+      final matchBody = e.body.toLowerCase().contains(q);
       final matchTags = e.tags.any((t) => t.toLowerCase().contains(q));
       final matchLocation =
           (e.location ?? '').toLowerCase().contains(q);
 
       if (filters.isEmpty) {
-        return matchContent || matchTags || matchLocation;
+        return matchTitle || matchBody || matchTags || matchLocation;
       }
-      return (filters.contains(SearchScope.content) && matchContent) ||
+      return (filters.contains(SearchScope.title) && matchTitle) ||
+          (filters.contains(SearchScope.body) && matchBody) ||
           (filters.contains(SearchScope.tags) && matchTags) ||
           (filters.contains(SearchScope.location) && matchLocation);
     }).toList();
