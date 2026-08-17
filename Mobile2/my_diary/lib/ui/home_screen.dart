@@ -239,7 +239,7 @@ List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
       header,
       const SizedBox(height: 12),
       SizedBox(
-        height: 200,
+        height: 150,
         child: ListView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -276,7 +276,7 @@ class _MemoryEmptyCard extends StatelessWidget {
     final t = context.tokens;
     final accent = Theme.of(context).colorScheme.primary;
     return Container(
-      width: 168,
+      width: 158,
       height: 116,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
@@ -405,9 +405,9 @@ class _MemoryCard extends StatelessWidget {
             child: _memoBadge(context, item.badge, dark: true),
           ),
           Positioned(
-            left: 12,
-            right: 12,
-            bottom: 12,
+            left: 10,
+            right: 10,
+            bottom: 10,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -421,7 +421,7 @@ class _MemoryCard extends StatelessWidget {
                 Text(e.displayTitle,
                     style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
@@ -455,16 +455,16 @@ class _MemoryCard extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              right: -8,
-              top: -18,
+              right: -6,
+              top: -14,
               child: Text('忆',
                   style: TextStyle(
-                      fontSize: 130,
+                      fontSize: 92,
                       fontWeight: FontWeight.w700,
                       color: accent.withValues(alpha: 0.16))),
             ),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -479,7 +479,7 @@ class _MemoryCard extends StatelessWidget {
                   Text(e.displayTitle,
                       style: TextStyle(
                           color: t.textPrimary,
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.w700),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),
@@ -505,8 +505,8 @@ class _MemoryCard extends StatelessWidget {
         MaterialPageRoute(builder: (_) => DetailScreen(entry: e)),
       ),
       child: SizedBox(
-        width: 196,
-        height: 200,
+        width: 158,
+        height: 150,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
           clipBehavior: Clip.antiAlias,
