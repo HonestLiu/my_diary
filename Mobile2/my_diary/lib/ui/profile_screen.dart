@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/models/sync_types.dart';
 import 'package:my_diary_mobile/sync/auth_service.dart';
+import 'package:my_diary_mobile/repository/journal_repository.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/search_screen.dart';
@@ -508,7 +509,9 @@ class _TagCloudCard extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) => SearchScreen(
-                        initialQuery: e.key, tagOnly: true),
+                      initialQuery: e.key,
+                      initialFilters: {SearchScope.tags},
+                    ),
                   ),
                 ),
                 borderRadius: BorderRadius.circular(t.radiusChip),

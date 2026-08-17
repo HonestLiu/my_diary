@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/models/settings.dart';
-import 'package:my_diary_mobile/models/sync_types.dart';
 import 'package:my_diary_mobile/repository/journal_repository.dart';
+import 'package:my_diary_mobile/models/sync_types.dart';
 import 'package:my_diary_mobile/repository/version.dart';
 import 'package:my_diary_mobile/sync/auth_service.dart';
 import 'package:my_diary_mobile/sync/sync_engine.dart';
@@ -91,11 +91,9 @@ class AppStore extends ChangeNotifier {
     await refreshEntries();
   }
 
-  Future<List<JournalEntry>> search(String q) => repo.search(q);
-
-  /// 仅按标签搜索（标签云点选入口）。
-  Future<List<JournalEntry>> searchByTag(String tag) =>
-      repo.searchByTag(tag);
+  Future<List<JournalEntry>> search(String q,
+          {Set<SearchScope> filters = const {}}) =>
+      repo.search(q, filters: filters);
 
   Future<void> saveSettings(AppSettings s) async {
     _settings = s;

@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
+import 'package:my_diary_mobile/repository/journal_repository.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/entry_card.dart';
 import 'package:provider/provider.dart';
 
 class SearchScreen extends StatefulWidget {
-  /// 进入时预填的搜索词（如「我的」页标签云点选某标签），空则不预填。
+  /// 进入时预填的搜索词，空则不预填。
   final String initialQuery;
 
-  /// 标签搜索模式：仅按标签匹配（不含标题 / 正文 / 地点）。
-  /// 标签云点选默认开启，保证只返回真的打了该标签的日记。
-  final bool tagOnly;
+  /// 进入时预选的搜索范围（如标签云传入 {SearchScope.tags}），
+  /// 空集合 = 搜全部字段（首页正常搜索入口）。
+  final Set<SearchScope> initialFilters;
   const SearchScreen({
     super.key,
     this.initialQuery = '',
-    this.tagOnly = false,
+    this.initialFilters = const {},
   });
 
   @override
@@ -25,10 +26,19 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   late final TextEditingController _ctl;
   List<JournalEntry> _results = [];
+  late final Set<SearchScope> _filters;
+
+  // 每个范围对应的图标，供 FilterChip 展示。
+  static const Map<SearchScope, IconData> _icons = {
+    SearchScope.content: Icons.article_outlined,
+    SearchScope.tags: Icons.sell_outlined,
+    SearchScope.location: Icons.place_outlined,
+  };
 
   @override
   void initState() {
     super.initState();
+    _filters = Set<SearchScope>.from(widget.initialFilters);
     _ctl = TextEditingController(text: widget.initialQuery);
     _ctl.addListener(_onChanged);
     if (widget.initialQuery.trim().isNotEmpty) {
@@ -50,7 +60,7 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
     final store = context.read<AppStore>();
-    final res = widget.tagOnly ? await store.searchByTag(q) : await store.search(q);
+    final res = await store.search(q, filters: _filters);
     if (mounted) setState(() => _results = res);
   }
 
@@ -63,32 +73,67 @@ class _SearchScreenState extends State<SearchScreen> {
           controller: _ctl,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: widget.tagOnly ? '搜索标签…' : '搜索标题、正文、标签、地点…',
+            hintText: _filters.isEmpty
+                ? '搜索标题、正文、标签、地点…'
+                : '搜索${_filters.map((f) => f.label).join('、')}…',
             border: InputBorder.none,
             hintStyle: TextStyle(color: t.textTertiary),
-            prefixIcon: widget.tagOnly
-                ? Icon(Icons.sell_outlined,
-                    size: 18, color: t.textTertiary)
-                : null,
           ),
           style: TextStyle(color: t.textPrimary, fontSize: 16),
         ),
       ),
-      body: _ctl.text.trim().isEmpty
-          ? Center(
-              child: Text('输入关键词开始搜索',
-                  style: context.caption),
-            )
-          : _results.isEmpty
-              ? Center(
-                  child: Text('没有匹配的日记', style: context.caption),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _results.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (_, i) => EntryCard(entry: _results[i]),
-                ),
+      body: Column(
+        children: [
+          // 搜索范围筛选器：点击切换搜索哪些字段。
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+            child: Row(
+              children: SearchScope.values.map((s) {
+                final selected = _filters.contains(s);
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(s.label),
+                    avatar: Icon(_icons[s], size: 15),
+                    selected: selected,
+                    onSelected: (sel) {
+                      setState(() {
+                        if (sel) {
+                          _filters.add(s);
+                        } else {
+                          _filters.remove(s);
+                        }
+                      });
+                      _onChanged();
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _ctl.text.trim().isEmpty
+                ? Center(
+                    child: Text('输入关键词开始搜索',
+                        style: context.caption),
+                  )
+                : _results.isEmpty
+                    ? Center(
+                        child: Text('没有匹配的日记',
+                            style: context.caption),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _results.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (_, i) =>
+                            EntryCard(entry: _results[i]),
+                      ),
+          ),
+        ],
+      ),
     );
   }
 }

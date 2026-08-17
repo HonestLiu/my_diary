@@ -8,6 +8,21 @@ import 'package:my_diary_mobile/vault/markdown_codec.dart';
 import 'package:my_diary_mobile/vault/vault_layout.dart';
 import 'package:uuid/uuid.dart';
 
+/// 搜索范围：内容（标题+正文）/ 标签 / 地点。
+/// 用于搜索页的类别筛选器（FilterChip），同时驱动搜索逻辑。
+enum SearchScope {
+  content,
+  tags,
+  location;
+
+  /// 中文标签（UI FilterChip 展示用）。
+  String get label => switch (this) {
+        SearchScope.content => '内容',
+        SearchScope.tags => '标签',
+        SearchScope.location => '地点',
+      };
+}
+
 /// JournalRepository —— UI 调用的高层 API（镜像桌面端 `journal.ts`）。
 ///
 /// 职责：
@@ -192,29 +207,29 @@ class JournalRepository {
     }
   }
 
-  /// 全文搜索：标题 / 正文 / 标签 / 地点。
-  Future<List<JournalEntry>> search(String query) async {
+  /// 搜索日记。[filters] 为空时搜全部字段（向后兼容）；指定后仅匹配对应类别。
+  /// 可多选（取并集），如 {SearchScope.tags, SearchScope.location} 同时搜标签和地点。
+  Future<List<JournalEntry>> search(
+    String query, {
+    Set<SearchScope> filters = const {},
+  }) async {
     final all = await listEntries();
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return all;
     return all.where((e) {
-      if (e.title.toLowerCase().contains(q)) return true;
-      if (e.body.toLowerCase().contains(q)) return true;
-      if (e.tags.any((t) => t.toLowerCase().contains(q))) return true;
-      if ((e.location ?? '').toLowerCase().contains(q)) return true;
-      return false;
-    }).toList();
-  }
+      final matchContent =
+          e.title.toLowerCase().contains(q) || e.body.toLowerCase().contains(q);
+      final matchTags = e.tags.any((t) => t.toLowerCase().contains(q));
+      final matchLocation =
+          (e.location ?? '').toLowerCase().contains(q);
 
-  /// 仅按标签精确匹配（不含标题 / 正文 / 地点），用于标签云点选：只返回
-  /// 真的打了该标签的日记，避免通用搜索把正文里偶现该词的作品也捞进来。
-  Future<List<JournalEntry>> searchByTag(String tag) async {
-    final all = await listEntries();
-    final q = tag.trim().toLowerCase();
-    if (q.isEmpty) return all;
-    return all
-        .where((e) => e.tags.any((t) => t.toLowerCase().contains(q)))
-        .toList();
+      if (filters.isEmpty) {
+        return matchContent || matchTags || matchLocation;
+      }
+      return (filters.contains(SearchScope.content) && matchContent) ||
+          (filters.contains(SearchScope.tags) && matchTags) ||
+          (filters.contains(SearchScope.location) && matchLocation);
+    }).toList();
   }
 
   /// 简单统计。
