@@ -5,12 +5,14 @@ import 'dart:io';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:my_diary_mobile/config/map_config.dart';
 import 'package:my_diary_mobile/model/tian_map_decode.dart';
 
 /// 天地图（Tianditu，国家地理信息公共服务平台）地图服务封装。
 ///
 /// 瓦片为 CGCS2000 坐标系（与 WGS-84 偏差 < 1m），与 [Geolocator] 返回的
-/// WGS-84 坐标可直接共用，无需做任何坐标偏移。Key 由用户在设置页自备，不硬编码。
+/// WGS-84 坐标可直接共用，无需做任何坐标偏移。Key 在 [MapConfig] 源码内配置，
+/// 不在设置页。
 const List<String> _tdtSubdomains = [
   '0',
   '1',
@@ -39,8 +41,10 @@ String tdtCiaUrl(String key) =>
     '&LAYER=cia&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles'
     '&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=$key';
 
-/// 构建天地图瓦片层（影像 + 中文注记）。key 为空时返回空列表，由调用方提示配置。
-List<TileLayer> tdtTileLayers(String key) {
+/// 构建天地图瓦片层（影像 + 中文注记）。[key] 缺省时取 [MapConfig.mapApiKey]；
+/// key 仍为空时返回空列表，由调用方提示配置。
+List<TileLayer> tdtTileLayers([String? key]) {
+  key ??= MapConfig.mapApiKey;
   if (key.isEmpty) return const [];
   return [
     TileLayer(
@@ -62,8 +66,9 @@ List<TileLayer> tdtTileLayers(String key) {
 }
 
 /// 逆地理编码：经纬度 → 人类可读地址（天地图 geocoder）。
-/// 成功返回地址字符串，未配置 key / 失败返回 null。
-Future<String?> reverseGeocode(double lat, double lon, String key) async {
+/// 成功返回地址字符串，未配置 key / 失败返回 null。[key] 缺省时取 [MapConfig.mapApiKey]。
+Future<String?> reverseGeocode(double lat, double lon, [String? key]) async {
+  key ??= MapConfig.mapApiKey;
   if (key.isEmpty) return null;
   try {
     final postStr = jsonEncode({'lon': lon, 'lat': lat, 'ver': 1});
