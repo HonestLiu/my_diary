@@ -110,76 +110,88 @@ class _CalendarScreenState extends State<CalendarScreen> {
       ),
       body: Column(
         children: [
+          // 月份日历：星期行 + 网格，统一放进一张精致卡片。
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: weekLabels
-                  .map((w) => Expanded(
-                        child: Center(
-                          child: Text(w,
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: t.textTertiary,
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                      ))
-                  .toList(),
-            ),
-          ),
-          const Divider(height: 1),
-          // 日历网格：自然高度，下方列表占据剩余空间。
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 280),
-            transitionBuilder: (child, animation) {
-              final slide = Tween<Offset>(
-                begin: Offset(_dir > 0 ? 0.06 : -0.06, 0),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                  parent: animation, curve: Curves.easeOutCubic));
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(position: slide, child: child),
-              );
-            },
-            child: GridView.count(
-              key: ValueKey('$year-$month'),
-              crossAxisCount: 7,
-              padding: const EdgeInsets.all(10),
-              mainAxisSpacing: 6,
-              crossAxisSpacing: 6,
-              childAspectRatio: 1,
-              shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: _Card(
               children: [
-                for (var i = 0; i < startOffset; i++)
-                  const SizedBox.shrink(),
-                for (var d = 1; d <= daysInMonth; d++) ...[
-                  _DayCell(
-                    day: d,
-                    count: groups[
-                            '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}']
-                        ?.length ??
-                        0,
-                    isToday: isThisMonth && d == today.day,
-                    isSelected: _selected.year == year &&
-                        _selected.month == month &&
-                        _selected.day == d,
-                    onTap: () => _pickDay(d),
+                Row(
+                  children: weekLabels
+                      .map((w) => Expanded(
+                            child: Center(
+                              child: Text(w,
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: t.textTertiary,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: 8),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 280),
+                  transitionBuilder: (child, animation) {
+                    final slide = Tween<Offset>(
+                      begin: Offset(_dir > 0 ? 0.06 : -0.06, 0),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                        parent: animation, curve: Curves.easeOutCubic));
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(position: slide, child: child),
+                    );
+                  },
+                  child: GridView.count(
+                    key: ValueKey('$year-$month'),
+                    crossAxisCount: 7,
+                    padding: EdgeInsets.zero,
+                    mainAxisSpacing: 6,
+                    crossAxisSpacing: 6,
+                    childAspectRatio: 1,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      for (var i = 0; i < startOffset; i++)
+                        const SizedBox.shrink(),
+                      for (var d = 1; d <= daysInMonth; d++) ...[
+                        _DayCell(
+                          day: d,
+                          count: groups[
+                                  '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}']
+                              ?.length ??
+                              0,
+                          isToday: isThisMonth && d == today.day,
+                          isSelected: _selected.year == year &&
+                              _selected.month == month &&
+                              _selected.day == d,
+                          onTap: () => _pickDay(d),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
+                ),
               ],
             ),
           ),
-          const Divider(height: 1),
           // 选中日期的日记列表（与首页同款卡片）。
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding:
-                      const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
                   child: Row(
                     children: [
+                      Container(
+                        width: 3,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Text(_dayLabel(selectedKey),
                           style: context.titleMedium),
                       const Spacer(),
@@ -188,7 +200,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ],
                   ),
                 ),
-                const Divider(height: 1),
                 Expanded(
                   child: items.isEmpty
                       ? Center(
@@ -208,7 +219,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         )
                       : ListView.separated(
                           padding:
-                              const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                              const EdgeInsets.fromLTRB(16, 8, 16, 24),
                           itemCount: items.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 12),
@@ -275,8 +286,8 @@ class _DayCell extends StatelessWidget {
                 )
               : selected
                   ? BoxDecoration(
+                      color: cs.primary.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
-                      border: Border.all(color: cs.primary, width: 2),
                     )
                   : null,
           child: Text(
@@ -311,4 +322,27 @@ class _DayCell extends StatelessWidget {
       child: Opacity(opacity: prominent ? 1 : 0.45, child: child),
     );
   }
+}
+
+/// 精致卡片：柔和投影、无边框、统一圆角与内距。
+class _Card extends StatelessWidget {
+  final List<Widget> children;
+  const _Card({required this.children});
+
+  @override
+  Widget build(BuildContext context) => Card(
+        elevation: 2,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+        shape: RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(context.tokens.radiusCard)),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: children,
+          ),
+        ),
+      );
 }
