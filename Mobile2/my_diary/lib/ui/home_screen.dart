@@ -1,6 +1,8 @@
 import 'dart:math' show Random;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:my_diary_mobile/editor/doc_view.dart';
+import 'package:my_diary_mobile/editor/markdown_doc.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
@@ -374,7 +376,18 @@ class _MemoryCard extends StatelessWidget {
     final accent = Theme.of(context).colorScheme.primary;
     final imgs = e.assets.where((a) => a.kind == AssetKind.image);
     final cover = imgs.isEmpty ? null : imgs.first;
-    final preview = e.body.replaceAll(RegExp(r'\s+'), ' ').trim();
+    // 渲染后的预览：解码正文为文档块，压平成带行内样式的 span（保留加粗/斜体/代码等），
+    // 而非 Markdown 源码；底色（图 / 文）决定预览基色。
+    final previewBase = cover != null
+        ? const TextStyle(color: Colors.white70, fontSize: 12)
+        : TextStyle(color: t.textSecondary, fontSize: 12);
+    final previewSpans = docBlocksToPreviewSpans(
+      context,
+      decodeEntryBody(e.body, e.assets),
+      baseStyle: previewBase,
+    );
+    final hasPreview =
+        TextSpan(children: previewSpans).toPlainText().trim().isNotEmpty;
     final dateStr = _memoDate(e);
 
     final Widget inner;
@@ -425,11 +438,9 @@ class _MemoryCard extends StatelessWidget {
                         fontWeight: FontWeight.w700),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
-                if (preview.isNotEmpty) ...[
+                if (hasPreview) ...[
                   const SizedBox(height: 3),
-                  Text(preview,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 12),
+                  Text.rich(TextSpan(children: previewSpans),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),
                 ],
@@ -483,11 +494,9 @@ class _MemoryCard extends StatelessWidget {
                           fontWeight: FontWeight.w700),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),
-                  if (preview.isNotEmpty) ...[
+                  if (hasPreview) ...[
                     const SizedBox(height: 3),
-                    Text(preview,
-                        style: TextStyle(
-                            color: t.textSecondary, fontSize: 12),
+                    Text.rich(TextSpan(children: previewSpans),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                   ],
