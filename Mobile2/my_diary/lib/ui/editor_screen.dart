@@ -6,12 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:my_diary_mobile/config/map_config.dart';
 import 'package:my_diary_mobile/editor/doc_model.dart';
 import 'package:my_diary_mobile/editor/inline_style.dart';
 import 'package:my_diary_mobile/editor/markdown_doc.dart';
 import 'package:my_diary_mobile/editor/media_card.dart';
 import 'package:my_diary_mobile/editor/rich_text_controller.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
+import 'package:my_diary_mobile/services/locator_data.dart';
+import 'package:my_diary_mobile/services/locator_service.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/map_picker_page.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
@@ -45,6 +48,7 @@ class _EditorScreenState extends State<EditorScreen> {
   late List<String> _tags;
   double? _latitude;
   double? _longitude;
+  bool _locatingLocation = false; // 一键定位进行中
 
   final List<DocBlock> _blocks = <DocBlock>[];
   final Map<String, RichTextController> _controllers = {};
@@ -536,6 +540,47 @@ class _EditorScreenState extends State<EditorScreen> {
       if (name.isNotEmpty) _locationCtl.text = name;
       _markDirty();
     });
+  }
+
+  /// 一键定位：GPS 获取当前位置 + 天地图逆地理编码回填地点名称，
+  /// 同时记录经纬度 —— 保存后该日记即出现在「足迹」地图上。
+  Future<void> _locateCurrentLocation() async {
+    if (!MapConfig.isConfigured) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('未配置天地图 Key，无法解析地址\n请在 lib/config/map_config.dart 中填写')),
+      );
+      return;
+    }
+    final locatorData = context.read<LocatorData>();
+    final locator = context.read<LocatorService>();
+    setState(() => _locatingLocation = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('正在获取当前位置…')),
+    );
+    await locator.getUserAddress();
+    if (!mounted) return;
+    setState(() {
+      _locatingLocation = false;
+      final p = locatorData.currentPosition;
+      if (p != null) {
+        _latitude = p.latitude;
+        _longitude = p.longitude;
+      }
+      final addr = locatorData.userAddress;
+      if (addr != null && addr.isNotEmpty) {
+        _locationCtl.text = addr;
+      }
+    });
+    final p = locatorData.currentPosition;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+        p != null
+            ? '已获取位置：${locatorData.userAddress ?? '${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}'}'
+            : (locatorData.status ?? '定位失败'),
+      ),
+    ));
+    _markDirty();
   }
 
   Future<void> _save() async {
@@ -1216,13 +1261,30 @@ class _EditorScreenState extends State<EditorScreen> {
                       prefixIcon: const Icon(Icons.place_outlined, size: 18),
                       prefixIconConstraints:
                           const BoxConstraints(minWidth: 34, minHeight: 34),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.map_outlined, size: 18),
-                        tooltip: '地图选点',
-                        onPressed: _pickLocation,
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: _locatingLocation
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2))
+                                : const Icon(Icons.my_location, size: 18),
+                            tooltip: '定位当前位置',
+                            onPressed:
+                                _locatingLocation ? null : _locateCurrentLocation,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.map_outlined, size: 18),
+                            tooltip: '地图选点',
+                            onPressed: _pickLocation,
+                          ),
+                        ],
                       ),
                       suffixIconConstraints:
-                          const BoxConstraints(minWidth: 34, minHeight: 34),
+                          const BoxConstraints(minWidth: 68, minHeight: 34),
                     ),
                   ),
                 ),
