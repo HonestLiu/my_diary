@@ -183,3 +183,35 @@ class DocView extends StatelessWidget {
     ));
   }
 }
+
+/// 把正文块压平成「用于列表 / 卡片预览」的行内 span 列表。
+///
+/// 保留**行内标记**（加粗 / 斜体 / 下划线 / 删除线 / 代码），但**不展开块级样式**
+/// （标题字号、列表符号、引用竖线、代码块底纹都忽略），块与块之间仅以换行分隔。
+/// 这样可以在 1~2 行内截断展示「渲染后」的文字，而非 Markdown 源码。
+///
+/// [baseStyle] 决定预览文字的基础字号 / 颜色，默认与正文段落一致；卡片里通常传入
+/// `context.caption` 以贴合既有视觉。
+List<InlineSpan> docBlocksToPreviewSpans(
+  BuildContext context,
+  List<DocBlock> blocks, {
+  TextStyle? baseStyle,
+}) {
+  final palette = InlinePalette.of(context);
+  final base = baseStyle ?? blockTextStyle(context, BlockKind.paragraph);
+  final spans = <InlineSpan>[];
+  var first = true;
+  for (final b in blocks) {
+    if (b.kind == BlockKind.media || b.kind == BlockKind.divider) continue;
+    if (b.text.trim().isEmpty) continue;
+    if (!first) spans.add(const TextSpan(text: '\n'));
+    first = false;
+    spans.addAll(buildInlineSpans(
+      text: b.text,
+      marks: b.marks,
+      base: base,
+      palette: palette,
+    ));
+  }
+  return spans;
+}
