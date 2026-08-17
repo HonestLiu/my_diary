@@ -239,7 +239,7 @@ List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
       header,
       const SizedBox(height: 12),
       SizedBox(
-        height: 150,
+        height: 145,
         child: ListView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -276,7 +276,7 @@ class _MemoryEmptyCard extends StatelessWidget {
     final t = context.tokens;
     final accent = Theme.of(context).colorScheme.primary;
     return Container(
-      width: 158,
+      width: 145,
       height: 116,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
@@ -505,8 +505,8 @@ class _MemoryCard extends StatelessWidget {
         MaterialPageRoute(builder: (_) => DetailScreen(entry: e)),
       ),
       child: SizedBox(
-        width: 158,
-        height: 150,
+        width: 145,
+        height: 145,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
           clipBehavior: Clip.antiAlias,
