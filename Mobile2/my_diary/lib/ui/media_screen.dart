@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
@@ -7,7 +8,8 @@ import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
 
 /// 媒体画廊：按日记所属日期（entry.date）降序，用紧凑网格横向铺满、自动换行；
-/// 每篇含媒体的日记是一张封面瓦片，日期直接叠在封面图左上，多媒体的篇在右上标数量；
+/// 每篇含媒体的日记是一张封面瓦片，呈现扑克扇效果（封面在前、最多两张副卡在右后方微旋露出），
+/// 日期直接叠在封面图左上，多媒体的篇在右上标数量；
 /// 点瓦片展开该日记全部图片预览，预览窗下方一条白色信息条（类似首页卡片），点条跳转对应日记。
 class MediaScreen extends StatelessWidget {
   const MediaScreen({super.key});
@@ -69,8 +71,8 @@ int _columns(double w) {
   return 2;
 }
 
-/// 一篇日记的封面瓦片：单个方块（封面媒体），日期叠在左上，
-/// 多媒体的篇在右上标数量。点击展开该日记全部图片预览。
+/// 一篇日记的封面瓦片：扑克扇（封面在前、最多两张副卡在右后方微旋露出），
+/// 日期叠在封面左上，多媒体的篇在右上标数量。点瓦片展开该日记全部图片预览。
 class _EntryTile extends StatelessWidget {
   final JournalEntry entry;
   final VoidCallback onOpen;
@@ -79,95 +81,168 @@ class _EntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final cover = entry.assets.first;
-    final file = context.read<AppStore>().resolveAsset(cover.path);
-    final isImage = cover.kind == AssetKind.image;
+    final assets = entry.assets;
+    final cover = assets.first;
+    // 副卡：封面之后的前两张，作为扑克扇的后半部分。
+    final backs = assets.skip(1).take(2).toList();
 
-    final image = isImage
-        ? Image.file(file,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-                  color: t.fill,
-                  child: Icon(Icons.broken_image_outlined, color: t.textTertiary),
-                ))
-        : _kindPlaceholder(context, cover.kind, cover.name);
+    // 扑克扇：副卡在封面右后方微旋露出，营造"一摞卡片"的层次。
+    const backAngles = [7.0, -8.0];
+    const backOffX = [11.0, -9.0];
+    const backOffY = [9.0, -7.0];
+
+    Widget buildBack(AssetRef a, double angle, double offX, double offY) {
+      return Positioned.fill(
+        child: Transform.translate(
+          offset: Offset(offX, offY),
+          child: Transform.rotate(
+            angle: angle * pi / 180,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(t.radiusCard),
+                border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.7), width: 1.5),
+                boxShadow: const [
+                  BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 6,
+                      offset: Offset(0, 2)),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(t.radiusCard),
+                child: _tileThumb(context, a, dim: 0.3),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return GestureDetector(
       onTap: onOpen,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(t.radiusCard),
-        child: Hero(
-          tag: 'media-${entry.id}',
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              image,
-              // 顶部渐隐遮罩，保证日期 / 角标在浅色图上也清晰可读。
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.center,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.55),
-                        Colors.transparent,
-                      ],
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // 副卡（先画在底层）。
+          for (int i = 0; i < backs.length; i++)
+            buildBack(backs[i], backAngles[i], backOffX[i], backOffY[i]),
+          // 封面（最上层），承载日期 / 角标与 hero 过渡。
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(t.radiusCard),
+                border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.85), width: 1.5),
+                boxShadow: const [
+                  BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 8,
+                      offset: Offset(0, 3)),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Hero(
+                tag: 'media-${entry.id}',
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _tileThumb(context, cover),
+                    // 顶部渐隐遮罩，保证日期 / 角标在浅色图上也清晰可读。
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.center,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.55),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    Positioned(
+                      left: 7,
+                      top: 7,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(t.radiusChip),
+                        ),
+                        child: Text(
+                          _formatDate(_entryDate(entry)),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    if (entry.assets.length > 1)
+                      Positioned(
+                        right: 7,
+                        top: 7,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(t.radiusChip),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.collections_outlined,
+                                  size: 12, color: Colors.white),
+                              const SizedBox(width: 2),
+                              Text('${entry.assets.length}',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              Positioned(
-                left: 7,
-                top: 7,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    borderRadius: BorderRadius.circular(t.radiusChip),
-                  ),
-                  child: Text(
-                    _formatDate(_entryDate(entry)),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-              if (entry.assets.length > 1)
-                Positioned(
-                  right: 7,
-                  top: 7,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(t.radiusChip),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.collections_outlined,
-                            size: 12, color: Colors.white),
-                        const SizedBox(width: 2),
-                        Text('${entry.assets.length}',
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700)),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
+}
+
+/// 单张卡片缩略图：图片直接铺满，非图片用占位；dim 不为空则叠一层暗化遮罩增强层次。
+Widget _tileThumb(BuildContext context, AssetRef a, {double? dim}) {
+  final t = context.tokens;
+  final file = context.read<AppStore>().resolveAsset(a.path);
+  final isImage = a.kind == AssetKind.image;
+  final child = isImage
+      ? Image.file(file,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+                color: t.fill,
+                child: Icon(Icons.broken_image_outlined, color: t.textTertiary),
+              ))
+      : _kindPlaceholder(context, a.kind, a.name);
+  if (dim != null) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        child,
+        Container(color: Colors.black.withValues(alpha: dim)),
+      ],
+    );
+  }
+  return child;
 }
 
 /// 弹出预览：上部图片查看器（该日记全部媒体），下部透明毛玻璃条（类似首页卡片）。
