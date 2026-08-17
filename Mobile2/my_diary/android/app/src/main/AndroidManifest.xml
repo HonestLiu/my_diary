@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 天地图瓦片与逆地理编码需要网络 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 地图选点 / 定位需要位置权限 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:label="my_diary_mobile"
         android:name="${applicationName}"
