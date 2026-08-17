@@ -63,7 +63,7 @@ class EntryCard extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 9),
-                    _MetaLine(entry: entry),
+                    MetaLine(entry: entry),
                   ],
                 ),
               ),
@@ -79,10 +79,10 @@ class EntryCard extends StatelessWidget {
   }
 }
 
-/// 单行 meta：`😄 开心 · ☀️ 晴 · 上海 · #日记`，超长省略。
-class _MetaLine extends StatelessWidget {
+/// 单行 meta：`😄 开心 · ☀️ 晴 · 上海 · #日记`，超长省略。供条目卡与媒体预览条共用。
+class MetaLine extends StatelessWidget {
   final JournalEntry entry;
-  const _MetaLine({required this.entry});
+  const MetaLine({super.key, required this.entry});
 
   @override
   Widget build(BuildContext context) {

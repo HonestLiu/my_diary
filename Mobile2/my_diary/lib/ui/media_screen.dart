@@ -6,6 +6,7 @@ import 'package:my_diary_mobile/editor/markdown_doc.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/detail_screen.dart';
+import 'package:my_diary_mobile/ui/entry_card.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
 
@@ -94,8 +95,8 @@ class _EntryFan extends StatelessWidget {
     final coverCard = Hero(
       tag: 'media-${entry.id}',
       child: Material(
-        elevation: 8,
-        shadowColor: Colors.black38,
+        elevation: 2,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(t.radiusCard),
         clipBehavior: Clip.antiAlias,
         child: Container(
@@ -103,7 +104,6 @@ class _EntryFan extends StatelessWidget {
           height: _cardH,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(t.radiusCard),
-            border: Border.all(color: t.border, width: 0.5),
           ),
           child: coverInner,
         ),
@@ -121,10 +121,13 @@ class _EntryFan extends StatelessWidget {
               decoration: BoxDecoration(
                 color: t.surfaceVariant,
                 borderRadius: BorderRadius.circular(t.radiusCard),
-                border: Border.all(color: t.border, width: 1),
-                boxShadow: const [
+                border: Border.all(color: t.border, width: 0.5),
+                boxShadow: [
                   BoxShadow(
-                      color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
                 ],
               ),
             ),
@@ -334,7 +337,6 @@ class _PreviewBar extends StatelessWidget {
       decodeEntryBody(entry.body, entry.assets),
       baseStyle: context.caption,
     );
-    final loc = entry.location ?? '';
     return Material(
       color: Colors.white,
       child: InkWell(
@@ -370,7 +372,8 @@ class _PreviewBar extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: context.caption,
                     ),
-                    _metaRow(context, entry, loc),
+                    const SizedBox(height: 8),
+                    MetaLine(entry: entry),
                   ],
                 ),
               ),
@@ -384,50 +387,7 @@ class _PreviewBar extends StatelessWidget {
   }
 }
 
-/// 复刻首页卡片底部：心情 / 天气 / 定位 / 标签 同一行（空间不足自动换行）。
-Widget _metaRow(BuildContext context, JournalEntry entry, String loc) {
-  final t = context.tokens;
-  final chips = <Widget>[
-    _metaItem(context, '${entry.mood.emoji} ${entry.mood.label}'),
-    _metaItem(context, '${entry.weather.emoji} ${entry.weather.label}'),
-    if (loc.isNotEmpty) _metaItem(context, loc, icon: Icons.place_outlined),
-    ...entry.tags.map((tag) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-          decoration: BoxDecoration(
-            color: t.fill,
-            borderRadius: BorderRadius.circular(t.radiusChip),
-          ),
-          child: Text('#$tag',
-              style: TextStyle(fontSize: 12, color: t.textSecondary)),
-        )),
-  ];
-  if (chips.isEmpty) return const SizedBox.shrink();
-  return Padding(
-    padding: const EdgeInsets.only(top: 8),
-    child: Wrap(
-      spacing: 14,
-      runSpacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: chips,
-    ),
-  );
-}
-
-Widget _metaItem(BuildContext context, String text, {IconData? icon}) {
-  final tertiary = context.tokens.textTertiary;
-  return Row(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      if (icon != null) ...[
-        Icon(icon, size: 13, color: tertiary),
-        const SizedBox(width: 3),
-      ],
-      Text(text, style: TextStyle(fontSize: 12, color: tertiary)),
-    ],
-  );
-}
-
+/// 非图片资产（视频 / 音频 / 附件）的占位视图。
 Widget _kindPlaceholder(
     BuildContext context, AssetKind kind, String? name) {
   final t = context.tokens;
