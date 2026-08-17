@@ -64,10 +64,9 @@ class HomeScreenState extends State<HomeScreen> {
                 ..._memorySection(context, entries),
                 for (final d in dates) ...[
                   _DayHeader(dateKey: d),
-                  const SizedBox(height: 8),
-                  for (final e in groups[d]!) ...[
-                    EntryCard(entry: e),
-                    const SizedBox(height: 10),
+                  for (var i = 0; i < groups[d]!.length; i++) ...[
+                    if (i > 0) Divider(height: 1, thickness: 1),
+                    EntryCard(entry: groups[d]![i]),
                   ],
                 ],
               ],
@@ -104,9 +103,21 @@ class _DayHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 16, 4, 0),
-        child: Text(_dayLabel(dateKey, context),
-            style: context.titleMedium),
+        padding: const EdgeInsets.only(top: 20, bottom: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 3,
+              height: 16,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(_dayLabel(dateKey, context), style: context.titleMedium),
+          ],
+        ),
       );
 }
 
@@ -248,7 +259,7 @@ List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
           children: const [_MemoryEmptyCard()],
         ),
       ),
-      const SizedBox(height: 22),
+      const SizedBox(height: 6),
     ];
   }
 
@@ -265,7 +276,7 @@ List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
         itemBuilder: (c, i) => _MemoryCard(item: items[i]),
       ),
     ),
-    const SizedBox(height: 22),
+    const SizedBox(height: 6),
   ];
 }
 

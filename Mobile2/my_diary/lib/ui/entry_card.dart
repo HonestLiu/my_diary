@@ -7,7 +7,8 @@ import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/detail_screen.dart';
 
-/// 首页 / 日历共用的日记卡片：标题 + 两行预览 + 右侧封面缩略 + 底部 meta。
+/// 首页 / 日历共用的日记条目：平铺信息流行 —— 无边框无背景，标题 + 两行渲染预览 + 单行 meta，
+/// 仅当有条目有图片封面时在右侧显示小缩略图。行间分割由父级（首页 / 日历）负责。
 class EntryCard extends StatelessWidget {
   final JournalEntry entry;
   const EntryCard({super.key, required this.entry});
@@ -20,114 +21,77 @@ class EntryCard extends StatelessWidget {
     final previewSpans = docBlocksToPreviewSpans(
       context,
       decodeEntryBody(entry.body, entry.assets),
-      baseStyle: context.caption,
+      baseStyle: context.caption.copyWith(fontSize: 13),
     );
-    final loc = entry.location?.trim() ?? '';
+    final hasPreview =
+        TextSpan(children: previewSpans).toPlainText().trim().isNotEmpty;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => DetailScreen(entry: entry)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => DetailScreen(entry: entry)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          entry.displayTitle,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w700),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 5),
-                        Text.rich(
-                          TextSpan(
-                            children: previewSpans.isEmpty
-                                ? [const TextSpan(text: '（暂无内容）')]
-                                : previewSpans,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: context.caption,
-                        ),
-                      ],
-                    ),
+                  Text(
+                    entry.displayTitle,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  if (cover != null) ...[
-                    const SizedBox(width: 12),
-                    _Thumb(asset: cover),
+                  if (hasPreview) ...[
+                    const SizedBox(height: 5),
+                    Text.rich(
+                      TextSpan(children: previewSpans),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
+                  const SizedBox(height: 9),
+                  _MetaLine(entry: entry),
                 ],
               ),
-              // 底部 meta：心情 / 天气 / 定位 / 标签
-              _CardMeta(entry: entry, location: loc),
+            ),
+            if (cover != null) ...[
+              const SizedBox(width: 14),
+              _Thumb(asset: cover),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _CardMeta extends StatelessWidget {
+/// 单行 meta：`😄 开心 · ☀️ 晴 · 上海 · #日记`，超长省略。
+class _MetaLine extends StatelessWidget {
   final JournalEntry entry;
-  final String location;
-  const _CardMeta({required this.entry, required this.location});
+  const _MetaLine({required this.entry});
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final chips = <Widget>[
-      _metaItem(context, '${entry.mood.emoji} ${entry.mood.label}'),
-      _metaItem(context, '${entry.weather.emoji} ${entry.weather.label}'),
-      if (location.isNotEmpty)
-        _metaItem(context, location, icon: Icons.place_outlined),
-      ...entry.tags.map((tag) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-            decoration: BoxDecoration(
-              color: t.fill,
-              borderRadius: BorderRadius.circular(t.radiusChip),
-            ),
-            child: Text('#$tag',
-                style: TextStyle(fontSize: 12, color: t.textSecondary)),
-          )),
+    final loc = entry.location?.trim() ?? '';
+    final parts = <String>[
+      '${entry.mood.emoji} ${entry.mood.label}',
+      '${entry.weather.emoji} ${entry.weather.label}',
+      if (loc.isNotEmpty) loc,
+      ...entry.tags.map((tag) => '#$tag'),
     ];
-    if (chips.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Wrap(
-        spacing: 14,
-        runSpacing: 6,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: chips,
-      ),
-    );
-  }
-
-  Widget _metaItem(BuildContext context, String text, {IconData? icon}) {
-    final tertiary = context.tokens.textTertiary;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        if (icon != null) ...[
-          Icon(icon, size: 13, color: tertiary),
-          const SizedBox(width: 3),
-        ],
-        Text(text, style: TextStyle(fontSize: 12, color: tertiary)),
-      ],
+    if (parts.isEmpty) return const SizedBox.shrink();
+    return Text(
+      parts.join(' · '),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 12, color: t.textTertiary),
     );
   }
 }
@@ -141,7 +105,7 @@ class _Thumb extends StatelessWidget {
     final file = context.read<AppStore>().resolveAsset(asset.path);
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
-      child: Image.file(file, width: 56, height: 56, fit: BoxFit.cover),
+      child: Image.file(file, width: 48, height: 48, fit: BoxFit.cover),
     );
   }
 }
