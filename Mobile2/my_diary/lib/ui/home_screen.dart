@@ -102,22 +102,29 @@ class _DayHeader extends StatelessWidget {
   const _DayHeader({required this.dateKey});
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 20, bottom: 4),
-        child: Row(
-          children: [
-            Container(
-              width: 3,
-              height: 16,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(2),
-              ),
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 与上一日期组的分割线：让不同日期的卡片组一眼区分，避免「粘在一起」。
+          Divider(height: 1, thickness: 1),
+          Padding(
+            padding: const EdgeInsets.only(top: 14, bottom: 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 3,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(_dayLabel(dateKey, context), style: context.titleMedium),
+              ],
             ),
-            const SizedBox(width: 8),
-            Text(_dayLabel(dateKey, context), style: context.titleMedium),
-          ],
-        ),
+          ),
+        ],
       );
 }
 
