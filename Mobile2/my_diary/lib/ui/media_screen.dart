@@ -57,8 +57,8 @@ class MediaScreen extends StatelessWidget {
   }
 }
 
-/// 一篇日记的扑克扇：封面（首个媒体）+ 两张纯色牌背做堆叠暗示，
-/// 左上浮动该日记自己的日期。点击展开预览。
+/// 一篇日记的媒体单元：多篇媒体时展开扑克扇（封面 + 两张纯色牌背做堆叠暗示），
+/// 单媒体时只显示普通卡片；左上浮动该日记自己的日期。点击展开预览。
 class _EntryFan extends StatelessWidget {
   static const double _cardW = 118;
   static const double _cardH = 150;
@@ -70,8 +70,10 @@ class _EntryFan extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final deckW = _cardW + 22;
-    final deckH = _cardH + 16;
+    // 只有多篇媒体才展开扑克扇；单媒体只显示普通卡片。
+    final hasFan = entry.assets.length > 1;
+    final deckW = hasFan ? _cardW + 22 : _cardW;
+    final deckH = hasFan ? _cardH + 16 : _cardH;
     final cover = entry.assets.first;
     final file = context.read<AppStore>().resolveAsset(cover.path);
     final isImage = cover.kind == AssetKind.image;
@@ -85,7 +87,26 @@ class _EntryFan extends StatelessWidget {
                 ))
         : _kindPlaceholder(context, cover.kind, cover.name);
 
-    // 牌背：纯色圆角矩形，仅做堆叠暗示，不显示图片。
+    final coverCard = Hero(
+      tag: 'media-${entry.id}',
+      child: Material(
+        elevation: 8,
+        shadowColor: Colors.black38,
+        borderRadius: BorderRadius.circular(t.radiusCard),
+        clipBehavior: Clip.antiAlias,
+        child: Container(
+          width: _cardW,
+          height: _cardH,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(t.radiusCard),
+            border: Border.all(color: t.border, width: 0.5),
+          ),
+          child: coverInner,
+        ),
+      ),
+    );
+
+    // 牌背：仅多篇媒体时做堆叠暗示，不显示图片。
     Widget echo(double dx, double dy, double deg) => Transform.translate(
           offset: Offset(dx, dy),
           child: Transform.rotate(
@@ -106,44 +127,23 @@ class _EntryFan extends StatelessWidget {
           ),
         );
 
+    final deckChildren = <Widget>[];
+    if (hasFan) {
+      deckChildren.add(echo(16, -14, 7));
+      deckChildren.add(echo(8, -7, 3.5));
+    }
+    deckChildren.add(Positioned(left: 0, bottom: 0, child: coverCard));
+
     final deck = SizedBox(
       width: deckW,
       height: deckH,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          echo(16, -14, 7),
-          echo(8, -7, 3.5),
-          Positioned(
-            left: 0,
-            bottom: 0,
-            child: Hero(
-              tag: 'media-${entry.id}',
-              child: Material(
-                elevation: 8,
-                shadowColor: Colors.black38,
-                borderRadius: BorderRadius.circular(t.radiusCard),
-                clipBehavior: Clip.antiAlias,
-                child: Container(
-                  width: _cardW,
-                  height: _cardH,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(t.radiusCard),
-                    border: Border.all(color: t.border, width: 0.5),
-                  ),
-                  child: coverInner,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: Stack(clipBehavior: Clip.none, children: deckChildren),
     );
 
-    // 日期胶囊：浮在扇内左上，压在卡片上缘。
+    // 日期胶囊：浮动于卡片上缘；有扇时略高于卡片，单卡时贴边上缘。
     final datePill = Positioned(
       left: 6,
-      top: -4,
+      top: hasFan ? -4 : 6,
       child: Material(
         elevation: 6,
         shadowColor: Colors.black26,
@@ -162,7 +162,7 @@ class _EntryFan extends StatelessWidget {
 
     final children = <Widget>[deck, datePill];
     // 多于 1 个媒体时，右下角小计数徽章提示「还有更多」。
-    if (entry.assets.length > 1) {
+    if (hasFan) {
       children.add(Positioned(
         right: 0,
         bottom: -2,
