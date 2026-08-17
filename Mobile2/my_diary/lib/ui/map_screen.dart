@@ -5,13 +5,17 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:my_diary_mobile/config/map_config.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
+import 'package:my_diary_mobile/services/locator_data.dart';
+import 'package:my_diary_mobile/services/locator_service.dart';
 import 'package:my_diary_mobile/services/map_service.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/detail_screen.dart';
+import 'package:my_diary_mobile/ui/journey_location_group_page.dart';
 import 'package:provider/provider.dart';
 
 /// 足迹地图：把全部带经纬度的日记标注在天地图上，按缩放级别网格聚类；
-/// 单击标点进入详情，聚簇点展开列表。合规源：天地图 WMTS。
+/// 单击标点进入详情，聚簇点进入地点分组页；地图就绪后自动定位并居中。
+/// 合规源：天地图 WMTS。移植自原 MyDiary 的 map_page.dart。
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -27,6 +31,7 @@ class _MapScreenState extends State<MapScreen> {
   double _currentZoom = 4;
   bool _mapReady = false;
   bool _locating = false;
+  VoidCallback? _locateListener; // 等待首次定位完成的临时监听
 
   List<JournalEntry> _entries = [];
   List<Marker> _markers = [];
@@ -36,7 +41,8 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     final store = context.read<AppStore>();
-    store.addListener(_onStoreChange);
+    _storeListener = _onStoreChange;
+    store.addListener(_storeListener!);
     _syncEntries(store);
   }
 
@@ -46,6 +52,12 @@ class _MapScreenState extends State<MapScreen> {
       try {
         context.read<AppStore>().removeListener(_storeListener!);
       } catch (_) {}
+    }
+    if (_locateListener != null) {
+      try {
+        context.read<LocatorData>().removeListener(_locateListener!);
+      } catch (_) {}
+      _locateListener = null;
     }
     super.dispose();
   }
@@ -141,46 +153,63 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _openGroup(List<JournalEntry> group) {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text('该地点 ${group.length} 篇日记',
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w700)),
-          ),
-          for (final e in group)
-            ListTile(
-              leading: const Icon(Icons.book_outlined),
-              title: Text(e.displayTitle),
-              subtitle: Text(e.date),
-              onTap: () {
-                Navigator.pop(context);
-                _openDetail(e);
-              },
-            ),
-        ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => JourneyLocationGroupPage(journeys: group),
       ),
     );
   }
 
+  /// 地图就绪后触发一次定位；若此前未定位过，在首次定位完成后自动居中；
+  /// 若已有定位且地图仍停在初始中心，也自动居中一次（对齐原版行为）。
+  void _maybeAutoLocate() {
+    final locatorData = context.read<LocatorData>();
+    final p = locatorData.currentPosition;
+    if (p != null) {
+      if (_mapReady && _mapController.camera.center == _center) {
+        _mapController.move(
+          LatLng(p.latitude, p.longitude),
+          _mapController.camera.zoom,
+        );
+      }
+      return;
+    }
+    context.read<LocatorService>().getCurrent();
+    if (_locateListener != null) return;
+    _locateListener = () {
+      final pos = locatorData.currentPosition;
+      if (pos == null) return;
+      locatorData.removeListener(_locateListener!);
+      _locateListener = null;
+      if (mounted && _mapReady) {
+        _mapController.move(
+          LatLng(pos.latitude, pos.longitude),
+          _mapController.camera.zoom,
+        );
+      }
+    };
+    locatorData.addListener(_locateListener!);
+  }
+
   Future<void> _locate() async {
+    final locatorData = context.read<LocatorData>();
+    final hadPosition = locatorData.currentPosition != null;
     setState(() => _locating = true);
-    final pos = await getCurrentPosition();
-    if (!mounted) {
-      setState(() => _locating = false);
-      return;
-    }
-    setState(() => _locating = false);
-    if (pos == null) {
+    if (!hadPosition) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('无法获取定位')));
+          .showSnackBar(const SnackBar(content: Text('正在获取定位…')));
+    }
+    await context.read<LocatorService>().getCurrent();
+    if (!mounted) return;
+    setState(() => _locating = false);
+    final p = locatorData.currentPosition;
+    if (p == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(locatorData.status ?? '无法获取定位')));
       return;
     }
-    _mapController.move(LatLng(pos.latitude, pos.longitude), 14);
+    _mapController.move(LatLng(p.latitude, p.longitude), 14);
   }
 
   void _zoomBy(double delta) {
@@ -191,7 +220,6 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final store = context.watch<AppStore>();
     final key = MapConfig.mapApiKey;
     final tiles = tdtTileLayers(key);
     return Scaffold(
@@ -215,7 +243,7 @@ class _MapScreenState extends State<MapScreen> {
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
-                  '未配置天地图密钥，无法加载地图\n请到「设置 → 地图（天地图）」填写 Key',
+                  '未配置天地图密钥，无法加载地图\n请在 lib/config/map_config.dart 中填写 Key',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 14),
                 ),
@@ -235,6 +263,7 @@ class _MapScreenState extends State<MapScreen> {
                     _currentZoom = _mapController.camera.zoom;
                   });
                   _buildMarkers();
+                  _maybeAutoLocate();
                 },
                 onMapEvent: (event) {
                   if (!_mapReady) return;
@@ -279,6 +308,22 @@ class _MapScreenState extends State<MapScreen> {
                   _RoundBtn(
                     icon: Icons.my_location,
                     onTap: _locating ? null : _locate,
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      _mapReady
+                          ? 'Z ${_currentZoom.toStringAsFixed(1)}'
+                          : '加载中…',
+                      style:
+                          const TextStyle(color: Colors.white, fontSize: 11),
+                    ),
                   ),
                 ],
               ),
