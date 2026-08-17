@@ -5,6 +5,7 @@ import 'package:my_diary_mobile/models/sync_types.dart';
 import 'package:my_diary_mobile/sync/auth_service.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
+import 'package:my_diary_mobile/ui/search_screen.dart';
 import 'package:my_diary_mobile/ui/settings_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -76,6 +77,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final ym = DateFormat('yyyy-MM').format(DateTime.now());
     final monthCount =
         store.entries.where((e) => e.date.startsWith(ym)).length;
+    // 标签云：聚合全部标签的出现次数，降序排列。
+    final tagCounts = <String, int>{};
+    for (final e in store.entries) {
+      for (final tag in e.tags) {
+        tagCounts[tag] = (tagCounts[tag] ?? 0) + 1;
+      }
+    }
+    final tagCloud = tagCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
@@ -142,7 +152,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               )),
           const SizedBox(height: 16),
 
-          // 卡 4：账户与同步
+          // 卡 4：标签云
+          _TagCloudCard(tags: tagCloud),
+          const SizedBox(height: 16),
+
+          // 卡 5：账户与同步
           _Card(children: [
             if (auth.isCloudAuthenticated)
               Row(
@@ -311,7 +325,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ]),
           const SizedBox(height: 16),
 
-          // 卡 5：外观
+          // 卡 6：外观
           _Card(children: [
             const Text('主题',
                 style: TextStyle(fontWeight: FontWeight.w600)),
@@ -362,7 +376,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ]),
           const SizedBox(height: 16),
 
-          // 卡 6：设置入口
+          // 卡 7：设置入口
           _Card(children: [
             ListTile(
               leading: const Icon(Icons.settings_outlined),
@@ -448,6 +462,75 @@ class _Card extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// 标签云卡片：按使用频次缩放字号与色彩浓度（高频更大更深），
+/// 最多展示前 15 个；点击某标签跳转搜索该标签。
+class _TagCloudCard extends StatelessWidget {
+  final List<MapEntry<String, int>> tags; // 已按 count 降序
+  const _TagCloudCard({required this.tags});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final primary = Theme.of(context).colorScheme.primary;
+    final maxCount = tags.isEmpty ? 1 : tags.first.value;
+    final shown = tags.take(15).toList();
+
+    return _Card(
+      children: [
+        Row(
+          children: [
+            Icon(Icons.sell_outlined, size: 18, color: t.textSecondary),
+            const SizedBox(width: 8),
+            Text('标签云', style: context.titleMedium),
+            const Spacer(),
+            Text('共 ${tags.length} 个', style: context.caption),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (shown.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Text(
+              '还没有标签，写日记时给条目加标签后，会在这里按使用频次汇总成云。',
+              style: context.caption,
+            ),
+          )
+        else
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: shown.map((e) {
+              final ratio = e.value / maxCount; // 0..1
+              return InkWell(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SearchScreen(initialQuery: e.key),
+                  ),
+                ),
+                borderRadius: BorderRadius.circular(t.radiusChip),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: primary.withValues(alpha: 0.08 + ratio * 0.12),
+                    borderRadius: BorderRadius.circular(t.radiusChip),
+                  ),
+                  child: Text('#${e.key}',
+                      style: TextStyle(
+                        fontSize: 12 + ratio * 6,
+                        fontWeight: FontWeight.w600,
+                        color: primary.withValues(alpha: 0.55 + ratio * 0.45),
+                      )),
+                ),
+              );
+            }).toList(),
+          ),
+      ],
+    );
+  }
 }
 
 /// 三格统计的单格：大数字 + 小标签（无底色，靠竖线分隔）。

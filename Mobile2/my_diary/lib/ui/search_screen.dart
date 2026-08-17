@@ -6,20 +6,26 @@ import 'package:my_diary_mobile/ui/entry_card.dart';
 import 'package:provider/provider.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  /// 进入时预填的搜索词（如「我的」页标签云点选某标签），空则不预填。
+  final String initialQuery;
+  const SearchScreen({super.key, this.initialQuery = ''});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  final _ctl = TextEditingController();
+  late final TextEditingController _ctl;
   List<JournalEntry> _results = [];
 
   @override
   void initState() {
     super.initState();
+    _ctl = TextEditingController(text: widget.initialQuery);
     _ctl.addListener(_onChanged);
+    if (widget.initialQuery.trim().isNotEmpty) {
+      _onChanged();
+    }
   }
 
   @override
