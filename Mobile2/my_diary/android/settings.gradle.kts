@@ -33,16 +33,4 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
 }
 
-// 关键修复：部分插件（如 geolocator_android）在自身 buildscript 里硬编码
-// google()/mavenCentral()，其 buildscript classpath 不经过 pluginManagement，
-// 导致 kotlin-reflect:2.2.10 等传递依赖在部分网络下 TLS 握手失败。
-// 在每个工程求值前向 buildscript 注入国内镜像，确保先从镜像解析。
-gradle.beforeProject { project ->
-    project.buildscript.repositories.maven { setUrl("https://maven.aliyun.com/repository/google") }
-    project.buildscript.repositories.maven { setUrl("https://maven.aliyun.com/repository/central") }
-    project.buildscript.repositories.maven { setUrl("https://maven.aliyun.com/repository/public") }
-    project.buildscript.repositories.maven { setUrl("https://repo.huaweicloud.com/repository/maven/") }
-    project.buildscript.repositories.maven { setUrl("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/") }
-}
-
 include(":app")
