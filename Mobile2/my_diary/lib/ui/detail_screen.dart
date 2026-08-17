@@ -158,19 +158,19 @@ class _DetailScreenState extends State<DetailScreen> {
                     .toList(),
               ),
             ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            child: DocView(blocks: blocks, emptyHint: '这一天还没有内容'),
+          ),
           if (e.latitude != null && e.longitude != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               child: _LocationMiniMap(
                 lat: e.latitude!,
                 lon: e.longitude!,
                 name: e.location,
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-            child: DocView(blocks: blocks, emptyHint: '这一天还没有内容'),
-          ),
         ],
       ),
     );
