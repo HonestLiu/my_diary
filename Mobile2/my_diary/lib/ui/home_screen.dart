@@ -1,8 +1,10 @@
+import 'dart:math' show Random;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
+import 'package:my_diary_mobile/ui/detail_screen.dart';
 import 'package:my_diary_mobile/ui/editor_screen.dart';
 import 'package:my_diary_mobile/ui/entry_card.dart';
 import 'package:my_diary_mobile/ui/profile_screen.dart';
@@ -57,6 +59,7 @@ class HomeScreenState extends State<HomeScreen> {
                       )),
                 if (store.syncError != null)
                   _ErrorBanner(message: store.syncError!),
+                ..._memorySection(context, entries),
                 for (final d in dates) ...[
                   _DayHeader(dateKey: d),
                   const SizedBox(height: 8),
@@ -209,3 +212,270 @@ class _ErrorBanner extends StatelessWidget {
         ),
       );
 }
+
+/// 回忆区块：首页顶部横向可拖动的「回忆」卡片。
+/// 数据来源两类：① 往年的今天（月日与今天相同、年份更早的日记）；
+/// ② 随机抽取约 2 个月前的日记。两者合并，最多加载 10 张；
+/// 若两类都为空则整体隐藏（返回空列表，不占空间）。
+List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
+  final items = _buildMemories(entries);
+  if (items.isEmpty) return const [];
+  final t = context.tokens;
+  return [
+    Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+      child: Row(
+        children: [
+          Icon(Icons.auto_awesome_outlined, size: 18, color: t.textSecondary),
+          const SizedBox(width: 8),
+          Text('回忆', style: context.titleMedium),
+          const Spacer(),
+          Text('左右滑动 →', style: context.caption),
+        ],
+      ),
+    ),
+    const SizedBox(height: 12),
+    SizedBox(
+      height: 200,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (c, i) => _MemoryCard(item: items[i]),
+      ),
+    ),
+    const SizedBox(height: 22),
+  ];
+}
+
+/// 计算回忆卡片数据：往年的今天优先，再用 2 个月前的随机补足，合计 ≤ 10。
+List<_MemoryItem> _buildMemories(List<JournalEntry> entries) {
+  final now = DateTime.now();
+  final todayMd = _md(now);
+
+  // ① 往年的今天：月日相同、且年份早于今年。
+  final onThisDay = <_MemoryItem>[];
+  for (final e in entries) {
+    final d = DateTime.tryParse(e.date);
+    if (d == null || d.year >= now.year) continue;
+    if (_md(d) != todayMd) continue;
+    onThisDay
+        .add(_MemoryItem(e, '往年的今天 · ${d.year}', 'onThisDay'));
+  }
+
+  // ② 约 2 个月前：按 year-month 匹配（now - 2 个月）。
+  final target = DateTime(now.year, now.month - 2, 1);
+  final ym = '${target.year}-${_ym(target)}';
+  final recent = entries.where((e) => e.date.startsWith(ym)).toList();
+  // 以「当天」为种子随机打乱：同一天内稳定（不会每次 rebuild 抖动），跨天自然变化。
+  final rng = Random(now.year * 372 + now.month * 31 + now.day);
+  recent.shuffle(rng);
+
+  // 合并：往年的今天在前（更值得回味的「锚点」），2 个月前的随机补后，封顶 10。
+  final items = <_MemoryItem>[...onThisDay];
+  for (final e in recent) {
+    if (items.length >= 10) break;
+    items.add(_MemoryItem(e, '2 个月前', 'recent'));
+  }
+  return items.take(10).toList();
+}
+
+/// 单张回忆卡片的数据载体。
+class _MemoryItem {
+  final JournalEntry entry;
+  final String badge; // 角标文案，如「往年的今天 · 2023」「2 个月前」
+  final String kind; // 'onThisDay' | 'recent'
+  const _MemoryItem(this.entry, this.badge, this.kind);
+}
+
+/// 回忆卡片：有图片则以图为底（暗色遮罩 + 白字），无图则为带品牌色淡染的纯文字卡（背景水印「忆」），风格统一、略带艺术感。
+class _MemoryCard extends StatelessWidget {
+  final _MemoryItem item;
+  const _MemoryCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final e = item.entry;
+    final t = context.tokens;
+    final accent = Theme.of(context).colorScheme.primary;
+    final imgs = e.assets.where((a) => a.kind == AssetKind.image);
+    final cover = imgs.isEmpty ? null : imgs.first;
+    final preview = e.body.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final dateStr = _memoDate(e);
+
+    final Widget inner;
+    if (cover != null) {
+      // 图片卡：图作底，底部暗渐变保证文字可读。
+      final file = context.read<AppStore>().resolveAsset(cover.path);
+      inner = Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.file(file,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(color: t.fill)),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: 0.72),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: 10,
+            left: 10,
+            child: _memoBadge(context, item.badge, dark: true),
+          ),
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 12,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(dateStr,
+                    style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 3),
+                Text(e.displayTitle,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                if (preview.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(preview,
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 12),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                ],
+              ],
+            ),
+          ),
+        ],
+      );
+    } else {
+      // 文字卡：品牌色淡染底 + 大号水印「忆」，营造回忆氛围。
+      inner = Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              t.surfaceVariant,
+              Color.alphaBlend(
+                  accent.withValues(alpha: 0.22), t.surfaceVariant),
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -8,
+              top: -18,
+              child: Text('忆',
+                  style: TextStyle(
+                      fontSize: 130,
+                      fontWeight: FontWeight.w700,
+                      color: accent.withValues(alpha: 0.16))),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _memoBadge(context, item.badge, dark: false),
+                  const Spacer(),
+                  Text(dateStr,
+                      style: TextStyle(
+                          color: t.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 3),
+                  Text(e.displayTitle,
+                      style: TextStyle(
+                          color: t.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                  if (preview.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(preview,
+                        style: TextStyle(
+                            color: t.textSecondary, fontSize: 12),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => DetailScreen(entry: e)),
+      ),
+      child: SizedBox(
+        width: 196,
+        height: 200,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: inner,
+        ),
+      ),
+    );
+  }
+}
+
+/// 回忆角标：sparkle 图标 + 文案；深色图卡用半透明黑底白字，浅色文字卡用 fill 底 + 品牌色字。
+Widget _memoBadge(BuildContext context, String text, {required bool dark}) {
+  final accent = Theme.of(context).colorScheme.primary;
+  final t = context.tokens;
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+    decoration: BoxDecoration(
+      color: dark ? Colors.black.withValues(alpha: 0.32) : t.fill,
+      borderRadius: BorderRadius.circular(t.radiusChip),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.auto_awesome_outlined,
+            size: 12, color: dark ? Colors.white70 : accent),
+        const SizedBox(width: 4),
+        Text(text,
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: dark ? Colors.white : accent)),
+      ],
+    ),
+  );
+}
+
+String _memoDate(JournalEntry e) {
+  final d = DateTime.tryParse(e.date);
+  if (d == null) return '';
+  return '${DateFormat('M月d日').format(d)} · ${DateFormat('EEEE', 'zh_CN').format(d)}';
+}
+
+String _md(DateTime d) =>
+    '${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+String _ym(DateTime d) => d.month.toString().padLeft(2, '0');
