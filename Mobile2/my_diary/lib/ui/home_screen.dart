@@ -277,7 +277,7 @@ class _MemoryEmptyCard extends StatelessWidget {
     final accent = Theme.of(context).colorScheme.primary;
     return Container(
       width: 145,
-      height: 116,
+      height: 145,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         gradient: LinearGradient(
