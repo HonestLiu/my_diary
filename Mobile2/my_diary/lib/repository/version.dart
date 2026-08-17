@@ -51,6 +51,8 @@ Future<JournalEntry?> readVersion(
     mood: parsed.meta.mood,
     weather: parsed.meta.weather,
     location: parsed.meta.location,
+    latitude: parsed.meta.latitude,
+    longitude: parsed.meta.longitude,
     tags: parsed.meta.tags,
     assets: parsed.meta.assets,
     createdAt: parsed.meta.createdAt,

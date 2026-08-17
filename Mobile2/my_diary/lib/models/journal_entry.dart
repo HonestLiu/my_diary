@@ -195,6 +195,8 @@ class JournalMeta {
   final Mood mood;
   final Weather weather;
   final String? location;
+  final double? latitude; // 纬度（WGS-84；天地图瓦片为 CGCS2000，与 WGS-84 偏差 <1m，可直接共用）
+  final double? longitude; // 经度
   final List<String> tags;
   final List<AssetRef> assets;
   final String createdAt; // ISO 8601
@@ -207,6 +209,8 @@ class JournalMeta {
     required this.mood,
     required this.weather,
     this.location,
+    this.latitude,
+    this.longitude,
     required this.tags,
     required this.assets,
     required this.createdAt,
@@ -221,6 +225,8 @@ class JournalMeta {
     Weather? weather,
     String? location,
     bool clearLocation = false,
+    double? latitude,
+    double? longitude,
     List<String>? tags,
     List<AssetRef>? assets,
     String? createdAt,
@@ -233,6 +239,8 @@ class JournalMeta {
         mood: mood ?? this.mood,
         weather: weather ?? this.weather,
         location: clearLocation ? null : (location ?? this.location),
+        latitude: latitude ?? this.latitude,
+        longitude: longitude ?? this.longitude,
         tags: tags ?? this.tags,
         assets: assets ?? this.assets,
         createdAt: createdAt ?? this.createdAt,
@@ -255,6 +263,8 @@ class JournalEntry extends JournalMeta {
     required super.mood,
     required super.weather,
     super.location,
+    super.latitude,
+    super.longitude,
     required super.tags,
     required super.assets,
     required super.createdAt,
@@ -272,6 +282,8 @@ class JournalEntry extends JournalMeta {
     Weather? weather,
     String? location,
     bool clearLocation = false,
+    double? latitude,
+    double? longitude,
     List<String>? tags,
     List<AssetRef>? assets,
     String? createdAt,
@@ -286,6 +298,8 @@ class JournalEntry extends JournalMeta {
         mood: mood ?? this.mood,
         weather: weather ?? this.weather,
         location: clearLocation ? null : (location ?? this.location),
+        latitude: latitude ?? this.latitude,
+        longitude: longitude ?? this.longitude,
         tags: tags ?? this.tags,
         assets: assets ?? this.assets,
         createdAt: createdAt ?? this.createdAt,

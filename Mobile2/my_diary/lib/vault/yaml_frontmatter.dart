@@ -16,6 +16,8 @@ const List<String> _fmKeys = [
   'mood',
   'weather',
   'location',
+  'latitude',
+  'longitude',
   'tags',
   'assets',
   'created_at',
@@ -48,6 +50,12 @@ String encodeFrontmatter(JournalEntry entry) {
   buf.writeln('mood: ${_yamlScalar(entry.mood.name)}');
   buf.writeln('weather: ${_yamlScalar(entry.weather.name)}');
   buf.writeln('location: ${_yamlScalar(entry.location ?? '')}');
+  if (entry.latitude != null) {
+    buf.writeln('latitude: ${_yamlScalar(entry.latitude)}');
+  }
+  if (entry.longitude != null) {
+    buf.writeln('longitude: ${_yamlScalar(entry.longitude)}');
+  }
 
   if (entry.tags.isEmpty) {
     buf.writeln('tags: []');
@@ -134,6 +142,10 @@ JournalMeta parseFrontmatter(String text, {String? fallbackId}) {
   final weather =
       Weather.parse(obj['weather'] is String ? obj['weather'] as String : null);
   final location = obj['location'] is String ? obj['location'] as String : null;
+  final latitude =
+      obj['latitude'] is num ? (obj['latitude'] as num).toDouble() : null;
+  final longitude =
+      obj['longitude'] is num ? (obj['longitude'] as num).toDouble() : null;
   final tags = obj['tags'] is List
       ? (obj['tags'] as List)
           .whereType<String>()
@@ -155,6 +167,8 @@ JournalMeta parseFrontmatter(String text, {String? fallbackId}) {
     mood: mood,
     weather: weather,
     location: location,
+    latitude: latitude,
+    longitude: longitude,
     tags: tags,
     assets: assets,
     createdAt: createdAt,
