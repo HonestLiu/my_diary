@@ -36,6 +36,11 @@ dependencies:
   open_filex: ^4.7.0
   # 生成条目 id
   uuid: ^4.5.1
+  # 地图（天地图 WMTS 瓦片，合规持牌源）
+  flutter_map: ^8.2.1
+  latlong2: ^0.9.1
+  # 定位（获取当前 GPS 坐标）
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:
