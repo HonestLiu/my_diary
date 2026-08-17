@@ -215,25 +215,43 @@ class _ErrorBanner extends StatelessWidget {
 
 /// 回忆区块：首页顶部横向可拖动的「回忆」卡片。
 /// 数据来源两类：① 往年的今天（月日与今天相同、年份更早的日记）；
-/// ② 随机抽取约 2 个月前的日记。两者合并，最多加载 10 张；
-/// 若两类都为空则整体隐藏（返回空列表，不占空间）。
+/// ② 日期早于「now-2个月」的全部日记（随机抽补）。两者合并，最多加载 10 张。
+/// 即使两类都为空，区块本身也会保留，只放一张简短的提醒卡（鼓励继续记录）。
 List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
   final items = _buildMemories(entries);
-  if (items.isEmpty) return const [];
   final t = context.tokens;
-  return [
-    Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
-      child: Row(
-        children: [
-          Icon(Icons.auto_awesome_outlined, size: 18, color: t.textSecondary),
-          const SizedBox(width: 8),
-          Text('回忆', style: context.titleMedium),
-          const Spacer(),
-          Text('左右滑动 →', style: context.caption),
-        ],
-      ),
+  final header = Padding(
+    padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+    child: Row(
+      children: [
+        Icon(Icons.auto_awesome_outlined, size: 18, color: t.textSecondary),
+        const SizedBox(width: 8),
+        Text('回忆', style: context.titleMedium),
+        const Spacer(),
+        Text('左右滑动 →', style: context.caption),
+      ],
     ),
+  );
+
+  // 没有回忆时，仍保留区块，放一张简短提示卡，鼓励继续记录。
+  if (items.isEmpty) {
+    return [
+      header,
+      const SizedBox(height: 12),
+      SizedBox(
+        height: 200,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          children: const [_MemoryEmptyCard()],
+        ),
+      ),
+      const SizedBox(height: 22),
+    ];
+  }
+
+  return [
+    header,
     const SizedBox(height: 12),
     SizedBox(
       height: 200,
@@ -247,6 +265,49 @@ List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
     ),
     const SizedBox(height: 22),
   ];
+}
+
+/// 回忆区空态卡：与文字回忆卡同风格（品牌色淡染渐变底），给一句简短提醒。
+class _MemoryEmptyCard extends StatelessWidget {
+  const _MemoryEmptyCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final accent = Theme.of(context).colorScheme.primary;
+    return Container(
+      width: 196,
+      height: 200,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.alphaBlend(accent.withValues(alpha: 0.22), t.surfaceVariant),
+            t.surfaceVariant,
+          ],
+        ),
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('✨', style: TextStyle(fontSize: 22)),
+          const SizedBox(height: 12),
+          Text('还没有回忆',
+              style: context.titleMedium.copyWith(color: t.textPrimary)),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Text(
+              '写下更多日记吧，将来的你会在「回忆」里遇见此刻的自己。',
+              style: context.caption.copyWith(color: t.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// 计算回忆卡片数据：往年的今天优先，再用「2 个月之前（含更早）」的随机补足，合计 ≤ 10。
