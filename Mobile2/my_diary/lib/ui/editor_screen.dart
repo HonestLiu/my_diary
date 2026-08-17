@@ -519,14 +519,12 @@ class _EditorScreenState extends State<EditorScreen> {
 
   /// 打开地图选点页，回写经纬度与地点名称。
   Future<void> _pickLocation() async {
-    final key = context.read<AppStore>().settings.mapKey;
     final result = await Navigator.push<Map<String, dynamic>?>(
       context,
       MaterialPageRoute(
         builder: (_) => MapPickerPage(
           initialLat: _latitude,
           initialLon: _longitude,
-          mapKey: key,
         ),
       ),
     );

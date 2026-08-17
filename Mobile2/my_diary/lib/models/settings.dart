@@ -12,7 +12,6 @@ class AppSettings {
   final int weekStartsOn; // 0 = 周日, 1 = 周一
   final Mood defaultMood;
   final SyncConfig sync;
-  final String mapKey; // 天地图（Tianditu）密钥，用于加载合规地图瓦片与逆地理编码
 
   const AppSettings({
     this.version = 1,
@@ -23,7 +22,6 @@ class AppSettings {
     this.weekStartsOn = 1,
     this.defaultMood = Mood.neutral,
     this.sync = const SyncConfig(),
-    this.mapKey = '',
   });
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -45,7 +43,6 @@ class AppSettings {
       sync: syncJson != null
           ? SyncConfig.fromJson(syncJson)
           : const SyncConfig(),
-      mapKey: (json['mapKey'] as String?) ?? '',
     );
   }
 
@@ -58,7 +55,6 @@ class AppSettings {
         'weekStartsOn': weekStartsOn,
         'defaultMood': defaultMood.name,
         'sync': sync.toJson(),
-        'mapKey': mapKey,
       };
 
   AppSettings copyWith({
@@ -69,7 +65,6 @@ class AppSettings {
     int? weekStartsOn,
     Mood? defaultMood,
     SyncConfig? sync,
-    String? mapKey,
   }) =>
       AppSettings(
         version: version,
@@ -80,7 +75,6 @@ class AppSettings {
         weekStartsOn: weekStartsOn ?? this.weekStartsOn,
         defaultMood: defaultMood ?? this.defaultMood,
         sync: sync ?? this.sync,
-        mapKey: mapKey ?? this.mapKey,
       );
 }
 

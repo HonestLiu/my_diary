@@ -37,7 +37,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _secretKeyCtl;
   late TextEditingController _emailCtl;
   late TextEditingController _passwordCtl;
-  late TextEditingController _mapKeyCtl;
 
   bool _accountBusy = false;
 
@@ -61,7 +60,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _secretKeyCtl = TextEditingController();
     _emailCtl = TextEditingController();
     _passwordCtl = TextEditingController();
-    _mapKeyCtl = TextEditingController(text: s.mapKey);
   }
 
   @override
@@ -74,7 +72,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _secretKeyCtl.dispose();
     _emailCtl.dispose();
     _passwordCtl.dispose();
-    _mapKeyCtl.dispose();
     super.dispose();
   }
 
@@ -116,7 +113,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       weekStartsOn: _weekStartsOn,
       defaultMood: _defaultMood,
       sync: sync,
-      mapKey: _mapKeyCtl.text.trim(),
     );
     await store.saveSettings(newSettings);
     if (mounted) {
@@ -318,24 +314,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ],
-            ],
-          ),
-          _SectionTitle('地图（天地图）'),
-          _Card(
-            children: [
-              TextField(
-                controller: _mapKeyCtl,
-                decoration: const InputDecoration(
-                  labelText: '天地图 Key',
-                  hintText: '在 tiditu.gov.cn 控制台免费申请',
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '用于加载合规地图（国家地理信息公共服务平台）。'
-                '在 天地图官网 注册 → 应用管理 → 创建应用 获取 Key，免费。',
-                style: TextStyle(fontSize: 12),
-              ),
             ],
           ),
           _SectionTitle('外观'),

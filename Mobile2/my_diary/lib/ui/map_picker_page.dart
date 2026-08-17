@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:my_diary_mobile/config/map_config.dart';
 import 'package:my_diary_mobile/services/map_service.dart';
 
 /// 地图选点页：在合规天地图瓦片上点击落点，自动逆地理编码填充地点名称，
 /// 也可一键 GPS 定位。确定后回传 {lat, lon, name} 给调用方（编辑器）。
+/// 天地图 Key 由 [MapConfig] 源码内配置（不在设置页）。
 class MapPickerPage extends StatefulWidget {
   final double? initialLat;
   final double? initialLon;
-  final String mapKey;
 
   const MapPickerPage({
     super.key,
     this.initialLat,
     this.initialLon,
-    required this.mapKey,
   });
 
   @override
@@ -54,7 +54,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
       _picked = point;
       _geocoding = true;
     });
-    final addr = await reverseGeocode(point.latitude, point.longitude, widget.mapKey);
+    final addr = await reverseGeocode(point.latitude, point.longitude);
     if (!mounted) return;
     setState(() {
       _geocoding = false;
@@ -104,7 +104,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tiles = tdtTileLayers(widget.mapKey);
+    final tiles = tdtTileLayers();
     return Scaffold(
       appBar: AppBar(
         title: const Text('选择位置'),
@@ -114,12 +114,13 @@ class _MapPickerPageState extends State<MapPickerPage> {
       ),
       body: Stack(
         children: [
-          if (widget.mapKey.isEmpty)
+          if (!MapConfig.isConfigured)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
-                  '未配置天地图密钥，无法加载地图\n请到「设置 → 地图（天地图）」填写 Key',
+                  '未配置天地图密钥，无法加载地图\n'
+                  '请在 lib/config/map_config.dart 中填写 Key',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 14),
                 ),

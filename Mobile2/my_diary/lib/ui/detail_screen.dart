@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:my_diary_mobile/config/map_config.dart';
 import 'package:my_diary_mobile/editor/doc_view.dart';
 import 'package:my_diary_mobile/editor/markdown_doc.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
@@ -163,7 +164,6 @@ class _DetailScreenState extends State<DetailScreen> {
               child: _LocationMiniMap(
                 lat: e.latitude!,
                 lon: e.longitude!,
-                mapKey: context.read<AppStore>().settings.mapKey,
                 name: e.location,
               ),
             ),
@@ -193,18 +193,17 @@ class _DetailScreenState extends State<DetailScreen> {
 class _LocationMiniMap extends StatelessWidget {
   final double lat;
   final double lon;
-  final String mapKey;
   final String? name;
-  const _LocationMiniMap(
-      {required this.lat,
-      required this.lon,
-      required this.mapKey,
-      this.name});
+  const _LocationMiniMap({
+    required this.lat,
+    required this.lon,
+    this.name,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final tiles = tdtTileLayers(mapKey);
-    if (mapKey.isEmpty) {
+    final tiles = tdtTileLayers();
+    if (!MapConfig.isConfigured) {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(

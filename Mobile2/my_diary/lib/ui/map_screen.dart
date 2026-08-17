@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:my_diary_mobile/config/map_config.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/services/map_service.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
@@ -191,7 +192,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final key = store.settings.mapKey;
+    final key = MapConfig.mapApiKey;
     final tiles = tdtTileLayers(key);
     return Scaffold(
       appBar: AppBar(
