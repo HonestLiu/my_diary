@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:my_diary_mobile/editor/doc_view.dart';
 import 'package:my_diary_mobile/editor/markdown_doc.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
+import 'package:my_diary_mobile/services/map_service.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/editor_screen.dart';
@@ -154,6 +157,16 @@ class _DetailScreenState extends State<DetailScreen> {
                     .toList(),
               ),
             ),
+          if (e.latitude != null && e.longitude != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: _LocationMiniMap(
+                lat: e.latitude!,
+                lon: e.longitude!,
+                mapKey: context.read<AppStore>().settings.mapKey,
+                name: e.location,
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             child: DocView(blocks: blocks, emptyHint: '这一天还没有内容'),
@@ -174,4 +187,90 @@ class _DetailScreenState extends State<DetailScreen> {
             style:
                 TextStyle(fontSize: 13, color: context.tokens.textSecondary)),
       );
+}
+
+/// 详情页迷你地图：单点静态展示（不可拖动），无密钥时退化为坐标文字。
+class _LocationMiniMap extends StatelessWidget {
+  final double lat;
+  final double lon;
+  final String mapKey;
+  final String? name;
+  const _LocationMiniMap(
+      {required this.lat,
+      required this.lon,
+      required this.mapKey,
+      this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final tiles = tdtTileLayers(mapKey);
+    if (mapKey.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.location_pin, color: Colors.redAccent, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '${name ?? '已记录位置'}  ($lat, $lon)',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        height: 180,
+        child: Stack(
+          children: [
+            FlutterMap(
+              options: MapOptions(
+                initialCenter: LatLng(lat, lon),
+                initialZoom: 14,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.none,
+                ),
+              ),
+              children: [
+                ...tiles,
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: LatLng(lat, lon),
+                      width: 40,
+                      height: 40,
+                      child: const Icon(Icons.location_pin,
+                          color: Colors.redAccent, size: 36),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(tdtCopyright,
+                    style: TextStyle(color: Colors.white, fontSize: 11)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
