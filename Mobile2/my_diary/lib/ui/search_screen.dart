@@ -88,26 +88,24 @@ class _SearchScreenState extends State<SearchScreen> {
           // 搜索范围筛选器：点击切换搜索哪些字段。
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-            child: Row(
+            child: Wrap(
+              spacing: 8,
               children: SearchScope.values.map((s) {
                 final selected = _filters.contains(s);
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(s.label),
-                    avatar: Icon(_icons[s], size: 15),
-                    selected: selected,
-                    onSelected: (sel) {
-                      setState(() {
-                        if (sel) {
-                          _filters.add(s);
-                        } else {
-                          _filters.remove(s);
-                        }
-                      });
-                      _onChanged();
-                    },
-                  ),
+                return FilterChip(
+                  label: Text(s.label),
+                  avatar: Icon(_icons[s], size: 15),
+                  selected: selected,
+                  onSelected: (sel) {
+                    setState(() {
+                      if (sel) {
+                        _filters.add(s);
+                      } else {
+                        _filters.remove(s);
+                      }
+                    });
+                    _onChanged();
+                  },
                 );
               }).toList(),
             ),
