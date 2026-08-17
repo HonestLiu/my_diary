@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
+import 'package:my_diary_mobile/editor/doc_view.dart';
+import 'package:my_diary_mobile/editor/markdown_doc.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/detail_screen.dart';
@@ -326,7 +328,12 @@ class _PreviewBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final preview = entry.body.replaceAll(RegExp(r'\s+'), ' ').trim();
+    // 渲染后的预览：解码正文为文档块，再压平成带行内样式的 span（保留加粗/斜体等）。
+    final previewSpans = docBlocksToPreviewSpans(
+      context,
+      decodeEntryBody(entry.body, entry.assets),
+      baseStyle: context.caption,
+    );
     final loc = entry.location ?? '';
     return Material(
       color: Colors.white,
@@ -353,8 +360,12 @@ class _PreviewBar extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
-                    Text(
-                      preview.isEmpty ? '（暂无内容）' : preview,
+                    Text.rich(
+                      TextSpan(
+                        children: previewSpans.isEmpty
+                            ? [const TextSpan(text: '（暂无内容）')]
+                            : previewSpans,
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: context.caption,
