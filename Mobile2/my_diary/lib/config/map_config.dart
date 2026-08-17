@@ -11,7 +11,7 @@ class MapConfig {
 
   /// 源码内配置的天地图 Key（不在设置页）。留空则地图不加载。
   /// 申请：https://tiditu.gov.cn → 应用管理 → 创建应用（浏览器端 / 服务端 Key，免费）。
-  static const String sourceMapApiKey = ''; // TODO: 填入你的天地图 Key
+  static const String sourceMapApiKey = '6a9f097891e6e503d5ed646ff6ebdf83'; // TODO: 填入你的天地图 Key
 
   /// 瓦片版权标识。
   static const String attribution = '© 天地图';
