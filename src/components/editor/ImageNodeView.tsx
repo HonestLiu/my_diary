@@ -37,7 +37,7 @@ export function ImageNodeView({ node, selected }: NodeViewProps) {
         alt={alt}
         draggable={false}
         className={`mx-auto max-h-[480px] w-auto rounded-2xl shadow-sm transition ${
-          selected ? "ring-2 ring-amber-400" : ""
+          selected ? "ring-2 ring-primary" : ""
         }`}
       />
     </NodeViewWrapper>

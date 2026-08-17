@@ -1,18 +1,19 @@
 import { useState } from "react";
-import { MapPin, Tag, X, Paperclip, FileText } from "lucide-react";
+import { CalendarDays, MapPin, Tag, X, Paperclip, FileText } from "lucide-react";
 import { MoodSelector } from "@/components/dashboard/MoodSelector";
 import { WEATHERS } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { cn, formatHumanDate } from "@/lib/utils";
 import type { AssetRef, Mood, Weather } from "@/types/journal";
 
 interface Props {
-  title: string;
+  /** The day this entry belongs to — plain metadata, freely changeable. */
+  date: string;
   mood: Mood;
   weather: Weather;
   location: string;
   tags: string[];
   assets: AssetRef[];
-  onTitleChange: (v: string) => void;
+  onDateChange: (v: string) => void;
   onMoodChange: (m: Mood) => void;
   onWeatherChange: (w: Weather) => void;
   onLocationChange: (v: string) => void;
@@ -20,15 +21,21 @@ interface Props {
   onRemoveAsset: (path: string) => void;
 }
 
-/** Right-hand property rail: metadata + attachments for the active entry. */
+/**
+ * Right-hand property rail: metadata + attachments for the active entry.
+ *
+ * The title lives in the editor header (it is the entry's headline, not a
+ * side property); this rail owns the date, which merely decides where the
+ * entry is filed and grouped.
+ */
 export function PropertyPanel({
-  title,
+  date,
   mood,
   weather,
   location,
   tags,
   assets,
-  onTitleChange,
+  onDateChange,
   onMoodChange,
   onWeatherChange,
   onLocationChange,
@@ -45,13 +52,21 @@ export function PropertyPanel({
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
-      <Section title="标题">
-        <input
-          value={title}
-          onChange={(e) => onTitleChange(e.target.value)}
-          placeholder="给今天起个名字"
-          className="w-full rounded-xl border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none focus:border-amber-300"
-        />
+      <Section title="日期">
+        <div className="flex items-center gap-2 rounded-xl border border-border px-3 py-2">
+          <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => onDateChange(e.target.value)}
+            aria-label="日记日期"
+            className="w-full bg-transparent text-sm text-foreground outline-none"
+          />
+        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          {date ? formatHumanDate(new Date(date + "T00:00:00")) : ""}
+          <span className="ml-1">· 改日期即把这篇移到那一天</span>
+        </p>
       </Section>
 
       <Section title="心情">
@@ -120,7 +135,7 @@ export function PropertyPanel({
             }
           }}
           placeholder="输入后回车添加"
-          className="mt-2 w-full rounded-xl border border-border px-3 py-2 text-sm outline-none focus:border-amber-300"
+          className="mt-2 w-full rounded-xl border border-border px-3 py-2 text-sm outline-none focus:border-primary"
         />
       </Section>
 
@@ -137,7 +152,7 @@ export function PropertyPanel({
                 className="flex items-center gap-2 rounded-lg bg-muted px-2.5 py-2 text-sm"
               >
                 {a.kind === "image" ? (
-                  <Paperclip className="h-4 w-4 text-amber-500" />
+                  <Paperclip className="h-4 w-4 text-primary" />
                 ) : (
                   <FileText className="h-4 w-4 text-muted-foreground" />
                 )}

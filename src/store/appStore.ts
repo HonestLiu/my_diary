@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AppSettings, JournalEntry, Mood } from "@/types/journal";
+import type { AppSettings, JournalEntry, Mood, Theme } from "@/types/journal";
 import { formatDateKey, formatHumanDate } from "@/lib/utils";
 import {
   getRepository,
@@ -14,8 +14,6 @@ import {
   type VaultDescriptor,
 } from "@/lib/vaultManager";
 
-type Theme = "light" | "dark" | "system";
-
 interface AppState {
   /* ---- lifecycle ---- */
   initialized: boolean;
@@ -25,7 +23,17 @@ interface AppState {
   /* ---- UI state ---- */
   theme: Theme;
   sidebarCollapsed: boolean;
+  /**
+   * The day the editor / calendar is focused on. Used for grouping and as the
+   * default date of a new entry — it no longer identifies "the" entry.
+   */
   activeDate: string;
+  /**
+   * Id of the entry open in the editor. `null` means "a fresh unsaved entry
+   * for activeDate", which the editor scaffolds and persists on first edit.
+   */
+  activeEntryId: string | null;
+  exportOpen: boolean;
 
   /* ---- Data (backed by the real repository) ---- */
   repo: JournalRepository;
@@ -45,8 +53,15 @@ interface AppState {
   updateSettings: (patch: Partial<AppSettings>) => void;
   toggleSidebar: () => void;
   setActiveDate: (date: string) => void;
+  /** Open an existing entry in the editor (by id). */
+  openEntry: (id: string, date?: string) => void;
+  /** Open the first entry of a day, or a blank one when the day is empty. */
+  openDate: (date: string) => void;
+  /** Start a brand-new (unsaved) entry, optionally on a given day. */
+  startNewEntry: (date?: string) => void;
+  setExportOpen: (open: boolean) => void;
   upsertEntry: (entry: JournalEntry) => Promise<void>;
-  removeEntry: (dateKey: string) => Promise<void>;
+  removeEntry: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
   switchVault: (id: string) => Promise<void>;
   createVault: (name: string, path?: string) => Promise<void>;
@@ -74,6 +89,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   theme: "light",
   sidebarCollapsed: false,
   activeDate: formatDateKey(),
+  activeEntryId: null,
+  exportOpen: false,
 
   repo: getRepository(),
   entries: [],
@@ -83,6 +100,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   settings: {
     version: 1,
     theme: "light",
+    accent: "amber",
+    font: "sans",
+    displayName: "",
+    weekStartsOn: 1,
     defaultMood: "neutral",
     sync: { enabled: false, provider: "none" },
   },
@@ -108,6 +129,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const entries = await repo.listEntries();
       const stats = await repo.stats();
       const settings = await repo.loadSettings();
+      const startDate = seeded ? formatDateKey() : get().activeDate;
       set({
         vaults: reg.vaults,
         activeVaultId: active.id,
@@ -124,7 +146,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         initialized: true,
         loading: false,
         // If we just seeded a sample "today", surface it as the active date.
-        activeDate: seeded ? formatDateKey() : get().activeDate,
+        activeDate: startDate,
+        // Open the latest entry of that day, if the day already has one.
+        activeEntryId:
+          entries.find((e) => e.date === startDate)?.id ?? null,
       });
     } catch (e) {
       set({
@@ -156,6 +181,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({
         vaults: reg.vaults,
         activeVaultId: id,
+        // Entry ids belong to a vault — never carry one across a switch.
+        activeEntryId:
+          entries.find((e) => e.date === get().activeDate)?.id ?? null,
         entries,
         recentEntries: entries.slice(0, 4),
         streak: computeStreak(entries.map((e) => e.date)),
@@ -219,6 +247,22 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setActiveDate: (activeDate) => set({ activeDate }),
+  setExportOpen: (exportOpen) => set({ exportOpen }),
+
+  openEntry: (id, date) => {
+    const known = date ?? get().entries.find((e) => e.id === id)?.date;
+    set({ activeEntryId: id, activeDate: known ?? get().activeDate });
+  },
+
+  openDate: (date) => {
+    // A day can hold several entries; open the most recent one, or offer a
+    // blank entry when nothing has been written that day yet.
+    const ofDay = get().entries.filter((e) => e.date === date);
+    set({ activeDate: date, activeEntryId: ofDay[0]?.id ?? null });
+  },
+
+  startNewEntry: (date) =>
+    set({ activeDate: date ?? formatDateKey(), activeEntryId: null }),
 
   updateSettings: (patch) => {
     const next = { ...get().settings, ...patch };
@@ -231,8 +275,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().refresh();
   },
 
-  removeEntry: async (dateKey) => {
-    await get().repo.deleteEntry(dateKey);
+  removeEntry: async (id) => {
+    await get().repo.deleteEntry(id);
+    if (get().activeEntryId === id) set({ activeEntryId: null });
     await get().refresh();
   },
 
@@ -240,7 +285,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const repo = get().repo;
     const entries = await repo.listEntries();
     const stats = await repo.stats();
+    const activeId = get().activeEntryId;
     set({
+      // Drop a dangling selection (entry deleted here or by an external sync).
+      activeEntryId:
+        activeId && entries.some((e) => e.id === activeId) ? activeId : null,
       entries,
       recentEntries: entries.slice(0, 4),
       streak: computeStreak(entries.map((e) => e.date)),

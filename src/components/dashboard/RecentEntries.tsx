@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { MOOD_MAP, WEATHER_MAP } from "@/lib/constants";
+import { useAppStore } from "@/store/appStore";
 import type { JournalEntry } from "@/types/journal";
 
 interface RecentEntriesProps {
@@ -10,6 +11,12 @@ interface RecentEntriesProps {
 
 export function RecentEntries({ entries }: RecentEntriesProps) {
   const navigate = useNavigate();
+  const openEntry = useAppStore((s) => s.openEntry);
+
+  const open = (e: JournalEntry) => {
+    openEntry(e.id, e.date);
+    navigate("/editor");
+  };
 
   return (
     <Card className="overflow-hidden">
@@ -29,7 +36,7 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
           return (
             <motion.button
               key={e.id}
-              onClick={() => navigate(`/editor?date=${e.date}`)}
+              onClick={() => open(e)}
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.3, delay: i * 0.05 }}
@@ -38,7 +45,9 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
               <div className="mt-0.5 text-2xl leading-none">{mood.emoji}</div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate font-medium">{e.title}</span>
+                  <span className="truncate font-medium">
+                    {e.title || "未命名"}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     {weather.emoji}
                   </span>

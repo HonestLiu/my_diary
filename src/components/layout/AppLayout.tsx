@@ -8,6 +8,7 @@ import {
   PenLine,
   Sun,
   Moon,
+  Monitor,
   Layers,
   ChevronDown,
   Check,
@@ -16,15 +17,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/appStore";
 import { CommandPalette } from "@/components/CommandPalette";
+import { ExportDialog } from "@/components/export/ExportDialog";
+import { applyAppearance } from "@/lib/personalization";
 import { formatDateKey } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import type { Theme } from "@/types/journal";
 
 export function AppLayout() {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
   const theme = useAppStore((s) => s.theme);
   const setTheme = useAppStore((s) => s.setTheme);
-  const setActiveDate = useAppStore((s) => s.setActiveDate);
+  const settings = useAppStore((s) => s.settings);
+  const startNewEntry = useAppStore((s) => s.startNewEntry);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -33,21 +38,35 @@ export function AppLayout() {
     void useAppStore.getState().initialize();
   }, []);
 
-  // Apply the light/dark theme to the document root.
+  // Keep the document root in sync with the user's appearance preferences
+  // (theme mode, accent palette, diary font). One effect, one source of truth.
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "dark") root.classList.add("dark");
-    else root.classList.remove("dark");
-  }, [theme]);
+    applyAppearance({ theme, accent: settings.accent, font: settings.font });
+  }, [theme, settings.accent, settings.font]);
 
+  // While in "system" mode, follow OS light/dark changes live.
+  useEffect(() => {
+    if (theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () =>
+      applyAppearance({ theme, accent: settings.accent, font: settings.font });
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [theme, settings.accent, settings.font]);
+
+  // "开始记录" always opens a fresh entry dated today — today may already have
+  // several, and none of them should be reopened by accident.
   const startRecording = () => {
-    const key = formatDateKey();
-    setActiveDate(key);
-    navigate(`/editor?date=${key}`);
+    startNewEntry(formatDateKey());
+    navigate("/editor");
   };
 
-  const toggleTheme = () =>
-    setTheme(theme === "dark" ? "light" : "dark");
+  const cycleTheme = () => {
+    const order: Theme[] = ["light", "dark", "system"];
+    const idx = order.indexOf(theme);
+    const next = order[(idx + 1) % order.length] ?? "light";
+    setTheme(next);
+  };
 
   const openCommand = () =>
     window.dispatchEvent(new Event("open-command-palette"));
@@ -96,11 +115,19 @@ export function AppLayout() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={toggleTheme}
+              onClick={cycleTheme}
               aria-label="切换主题"
-              title="切换浅色 / 深色"
+              title={
+                theme === "system"
+                  ? "跟随系统 · 点击切换"
+                  : theme === "dark"
+                    ? "深色 · 点击切换"
+                    : "浅色 · 点击切换"
+              }
             >
-              {theme === "dark" ? (
+              {theme === "system" ? (
+                <Monitor className="h-[18px] w-[18px]" />
+              ) : theme === "dark" ? (
                 <Sun className="h-[18px] w-[18px]" />
               ) : (
                 <Moon className="h-[18px] w-[18px]" />
@@ -134,6 +161,10 @@ export function AppLayout() {
         </main>
       </div>
       <CommandPalette />
+      <ExportDialog
+        open={useAppStore((s) => s.exportOpen)}
+        onOpenChange={(open) => useAppStore.getState().setExportOpen(open)}
+      />
     </div>
   );
 }

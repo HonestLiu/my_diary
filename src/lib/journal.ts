@@ -6,14 +6,19 @@ import {
   entryFilePath,
   VAULT_LAYOUT,
 } from "./vault";
-import { archiveCurrent, listVersions, restoreVersion } from "./version";
+import { archiveCurrent, listVersions, readVersion } from "./version";
 import type { AppSettings, JournalEntry, JournalMeta } from "@/types/journal";
 import { isTauri } from "./storage/types";
 import { buildSampleEntries } from "./seed";
+import { formatDateKey, uuid } from "./utils";
 
 const DEFAULT_SETTINGS: AppSettings = {
   version: 1,
   theme: "light",
+  accent: "amber",
+  font: "sans",
+  displayName: "",
+  weekStartsOn: 1,
   defaultMood: "neutral",
   sync: { enabled: false, provider: "none" },
 };
@@ -26,12 +31,22 @@ const DEFAULT_SETTINGS: AppSettings = {
  *   - keep the SQLite-style index in sync (metadata + search extract only)
  *   - own vault creation, settings, and (dev) seeding
  *
+ * Entries are addressed by `id`, never by date: a day can hold as many entries
+ * as you like, and changing an entry's date just moves its file. `pathById`
+ * maps ids to their actual file so entries written by older builds (one
+ * `YYYY-MM-DD.md` per day) keep working untouched.
+ *
  * The Markdown file on disk remains the source of truth. The index is a
  * derived cache; if it ever drifts, `reindex()` rebuilds it from disk.
  */
 export class JournalRepository {
   private storage: StorageAdapter;
   private index: IndexDatabase | null = null;
+  /** entry id -> vault-relative file path (rebuilt from disk on every scan). */
+  private pathById = new Map<string, string>();
+  /** True while `pathById` is known to mirror the vault (kept up to date by
+   *  save/delete), so a missing id can be trusted as "not on disk". */
+  private pathMapFresh = false;
   vaultRoot = "";
 
   constructor(storage?: StorageAdapter, index?: IndexDatabase) {
@@ -58,80 +73,173 @@ export class JournalRepository {
     await this.reindex();
   }
 
-  /** Rebuild the index from on-disk Markdown (idempotent). */
+  /** Rebuild the index (and the id -> path map) from on-disk Markdown. */
   async reindex(): Promise<void> {
     // Switching vaults must not leave the previous vault's entries in the
     // index — clear first, then re-derive everything from the new disk state.
     await this.idx.clear();
+    this.pathById.clear();
     const files = await this.storage.list("entries/");
     for (const f of files) {
+      if (!f.endsWith(".md")) continue;
       try {
         const raw = await this.storage.readText(f);
         const { meta, body } = parseEntryFile(raw);
+        this.pathById.set(meta.id, f);
         await this.idx.upsert(toIndexed(meta, body));
       } catch {
         // skip unreadable / corrupt files
       }
     }
+    this.pathMapFresh = true;
   }
 
+  /** Read every entry from disk, newest first, refreshing the id -> path map. */
   async listEntries(): Promise<JournalEntry[]> {
     const files = await this.storage.list("entries/");
     const entries: JournalEntry[] = [];
+    this.pathById.clear();
     for (const f of files) {
+      if (!f.endsWith(".md")) continue;
       try {
         const raw = await this.storage.readText(f);
         const { meta, body } = parseEntryFile(raw);
+        this.pathById.set(meta.id, f);
         entries.push({ ...meta, body });
       } catch {
         /* skip */
       }
     }
-    return entries.sort((a, b) => (a.date < b.date ? 1 : -1));
+    this.pathMapFresh = true;
+    return entries.sort(byRecency);
   }
 
-  async getEntry(dateKey: string): Promise<JournalEntry | null> {
-    const p = entryFilePath(dateKey);
-    if (!(await this.storage.exists(p))) return null;
-    const raw = await this.storage.readText(p);
-    const { meta, body } = parseEntryFile(raw);
-    return { ...meta, body };
+  /** Locate an entry's file, rescanning the vault only when necessary. */
+  private async resolvePath(id: string): Promise<string | null> {
+    const known = this.pathById.get(id);
+    if (known) {
+      if (await this.storage.exists(known)) return known;
+      // The file moved or was removed behind our back (e.g. by sync).
+      this.pathById.delete(id);
+      await this.listEntries();
+      return this.pathById.get(id) ?? null;
+    }
+    if (this.pathMapFresh) return null; // brand-new entry: nothing to find
+    await this.listEntries();
+    return this.pathById.get(id) ?? null;
+  }
+
+  /** Load a single entry by its id. */
+  async getEntry(id: string): Promise<JournalEntry | null> {
+    const p = await this.resolvePath(id);
+    if (!p) return null;
+    try {
+      const raw = await this.storage.readText(p);
+      const { meta, body } = parseEntryFile(raw);
+      return { ...meta, body };
+    } catch {
+      return null;
+    }
+  }
+
+  /** All entries written for one day, newest first (a day may hold many). */
+  async getEntriesByDate(dateKey: string): Promise<JournalEntry[]> {
+    const all = await this.listEntries();
+    return all.filter((e) => e.date === dateKey);
+  }
+
+  /**
+   * Build a blank entry. It is NOT written to disk — the editor persists it on
+   * the first real edit, so opening "new entry" and walking away never leaves
+   * an empty file behind.
+   */
+  newEntry(dateKey?: string, defaults?: Partial<JournalEntry>): JournalEntry {
+    const now = new Date().toISOString();
+    return {
+      id: uuid(),
+      date: dateKey ?? formatDateKey(),
+      title: "",
+      mood: "neutral",
+      weather: "unknown",
+      tags: [],
+      assets: [],
+      body: "",
+      created_at: now,
+      updated_at: now,
+      ...defaults,
+    };
   }
 
   async saveEntry(entry: JournalEntry): Promise<void> {
     const now = new Date().toISOString();
     const e: JournalEntry = { ...entry, updated_at: now };
-    const path = entryFilePath(e.date);
+    const nextPath = entryFilePath(e);
+    const prevPath = await this.resolvePath(e.id);
+    const nextRaw = serializeEntryFile(e);
+
     // Snapshot the PREVIOUS on-disk content as a version, but only when the
     // incoming content actually differs — never on the very first save.
-    if (await this.storage.exists(path)) {
-      const prevRaw = await this.storage.readText(path);
-      const nextRaw = serializeEntryFile(e);
-      if (prevRaw.trim() !== nextRaw.trim()) {
-        await archiveCurrent(this.storage, e.date, prevRaw);
+    if (prevPath) {
+      try {
+        const prevRaw = await this.storage.readText(prevPath);
+        if (prevRaw.trim() !== nextRaw.trim()) {
+          await archiveCurrent(this.storage, e.id, prevRaw);
+        }
+      } catch {
+        /* unreadable previous file — just overwrite it */
       }
     }
-    await this.storage.writeText(path, serializeEntryFile(e));
+
+    await this.storage.writeText(nextPath, nextRaw);
+    // The date is metadata: when it changes (or when a legacy per-day file is
+    // saved for the first time) the entry moves to its canonical location.
+    if (prevPath && prevPath !== nextPath) {
+      try {
+        await this.storage.delete(prevPath);
+      } catch {
+        /* best effort — a stale copy is better than losing the new one */
+      }
+    }
+    this.pathById.set(e.id, nextPath);
     await this.idx.upsert(toIndexed(e, e.body));
   }
 
-  /** List stored versions for a date (newest first). */
-  async listVersions(dateKey: string) {
-    return listVersions(this.storage, dateKey);
+  /**
+   * Stored versions for an entry, newest first. Includes history recorded
+   * before entries were decoupled from dates (`versions/<date>/`).
+   */
+  async listVersions(entry: Pick<JournalEntry, "id" | "date">) {
+    return listVersions(this.storage, [entry.id, entry.date]);
   }
 
-  /** Restore a historical version to be the current entry. */
-  async restoreVersion(dateKey: string, version: number): Promise<JournalEntry> {
-    const entry = await restoreVersion(this.storage, dateKey, version);
-    await this.idx.upsert(toIndexed(entry, entry.body));
-    return entry;
+  /**
+   * Restore a historical version as the entry's current content. The entry
+   * keeps its identity, and the pre-restore content is archived first, so a
+   * restore is always undoable.
+   */
+  async restoreVersion(
+    entry: Pick<JournalEntry, "id" | "date">,
+    version: number,
+    versionKey?: string,
+  ): Promise<JournalEntry> {
+    const key = versionKey ?? entry.id;
+    const snapshot = await readVersion(this.storage, key, version);
+    const restored: JournalEntry = { ...snapshot, id: entry.id };
+    await this.saveEntry(restored);
+    return restored;
   }
 
-  async deleteEntry(dateKey: string): Promise<void> {
-    const e = await this.getEntry(dateKey);
-    const p = entryFilePath(dateKey);
-    if (await this.storage.exists(p)) await this.storage.delete(p);
-    if (e) await this.idx.remove(e.id);
+  async deleteEntry(id: string): Promise<void> {
+    const p = await this.resolvePath(id);
+    if (p) {
+      try {
+        await this.storage.delete(p);
+      } catch {
+        /* already gone */
+      }
+      this.pathById.delete(id);
+    }
+    await this.idx.remove(id);
   }
 
   /** Full-text search across title / body / tags / location. */
@@ -169,6 +277,13 @@ export class JournalRepository {
     for (const e of buildSampleEntries()) await this.saveEntry(e);
     return true;
   }
+}
+
+/** Newest first: by date, then by creation time within the same day. */
+export function byRecency(a: JournalEntry, b: JournalEntry): number {
+  if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+  if (a.created_at !== b.created_at) return a.created_at < b.created_at ? 1 : -1;
+  return 0;
 }
 
 export function toIndexed(meta: JournalMeta, body: string): IndexedEntry {

@@ -14,7 +14,7 @@ import type { IndexedEntry } from "@/lib/db/schema";
  */
 export default function Search() {
   const repo = useAppStore((s) => s.repo);
-  const setActiveDate = useAppStore((s) => s.setActiveDate);
+  const openEntry = useAppStore((s) => s.openEntry);
   const navigate = useNavigate();
 
   const [query, setQuery] = useState("");
@@ -31,8 +31,10 @@ export default function Search() {
     };
   }, [query, repo]);
 
-  const open = (date: string) => {
-    setActiveDate(date);
+  // Index rows carry the entry id, so a hit opens that exact entry even when
+  // several were written on the same day.
+  const open = (hit: IndexedEntry) => {
+    openEntry(hit.id, hit.date);
     navigate("/editor");
   };
 
@@ -70,8 +72,8 @@ export default function Search() {
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.02 }}
-                onClick={() => open(r.date)}
-                className="rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:border-amber-300"
+                onClick={() => open(r)}
+                className="rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:border-primary"
               >
                 <div className="mb-1 flex items-center gap-2">
                   <span className="text-base">{mood?.emoji ?? "📝"}</span>

@@ -2,7 +2,7 @@ import { sha256Hex } from "@/lib/crypto";
 import {
   VAULT_LAYOUT,
   conflictFilePath,
-  dateKeyFromEntryPath,
+  conflictKeyFromPath,
 } from "@/lib/vault";
 import type { StorageAdapter } from "@/lib/storage/types";
 import type {
@@ -162,14 +162,13 @@ export class SyncEngine {
   }
 
   private async writeConflict(path: string): Promise<void> {
-    const dateKey = dateKeyFromEntryPath(path) ?? path.replace(/[\/]/g, "_");
+    // Keyed by the entry FILE, not by its date: several entries can share a day
+    // and their conflict copies must not overwrite one another.
+    const key = conflictKeyFromPath(path);
     const localData = await this.storage.readBytes(path);
     const remoteData = await this.remote.download(path);
-    await this.storage.writeBytes(conflictFilePath(dateKey, "local"), localData);
-    await this.storage.writeBytes(
-      conflictFilePath(dateKey, "remote"),
-      remoteData,
-    );
+    await this.storage.writeBytes(conflictFilePath(key, "local"), localData);
+    await this.storage.writeBytes(conflictFilePath(key, "remote"), remoteData);
   }
 
   /**
@@ -186,9 +185,9 @@ export class SyncEngine {
     } else {
       await this.downloadAndStore(path);
     }
-    const dateKey = dateKeyFromEntryPath(path) ?? path.replace(/[\/]/g, "_");
+    const key = conflictKeyFromPath(path);
     for (const side of ["local", "remote"] as const) {
-      const cf = conflictFilePath(dateKey, side);
+      const cf = conflictFilePath(key, side);
       if (await this.storage.exists(cf)) await this.storage.delete(cf);
     }
     const baseline = (await this.readLocalBaseline()) ?? {

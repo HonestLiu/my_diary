@@ -6,7 +6,7 @@ import { EditorToolbar } from "@/components/editor/EditorToolbar";
 import type { AssetRef } from "@/types/journal";
 
 interface Props {
-  /** Stable key identifying the loaded entry (e.g. its date). */
+  /** Stable key identifying the loaded entry (its id). */
   entryKey: string;
   /** Initial Markdown body — only reloaded when `entryKey` changes. */
   initialContent: string;

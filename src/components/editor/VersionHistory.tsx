@@ -7,26 +7,30 @@ import type { JournalEntry } from "@/types/journal";
 import type { VersionMeta } from "@/lib/version";
 
 interface Props {
-  dateKey: string;
+  /** The entry whose history is shown — versions are keyed by its id. */
+  entry: Pick<JournalEntry, "id" | "date">;
   onRestore: (entry: JournalEntry) => void;
   onClose: () => void;
 }
 
 /** Modal listing historical versions of the active entry, with restore. */
-export function VersionHistory({ dateKey, onRestore, onClose }: Props) {
+export function VersionHistory({ entry, onRestore, onClose }: Props) {
   const repo = useAppStore((s) => s.repo);
   const [versions, setVersions] = useState<VersionMeta[]>([]);
-  const [restoring, setRestoring] = useState<number | null>(null);
+  const [restoring, setRestoring] = useState<string | null>(null);
 
   useEffect(() => {
-    void repo.listVersions(dateKey).then(setVersions);
-  }, [repo, dateKey]);
+    void repo.listVersions(entry).then(setVersions);
+  }, [repo, entry.id, entry.date]);
 
-  const handleRestore = async (version: number) => {
-    setRestoring(version);
+  const handleRestore = async (v: VersionMeta) => {
+    const rowKey = versionRowKey(v);
+    setRestoring(rowKey);
     try {
-      const entry = await repo.restoreVersion(dateKey, version);
-      onRestore(entry);
+      // `v.key` may be a legacy per-date folder, so pass it explicitly — the
+      // restored content keeps this entry's identity either way.
+      const restored = await repo.restoreVersion(entry, v.version, v.key);
+      onRestore(restored);
       onClose();
     } finally {
       setRestoring(null);
@@ -51,7 +55,7 @@ export function VersionHistory({ dateKey, onRestore, onClose }: Props) {
         >
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-foreground">
-              <History className="h-5 w-5 text-amber-500" />
+              <History className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-semibold">历史版本</h2>
             </div>
             <button
@@ -71,7 +75,7 @@ export function VersionHistory({ dateKey, onRestore, onClose }: Props) {
             <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
               {versions.map((v) => (
                 <div
-                  key={v.version}
+                  key={versionRowKey(v)}
                   className="rounded-2xl border border-border p-3"
                 >
                   <div className="mb-1 flex items-center justify-between">
@@ -90,12 +94,12 @@ export function VersionHistory({ dateKey, onRestore, onClose }: Props) {
                   </p>
                   <button
                     type="button"
-                    onClick={() => handleRestore(v.version)}
-                    disabled={restoring === v.version}
+                    onClick={() => void handleRestore(v)}
+                    disabled={restoring === versionRowKey(v)}
                     className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-background hover:bg-foreground/90 disabled:opacity-60"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
-                    {restoring === v.version ? "恢复中…" : "恢复到此版本"}
+                    {restoring === versionRowKey(v) ? "恢复中…" : "恢复到此版本"}
                   </button>
                 </div>
               ))}
@@ -105,4 +109,9 @@ export function VersionHistory({ dateKey, onRestore, onClose }: Props) {
       </motion.div>
     </AnimatePresence>
   );
+}
+
+/** Version numbers restart per folder, so the folder key is part of the id. */
+function versionRowKey(v: VersionMeta): string {
+  return `${v.key}#${v.version}`;
 }

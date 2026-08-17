@@ -40,10 +40,10 @@ export function AttachmentNodeView({ node, selected }: NodeViewProps) {
     <NodeViewWrapper className="my-3">
       <div
         className={`flex items-center gap-3 rounded-2xl border border-border bg-card/70 p-3 shadow-sm backdrop-blur ${
-          selected ? "ring-2 ring-amber-400" : ""
+          selected ? "ring-2 ring-primary" : ""
         }`}
       >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-amber-500">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-primary">
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
@@ -62,7 +62,7 @@ export function AttachmentNodeView({ node, selected }: NodeViewProps) {
           <a
             href={url}
             download={name}
-            className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-amber-600 hover:bg-accent"
+            className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-primary hover:bg-accent"
           >
             下载
           </a>

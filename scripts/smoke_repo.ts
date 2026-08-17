@@ -99,7 +99,7 @@ async function main() {
   ok(all[0].date === "2026-08-12", `按日期倒序 (首篇 ${all[0]?.date})`);
 
   console.log("[2] getEntry");
-  const got = await repo.getEntry("2026-08-11");
+  const got = await repo.getEntry("id-2026-08-11");
   ok(got?.title === "工作笔记", `按日期读取 (${got?.title})`);
 
   console.log("[3] search — 中文子串 + 排序");
@@ -123,18 +123,18 @@ async function main() {
   ok(r3b.some((e) => e.date === "2026-08-11"), "搜「REPORT」大写也命中(大小写不敏感)");
 
   console.log("[5] version snapshot + restore");
-  const before = (await repo.getEntry("2026-08-10"))!.body;
+  const before = (await repo.getEntry("id-2026-08-10"))!.body;
   await repo.saveEntry({
     ...e1,
     body: "今天去了东京，天气晴朗，吃了寿司，还看了东京塔。",
   });
-  const versions = await repo.listVersions("2026-08-10");
+  const versions = await repo.listVersions({ id: "id-2026-08-10", date: "2026-08-10" });
   ok(versions.length >= 1, `保存变更后产生版本 (${versions.length})`);
-  const restored = await repo.restoreVersion("2026-08-10", versions[0].version);
+  const restored = await repo.restoreVersion({ id: "id-2026-08-10", date: "2026-08-10" }, versions[0].version);
   ok(restored.body === before, "恢复到上一版本正文");
 
   console.log("[6] delete");
-  await repo.deleteEntry("2026-08-12");
+  await repo.deleteEntry("id-2026-08-12");
   const afterDel = await repo.listEntries();
   ok(afterDel.length === 2, `删除后剩 2 篇 (实际 ${afterDel.length})`);
 

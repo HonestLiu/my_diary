@@ -27,10 +27,34 @@ export type Weather =
   | "windy"
   | "unknown";
 
+/**
+ * Appearance / personalization primitives.
+ * `Theme` is the light/dark/system selector; `AccentKey` picks the brand color
+ * palette; `FontKey` picks the diary typeface.
+ */
+export type Theme = "light" | "dark" | "system";
+export type AccentKey =
+  | "amber"
+  | "rose"
+  | "violet"
+  | "emerald"
+  | "sky"
+  | "slate";
+export type FontKey = "sans" | "serif";
+
 export interface JournalMeta {
+  /**
+   * Stable identity of the entry — this, not the date, is what addresses an
+   * entry everywhere (file name, index, versions, UI routing).
+   */
   id: string;
-  /** Canonical date key, YYYY-MM-DD (local). */
+  /**
+   * The day the entry belongs to, YYYY-MM-DD (local). Ordinary metadata: any
+   * number of entries may share a date, and an entry can be moved to another
+   * day by editing this field.
+   */
   date: string;
+  /** Free-form, user-editable title (may be empty → shown as "未命名"). */
   title: string;
   mood: Mood;
   weather: Weather;
@@ -69,7 +93,15 @@ export interface AssetRef {
  */
 export interface AppSettings {
   version: 1;
-  theme: "light" | "dark" | "system";
+  theme: Theme;
+  /** Brand color palette (recolors the whole app via CSS variables). */
+  accent: AccentKey;
+  /** Diary typeface: system sans-serif or a serif reading face. */
+  font: FontKey;
+  /** Author name shown in exports and the app shell (personalization). */
+  displayName: string;
+  /** First day of the week for the calendar: 0 = Sunday, 1 = Monday. */
+  weekStartsOn: 0 | 1;
   /** Root directory of the journal vault (absolute path). */
   vaultPath?: string;
   /** Default new-entry behaviour. */

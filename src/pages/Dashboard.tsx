@@ -22,12 +22,12 @@ export default function Dashboard() {
   const stats = useAppStore((s) => s.stats);
   const streak = useAppStore((s) => s.streak);
   const recentEntries = useAppStore((s) => s.recentEntries);
-  const setActiveDate = useAppStore((s) => s.setActiveDate);
+  const startNewEntry = useAppStore((s) => s.startNewEntry);
 
+  // Always a brand-new entry, even if today already has some.
   const startRecording = () => {
-    const key = formatDateKey(today);
-    setActiveDate(key);
-    navigate(`/editor?date=${key}`);
+    startNewEntry(formatDateKey(today));
+    navigate("/editor");
   };
 
   return (

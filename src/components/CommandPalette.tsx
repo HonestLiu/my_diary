@@ -17,8 +17,8 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { formatDateKey } from "@/lib/utils";
-import { exportHtml } from "@/lib/export";
 import { cn } from "@/lib/utils";
+import type { JournalEntry } from "@/types/journal";
 
 interface Cmd {
   id: string;
@@ -41,7 +41,9 @@ export function CommandPalette() {
 
   const navigate = useNavigate();
   const entries = useAppStore((s) => s.entries);
-  const setActiveDate = useAppStore((s) => s.setActiveDate);
+  const openEntryById = useAppStore((s) => s.openEntry);
+  const openDate = useAppStore((s) => s.openDate);
+  const startNewEntry = useAppStore((s) => s.startNewEntry);
   const setTheme = useAppStore((s) => s.setTheme);
   const theme = useAppStore((s) => s.theme);
   const vaults = useAppStore((s) => s.vaults);
@@ -73,8 +75,23 @@ export function CommandPalette() {
     }
   }, [open]);
 
-  const openEntry = (date: string) => {
-    setActiveDate(date);
+  /** Open one specific entry. */
+  const goEntry = (entry: JournalEntry) => {
+    openEntryById(entry.id, entry.date);
+    setOpen(false);
+    navigate("/editor");
+  };
+
+  /** Open a day: its newest entry, or a blank one when the day is empty. */
+  const goDate = (date: string) => {
+    openDate(date);
+    setOpen(false);
+    navigate("/editor");
+  };
+
+  /** Always start an additional, brand-new entry on that day. */
+  const goNew = (date: string) => {
+    startNewEntry(date);
     setOpen(false);
     navigate("/editor");
   };
@@ -82,7 +99,8 @@ export function CommandPalette() {
   const cmds = useMemo<Cmd[]>(() => {
     const nav: Cmd[] = [
       { id: "home", label: "首页", icon: LayoutDashboard, group: "导航", run: () => navigate("/") },
-      { id: "editor", label: "记录 · 今天", icon: PenLine, group: "导航", run: () => openEntry(formatDateKey()) },
+      { id: "editor", label: "记录 · 今天", icon: PenLine, group: "导航", run: () => goDate(formatDateKey()) },
+      { id: "new-entry", label: "新写一篇 · 今天", hint: "追加一篇", icon: PenLine, group: "导航", run: () => goNew(formatDateKey()) },
       { id: "timeline", label: "时间轴", icon: History, group: "导航", run: () => navigate("/timeline") },
       { id: "calendar", label: "日历", icon: CalendarDays, group: "导航", run: () => navigate("/calendar") },
       { id: "search", label: "搜索", icon: Search, group: "导航", run: () => navigate("/search") },
@@ -99,11 +117,11 @@ export function CommandPalette() {
       },
       {
         id: "export",
-        label: "导出整库（HTML）",
+        label: "导出日记",
         icon: Download,
         group: "动作",
         run: () => {
-          exportHtml(useAppStore.getState().entries);
+          useAppStore.getState().setExportOpen(true);
           setOpen(false);
         },
       },
@@ -116,27 +134,39 @@ export function CommandPalette() {
           {
             id: "goto-date",
             label: `打开 ${dateStr}`,
-            hint: "日记",
+            hint: countOn(entries, dateStr),
             icon: CalendarDays,
             group: "跳转",
-            run: () => openEntry(dateStr),
+            run: () => goDate(dateStr),
+          },
+          {
+            id: "new-on-date",
+            label: `在 ${dateStr} 新写一篇`,
+            icon: PenLine,
+            group: "跳转",
+            run: () => goNew(dateStr),
           },
         ]
       : [];
 
     const q = query.trim().toLowerCase();
+    // Match on title AND body so untitled entries stay reachable.
     const titleCmds: Cmd[] =
       q.length > 0
         ? entries
-            .filter((e) => e.title.toLowerCase().includes(q))
+            .filter(
+              (e) =>
+                e.title.toLowerCase().includes(q) ||
+                e.body.toLowerCase().includes(q),
+            )
             .slice(0, 6)
             .map((e) => ({
-              id: `entry-${e.date}`,
+              id: `entry-${e.id}`,
               label: e.title || "(无标题)",
               hint: e.date,
               icon: PenLine,
               group: "日记",
-              run: () => openEntry(e.date),
+              run: () => goEntry(e),
             }))
         : [];
 
@@ -153,7 +183,20 @@ export function CommandPalette() {
     }));
 
     return [...nav, ...dateCmd, ...actions, ...titleCmds, ...vaultCmds];
-  }, [query, entries, theme, vaults, activeVaultId, navigate, setActiveDate, setTheme, switchVault]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    query,
+    entries,
+    theme,
+    vaults,
+    activeVaultId,
+    navigate,
+    openEntryById,
+    openDate,
+    startNewEntry,
+    setTheme,
+    switchVault,
+  ]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -265,4 +308,10 @@ export function CommandPalette() {
       </div>
     </div>
   );
+}
+
+/** "3 篇" / "还没有日记" — how much is already written on a given day. */
+function countOn(entries: JournalEntry[], date: string): string {
+  const n = entries.filter((e) => e.date === date).length;
+  return n > 0 ? `${n} 篇` : "还没有日记";
 }

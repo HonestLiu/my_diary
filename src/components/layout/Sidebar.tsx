@@ -24,6 +24,10 @@ const navItems = [
 
 export function Sidebar({ onNewEntry }: { onNewEntry?: () => void }) {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
+  const displayName = useAppStore((s) => s.settings.displayName);
+
+  const name = displayName.trim();
+  const initials = name ? Array.from(name)[0]! : "我";
 
   return (
     <aside
@@ -96,6 +100,22 @@ export function Sidebar({ onNewEntry }: { onNewEntry?: () => void }) {
 
       {/* Footer */}
       <div className="no-drag flex flex-col gap-1 px-3 pb-4">
+        {/* Personal profile chip — surfaces the user's chosen name. */}
+        <div className="flex items-center gap-2 rounded-xl px-3 py-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+            {initials}
+          </div>
+          {!collapsed && (
+            <div className="min-w-0 leading-tight">
+              <div className="truncate text-sm font-medium">
+                {name || "我的日记"}
+              </div>
+              <div className="truncate text-xs text-muted-foreground">
+                个人空间
+              </div>
+            </div>
+          )}
+        </div>
         <NavLink
           to="/settings"
           className={({ isActive }) =>

@@ -136,13 +136,13 @@ async function main() {
     [
       fakeFile(
         "2024-12-31.md",
-        "---\nid: y9\ndate: 2024-12-31\ntitle: 跨年(重复)\n---\n\n# 跨年\n\n被跳过。",
+        "---\nid: x1\ndate: 2024-12-31\ntitle: 跨年(重复)\n---\n\n# 跨年\n\n被跳过。",
       ),
     ],
     "skip",
   );
   ok(res2.skipped === 1 && res2.imported === 0, `跳过重复 1 篇 (skipped=${res2.skipped})`);
-  const dup = await repo.getEntry("2024-12-31");
+  const dup = await repo.getEntry("x1");
   ok(dup?.title === "跨年", "跳过策略保留原内容(未被覆盖)");
 
   console.log("[6] 冲突策略 — 覆盖(复用原 id，索引不重复)");
@@ -151,7 +151,7 @@ async function main() {
     [
       fakeFile(
         "2024-12-31.md",
-        "---\nid: z9\ndate: 2024-12-31\ntitle: 跨年(覆盖)\n---\n\n# 跨年\n\n被覆盖。",
+        "---\nid: x1\ndate: 2024-12-31\ntitle: 跨年(覆盖)\n---\n\n# 跨年\n\n被覆盖。",
       ),
     ],
     "overwrite",
@@ -160,7 +160,7 @@ async function main() {
   ok((await repo.listEntries()).length === 3, "覆盖后总数仍为 3(未新增重复文件)");
   const ov = await repo.search("跨年");
   ok(ov.length === 1, "搜索「跨年」仍只命中 1 条(索引未重复)");
-  ok((await repo.getEntry("2024-12-31"))?.title === "跨年(覆盖)", "覆盖后内容已更新");
+  ok((await repo.getEntry("x1"))?.title === "跨年(覆盖)", "覆盖后内容已更新");
 
   console.log("");
   if (failures === 0) {

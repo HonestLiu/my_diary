@@ -106,6 +106,9 @@
 
 /* ---- Journal editor typography (no typography plugin needed) ---- */
 .prose-diary {
+  /* Follows the user's font preference (sans / serif), set on :root by
+     applyAppearance() in personalization.ts. */
+  font-family: var(--diary-font, inherit);
   font-size: 1.05rem;
   line-height: 1.8;
   color: hsl(var(--foreground));

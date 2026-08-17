@@ -8,14 +8,16 @@ import { formatDateKey } from "@/lib/utils";
 import type { JournalEntry } from "@/types/journal";
 
 /**
- * Calendar — month grid marking every day that has an entry. On desktop two
- * months are shown side by side (fills the wide canvas instead of a narrow
- * centered column); navigation pages forward/back one month at a time.
+ * Calendar — month grid marking every day that has entries (a day can hold
+ * several, so cells show a count). On desktop two months are shown side by side
+ * (fills the wide canvas instead of a narrow centered column); navigation pages
+ * forward/back one month at a time.
  */
 export default function Calendar() {
   const entries = useAppStore((s) => s.entries);
   const activeDate = useAppStore((s) => s.activeDate);
-  const setActiveDate = useAppStore((s) => s.setActiveDate);
+  const openDate = useAppStore((s) => s.openDate);
+  const weekStartsOn = useAppStore((s) => s.settings.weekStartsOn);
   const navigate = useNavigate();
 
   const today = new Date();
@@ -24,9 +26,13 @@ export default function Calendar() {
     month: (Number(activeDate.slice(5, 7)) - 1) || today.getMonth(),
   });
 
-  const entryByDate = useMemo(() => {
-    const m = new Map<string, JournalEntry>();
-    for (const e of entries) m.set(e.date, e);
+  const entriesByDate = useMemo(() => {
+    const m = new Map<string, JournalEntry[]>();
+    for (const e of entries) {
+      const list = m.get(e.date);
+      if (list) list.push(e);
+      else m.set(e.date, [e]);
+    }
     return m;
   }, [entries]);
 
@@ -34,8 +40,9 @@ export default function Calendar() {
 
   const shift = (delta: number) => setBase((v) => stepMonth(v, delta));
 
+  // Opens that day's newest entry, or a blank draft when the day is empty.
   const open = (dateKey: string) => {
-    setActiveDate(dateKey);
+    openDate(dateKey);
     navigate("/editor");
   };
 
@@ -84,16 +91,17 @@ export default function Calendar() {
               key={`${m.year}-${m.month}`}
               year={m.year}
               month={m.month}
-              entryByDate={entryByDate}
+              entriesByDate={entriesByDate}
               activeDate={activeDate}
               onOpen={open}
+              weekStartsOn={weekStartsOn}
               animateOffset={mi * 6}
             />
           ))}
         </div>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          点击任意日期开始记录，标记了表情的日期已有日记。
+          点击任意日期开始记录；标记了表情的日期已有日记，右上角数字表示当天写了几篇。
         </p>
       </div>
     </div>
@@ -103,22 +111,31 @@ export default function Calendar() {
 interface MonthCardProps {
   year: number;
   month: number; // 0-based
-  entryByDate: Map<string, JournalEntry>;
+  /** All entries of a day, newest first. */
+  entriesByDate: Map<string, JournalEntry[]>;
   activeDate: string;
   onOpen: (key: string) => void;
+  /** First day of the week: 0 = Sunday, 1 = Monday. */
+  weekStartsOn: 0 | 1;
   animateOffset: number;
 }
 
 function MonthCard({
   year,
   month,
-  entryByDate,
+  entriesByDate,
   activeDate,
   onOpen,
+  weekStartsOn,
   animateOffset,
 }: MonthCardProps) {
-  const cells = useMemo(() => buildMonthGrid(year, month), [year, month]);
-  const weekdayLabels = ["日", "一", "二", "三", "四", "五", "六"];
+  const cells = useMemo(
+    () => buildMonthGrid(year, month, weekStartsOn),
+    [year, month, weekStartsOn],
+  );
+  const weekdayLabels = ["日", "一", "二", "三", "四", "五", "六"].slice(
+    weekStartsOn,
+  ).concat(["日", "一", "二", "三", "四", "五", "六"].slice(0, weekStartsOn));
 
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
@@ -135,10 +152,12 @@ function MonthCard({
       <div className="grid grid-cols-7 gap-1.5">
         {cells.map((cell, i) => {
           if (!cell) return <div key={`empty-${i}`} />;
-          const e = entryByDate.get(cell.key);
+          const dayEntries = entriesByDate.get(cell.key);
+          const first = dayEntries?.[0];
+          const count = dayEntries?.length ?? 0;
           const isToday = cell.key === formatDateKey();
           const isActive = cell.key === activeDate;
-          const mood = e ? MOOD_MAP[e.mood] : undefined;
+          const mood = first ? MOOD_MAP[first.mood] : undefined;
           return (
             <motion.button
               key={cell.key}
@@ -147,21 +166,27 @@ function MonthCard({
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: (animateOffset + i) * 0.004 }}
               onClick={() => onOpen(cell.key)}
-              className={`flex aspect-square flex-col items-center justify-center rounded-xl border text-sm transition ${
+              title={count > 1 ? `${count} 篇日记` : first?.title || undefined}
+              className={`relative flex aspect-square flex-col items-center justify-center rounded-xl border text-sm transition ${
                 isActive
-                  ? "border-amber-400 bg-accent"
-                  : e
-                    ? "border-border bg-muted/40 hover:border-amber-300"
+                  ? "border-primary bg-accent"
+                  : count
+                    ? "border-border bg-muted/40 hover:border-primary"
                     : "border-transparent text-muted-foreground hover:bg-muted"
               }`}
             >
               <span
-                className={`text-base ${isToday ? "font-bold text-amber-600" : "text-foreground"}`}
+                className={`text-base ${isToday ? "font-bold text-primary" : "text-foreground"}`}
               >
                 {cell.day}
               </span>
               {mood && (
                 <span className="text-base leading-none">{mood.emoji}</span>
+              )}
+              {count > 1 && (
+                <span className="absolute right-1 top-1 rounded-full bg-primary/90 px-1.5 text-[10px] font-semibold leading-4 text-primary-foreground">
+                  {count}
+                </span>
               )}
             </motion.button>
           );
@@ -176,9 +201,15 @@ interface Cell {
   day: number;
 }
 
-function buildMonthGrid(year: number, month: number): (Cell | null)[] {
+function buildMonthGrid(
+  year: number,
+  month: number,
+  weekStartsOn: 0 | 1,
+): (Cell | null)[] {
   const first = new Date(year, month, 1);
-  const startWeekday = first.getDay(); // 0 = Sunday
+  // getDay(): 0 = Sunday … 6 = Saturday. Rotate so the chosen week-start
+  // (Sunday or Monday) leads the grid.
+  const startWeekday = (first.getDay() - weekStartsOn + 7) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells: (Cell | null)[] = [];
   for (let i = 0; i < startWeekday; i++) cells.push(null);

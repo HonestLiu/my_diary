@@ -1,14 +1,14 @@
 import { useMemo, useState, type ChangeEvent } from "react";
-import { Cloud, CheckCircle2, AlertTriangle, FolderPlus, Trash2 } from "lucide-react";
+import { Cloud, CheckCircle2, AlertTriangle, Download, FolderPlus, Trash2 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { S3StorageProvider } from "@/lib/sync/s3";
 import { SyncEngine, type SyncResult } from "@/lib/sync/engine";
 import { uuid } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { SyncConfig } from "@/types/journal";
-import { exportHtml, exportZip } from "@/lib/export";
 import { importMarkdownFiles, type ImportConflictPolicy, type ImportResult } from "@/lib/import";
 import { isTauri } from "@/lib/storage/types";
+import { ACCENT_LIST } from "@/lib/personalization";
 
 const DEVICE_KEY = "my-diary-device-id";
 
@@ -61,8 +61,6 @@ export default function Settings() {
   const [result, setResult] = useState<SyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const entries = useAppStore((s) => s.entries);
-
   const vaults = useAppStore((s) => s.vaults);
   const activeVaultId = useAppStore((s) => s.activeVaultId);
   const switchVault = useAppStore((s) => s.switchVault);
@@ -79,15 +77,7 @@ export default function Settings() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
-  const handleExportZip = async () => {
-    const ok = await exportZip(entries);
-    if (!ok) {
-      window.alert(
-        "未安装可选依赖 fflate，已为你导出 HTML 版本。\n如需 .zip，请在项目目录运行：npm i fflate",
-      );
-      exportHtml(entries);
-    }
-  };
+  const setExportOpen = useAppStore((s) => s.setExportOpen);
 
   const handleCreateVault = async () => {
     await createVault(newVaultName, isTauri() ? newVaultPath : undefined);
@@ -169,22 +159,132 @@ export default function Settings() {
           <div className="space-y-6">
             {/* Appearance */}
         <Card title="外观">
-          <div className="flex gap-2">
-            {(["light", "dark", "system"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTheme(t)}
-                className={cn(
-                  "rounded-xl border px-4 py-2 text-sm transition",
-                  settings.theme === t
-                    ? "border-amber-400 bg-accent text-amber-700"
-                    : "border-border text-muted-foreground hover:bg-muted",
-                )}
-              >
-                {t === "light" ? "浅色" : t === "dark" ? "深色" : "跟随系统"}
-              </button>
-            ))}
+          <div className="space-y-5">
+            {/* Theme mode */}
+            <div>
+              <div className="mb-2 text-xs font-medium text-muted-foreground">主题</div>
+              <div className="flex gap-2">
+                {(
+                  [
+                    { k: "light", label: "浅色" },
+                    { k: "dark", label: "深色" },
+                    { k: "system", label: "跟随系统" },
+                  ] as const
+                ).map((t) => (
+                  <button
+                    key={t.k}
+                    type="button"
+                    onClick={() => setTheme(t.k)}
+                    className={cn(
+                      "rounded-xl border px-4 py-2 text-sm transition",
+                      settings.theme === t.k
+                        ? "border-primary bg-accent text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Accent color */}
+            <div>
+              <div className="mb-2 text-xs font-medium text-muted-foreground">
+                主题色
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {ACCENT_LIST.map((a) => (
+                  <button
+                    key={a.key}
+                    type="button"
+                    title={a.label}
+                    aria-label={a.label}
+                    onClick={() => updateSettings({ accent: a.key })}
+                    className={cn(
+                      "flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition",
+                      settings.accent === a.key
+                        ? "border-primary bg-accent text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    <span
+                      className="h-4 w-4 rounded-full ring-1 ring-inset ring-black/10"
+                      style={{ background: a.swatch }}
+                    />
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Diary font */}
+            <div>
+              <div className="mb-2 text-xs font-medium text-muted-foreground">
+                正文字体
+              </div>
+              <div className="flex gap-2">
+                {(
+                  [
+                    { k: "sans", label: "无衬线" },
+                    { k: "serif", label: "衬线" },
+                  ] as const
+                ).map((f) => (
+                  <button
+                    key={f.k}
+                    type="button"
+                    onClick={() => updateSettings({ font: f.k })}
+                    className={cn(
+                      "rounded-xl border px-4 py-2 text-sm transition",
+                      settings.font === f.k
+                        ? "border-primary bg-accent text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Profile / personalization */}
+        <Card title="个人资料">
+          <p className="mb-4 text-sm text-muted-foreground">
+            设置你的名字，会显示在应用角落与导出的日记中，让记录更有「你」的气息。
+          </p>
+          <Labeled label="昵称 / 署名">
+            <input
+              value={settings.displayName}
+              onChange={(e) => updateSettings({ displayName: e.target.value })}
+              placeholder="例如：小林"
+              className={inputCls}
+            />
+          </Labeled>
+          <div className="mt-4">
+            <div className="mb-2 text-xs font-medium text-muted-foreground">
+              日历每周从
+            </div>
+            <div className="flex gap-2">
+              {([{ k: 1 as const, label: "周一" }, { k: 0 as const, label: "周日" }]).map(
+                (w) => (
+                  <button
+                    key={w.k}
+                    type="button"
+                    onClick={() => updateSettings({ weekStartsOn: w.k })}
+                    className={cn(
+                      "rounded-xl border px-4 py-2 text-sm transition",
+                      settings.weekStartsOn === w.k
+                        ? "border-primary bg-accent text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {w.label}
+                  </button>
+                ),
+              )}
+            </div>
           </div>
         </Card>
 
@@ -203,7 +303,7 @@ export default function Settings() {
                   key={v.id}
                   className={cn(
                     "flex items-center gap-2 rounded-xl border px-3 py-2",
-                    active ? "border-amber-400 bg-accent" : "border-border",
+                    active ? "border-primary bg-accent" : "border-border",
                   )}
                 >
                   {renaming ? (
@@ -232,13 +332,13 @@ export default function Settings() {
                       <span
                         className={cn(
                           "font-medium",
-                          active ? "text-amber-700" : "text-foreground",
+                          active ? "text-primary" : "text-foreground",
                         )}
                       >
                         {v.name}
                       </span>
                       {active && (
-                        <span className="text-xs text-amber-600">当前</span>
+                        <span className="text-xs text-primary">当前</span>
                       )}
                       {!isTauri() && (
                         <span className="truncate text-xs text-muted-foreground">
@@ -378,7 +478,7 @@ export default function Settings() {
               type="button"
               onClick={runSync}
               disabled={syncing}
-              className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-60"
+              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
             >
               <Cloud className="h-4 w-4" />
               {syncing ? "同步中…" : "立即同步"}
@@ -405,7 +505,7 @@ export default function Settings() {
               {result.conflicts.map((c) => (
                 <div
                   key={c.path}
-                  className="flex items-center justify-between rounded-xl bg-accent px-3 py-2 text-sm text-amber-700"
+                  className="flex items-center justify-between rounded-xl bg-accent px-3 py-2 text-sm text-primary"
                 >
                   <span className="truncate">⚠ 冲突：{c.path}</span>
                 </div>
@@ -435,21 +535,15 @@ export default function Settings() {
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={() => exportHtml(entries)}
-              className="rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/90"
+              onClick={() => setExportOpen(true)}
+              className="flex items-center gap-2 rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/90"
             >
-              导出为单个 HTML
-            </button>
-            <button
-              type="button"
-              onClick={handleExportZip}
-              className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
-            >
-              导出为 Markdown 压缩包 (.zip)
+              <Download className="h-4 w-4" />
+              导出日记数据
             </button>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            .zip 需要可选依赖 fflate：<code>npm i fflate</code>。未安装时此按钮自动降级为 HTML。
+            可导出为单个 HTML，或包含全部 Markdown 与图片 / 音频 / 附件的 .zip 压缩包，解压后即可离线阅读。
           </p>
         </Card>
 
@@ -566,7 +660,7 @@ function Labeled({
 }
 
 const inputCls =
-  "rounded-xl border border-border px-3 py-2 text-sm text-foreground outline-none focus:border-amber-300";
+  "rounded-xl border border-border px-3 py-2 text-sm text-foreground outline-none focus:border-primary";
 
 function SyncStat({
   label,
@@ -580,7 +674,7 @@ function SyncStat({
   return (
     <div className="flex items-center justify-between text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className={warn ? "font-semibold text-amber-600" : "text-foreground"}>
+      <span className={warn ? "font-semibold text-primary" : "text-foreground"}>
         {value}
       </span>
     </div>

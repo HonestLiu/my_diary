@@ -3,9 +3,10 @@ import {
   listVersions,
   nextVersionNumber,
   readVersion,
-  restoreVersion,
 } from "../src/lib/version";
 import { serializeEntryFile, parseEntryFile } from "../src/lib/markdown";
+import { JournalRepository } from "@/lib/journal";
+import { MemoryIndex } from "@/lib/db/memory";
 import type { StorageAdapter } from "../src/lib/storage/types";
 import type { JournalEntry } from "../src/types/journal";
 
@@ -109,11 +110,20 @@ async function main() {
   const read = await readVersion(store, date, 1);
   assert(read.title === "v1" && read.body.includes("first"), "readVersion 还原 v1 内容");
 
-  // ---- 4. restoreVersion writes current entry file ----
+  // ---- 4. restoreVersion (now a JournalRepository method, keyed by id) ----
   console.log("== 4. restoreVersion ==");
-  const restored = await restoreVersion(store, date, 1);
+  const store2 = new MemStorage();
+  const repo = new JournalRepository(store2, new MemoryIndex());
+  await repo.init("vault");
+  const target = makeEntry("2026-08-11", "v1", "first");
+  await repo.saveEntry(target);
+  await repo.saveEntry({ ...target, title: "v2", body: "second" }); // 首次保存后再次保存会归档 v1
+  const vers = await repo.listVersions({ id: target.id, date: target.date });
+  assert(vers.length === 1, "归档出 1 个历史版本");
+  const restored = await repo.restoreVersion({ id: target.id, date: target.date }, 1);
   assert(restored.title === "v1", "restore 返回 v1 条目");
-  const currentRaw = store.files.get("entries/2026/08/2026-08-11.md")?.text ?? "";
+  const currentRaw =
+    store2.files.get("entries/2026/08/2026-08-11-id202608.md")?.text ?? "";
   const current = parseEntryFile(currentRaw);
   assert(
     current.meta.title === "v1" && current.body.includes("first"),

@@ -30,6 +30,10 @@ dist-ssr
 src-tauri/target/
 src-tauri/gen/
 
+# Tauri LLM models (large binaries — never commit; keep the folder via .gitkeep)
+src-tauri/models/*
+!src-tauri/models/.gitkeep
+
 # Local journal data (user's own data — never commit)
 my-diary-data/
 

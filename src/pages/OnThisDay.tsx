@@ -2,9 +2,11 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Stars, Dice5 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
+import { byRecency } from "@/lib/journal";
 import { formatDateKey, formatHumanDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MOOD_MAP } from "@/lib/constants";
+import type { JournalEntry } from "@/types/journal";
 
 function snippet(body: string): string {
   const clean = body
@@ -17,22 +19,23 @@ function snippet(body: string): string {
 /** "On this day" — every year's entry for today's month-day. */
 export default function OnThisDay() {
   const entries = useAppStore((s) => s.entries);
-  const setActiveDate = useAppStore((s) => s.setActiveDate);
+  const openEntry = useAppStore((s) => s.openEntry);
   const navigate = useNavigate();
 
   const today = formatDateKey();
   const mmdd = today.slice(5);
 
+  // Any given past year may hold several entries for this month-day.
   const matches = useMemo(
     () =>
       entries
         .filter((e) => e.date.slice(5) === mmdd && e.date !== today)
-        .sort((a, b) => (a.date < b.date ? 1 : -1)),
-    [entries, today],
+        .sort(byRecency),
+    [entries, mmdd, today],
   );
 
-  const open = (date: string) => {
-    setActiveDate(date);
+  const open = (entry: JournalEntry) => {
+    openEntry(entry.id, entry.date);
     navigate("/editor");
   };
 
@@ -40,7 +43,7 @@ export default function OnThisDay() {
     if (entries.length === 0) return;
     const e = entries[Math.floor(Math.random() * entries.length)];
     if (!e) return;
-    open(e.date);
+    open(e);
   };
 
   return (
@@ -68,11 +71,11 @@ export default function OnThisDay() {
         ) : (
           <ul className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {matches.map((e) => (
-              <li key={e.date}>
+              <li key={e.id}>
                 <button
                   type="button"
-                  onClick={() => open(e.date)}
-                  className="w-full rounded-2xl border border-border bg-card p-4 text-left transition-colors hover:border-amber-300 hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => open(e)}
+                  className="w-full rounded-2xl border border-border bg-card p-4 text-left transition-colors hover:border-primary hover:bg-accent hover:text-accent-foreground"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="truncate font-medium">{e.title || "(无标题)"}</span>

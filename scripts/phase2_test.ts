@@ -49,12 +49,17 @@ assert(!parsed.body.includes("# 今天"), "正文不含被剥离的 H1");
 
 console.log("== Vault paths ==");
 assert(
-  entryFilePath("2026-08-11") === "entries/2026/08/2026-08-11.md",
+  entryFilePath({ id: "11111111-2222-3333-4444-555555555555", date: "2026-08-11" }) ===
+    "entries/2026/08/2026-08-11-11111111.md",
   "entryFilePath 正确",
 );
 assert(
   dateKeyFromEntryPath("entries/2026/08/2026-08-11.md") === "2026-08-11",
-  "dateKeyFromEntryPath 反向解析",
+  "dateKeyFromEntryPath 旧命名反向解析",
+);
+assert(
+  dateKeyFromEntryPath("entries/2026/08/2026-08-11-11111111.md") === "2026-08-11",
+  "dateKeyFromEntryPath 新命名(含 shortid)反向解析",
 );
 assert(dateKeyFromEntryPath("garbage.md") === null, "无效路径返回 null");
 assert(

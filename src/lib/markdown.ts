@@ -67,6 +67,58 @@ export function serializeEntryFile(entry: JournalEntry): string {
   return `---\n${yamlStr}\n---\n\n# ${entry.title}\n\n${body}\n`;
 }
 
+/**
+ * Rewrite vault-root-relative asset references in an entry's BODY — Markdown
+ * images `![..](assets/..)` and attachment HTML `data-src="assets/.."` — while
+ * leaving the YAML frontmatter untouched.
+ *
+ * `prefix` is prepended to each reference. The .zip export passes "../../" (an
+ * entry file lives two folders under the archive root), so every image still
+ * resolves when the archive is unzipped and read by any Markdown editor.
+ * Frontmatter `assets:` paths deliberately stay vault-root-relative, which is
+ * what `normalizeAssetRefsToRoot` expects on re-import — the round-trip is
+ * lossless in both directions.
+ */
+export function rebaseBodyAssetRefs(serializedFile: string, prefix: string): string {
+  const i = serializedFile.indexOf("\n---\n");
+  if (i < 0) return serializedFile;
+  const header = serializedFile.slice(0, i + 5); // through the closing `---\n`
+  const body = serializedFile.slice(i + 5);
+  const rebase = (p: string) => (p.startsWith("assets/") ? prefix + p : p);
+  return (
+    header +
+    body
+      .replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt: string, p: string) =>
+        `[${alt}](${rebase(p)})`,
+      )
+      .replace(/((?:data-)?src=")([^"]+)/g, (_m, pre: string, p: string) =>
+        pre + rebase(p),
+      )
+  );
+}
+
+/**
+ * Inverse of `rebaseBodyAssetRefs` for the import path: strip leading "../"
+ * from vault-rooted asset references so a file exported as a .zip (whose body
+ * points at `../../assets/...`) resolves correctly once imported back into a
+ * vault, where references are root-relative. Non-asset relative links are left
+ * untouched.
+ */
+export function normalizeAssetRefsToRoot(md: string): string {
+  const rebase = (p: string) => {
+    let r = p;
+    while (r.startsWith("../")) r = r.slice(3);
+    return r.startsWith("assets/") ? r : p;
+  };
+  return md
+    .replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt: string, p: string) =>
+      `[${alt}](${rebase(p)})`,
+    )
+    .replace(/((?:data-)?src=")([^"]+)/g, (_m, pre: string, p: string) =>
+      pre + rebase(p),
+    );
+}
+
 function normalizeMeta(obj: Record<string, unknown>): JournalMeta {
   const id = typeof obj.id === "string" && obj.id ? obj.id : crypto.randomUUID();
   const date = normalizeDateKey(obj.date);
