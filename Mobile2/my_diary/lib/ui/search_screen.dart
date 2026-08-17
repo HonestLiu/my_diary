@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
-import 'package:my_diary_mobile/ui/detail_screen.dart';
+import 'package:my_diary_mobile/ui/entry_card.dart';
 import 'package:provider/provider.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -68,64 +68,8 @@ class _SearchScreenState extends State<SearchScreen> {
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: _results.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) {
-                    final e = _results[i];
-                    final preview =
-                        e.body.replaceAll(RegExp(r'\s+'), ' ').trim();
-                    return Card(
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => DetailScreen(entry: e)),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: t.fill,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(e.mood.emoji,
-                                    style: const TextStyle(fontSize: 20)),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(e.displayTitle,
-                                        style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis),
-                                    const SizedBox(height: 5),
-                                    Text(
-                                      preview.isEmpty
-                                          ? e.date
-                                          : preview,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: context.caption,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) => EntryCard(entry: _results[i]),
                 ),
     );
   }
