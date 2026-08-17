@@ -8,7 +8,8 @@ import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/settings_screen.dart';
 import 'package:provider/provider.dart';
 
-/// 我的：个人中心 + 账户 + 同步 + 外观快捷 + 设置入口。
+/// 我的：个人中心 + 统计 + 账户与同步 + 外观快捷 + 设置入口。
+/// 精致卡片风：柔和投影无边框卡，散落小组件合并成更少的卡。
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -24,9 +25,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _conflicts = context.read<AppStore>().pendingConflictPaths();
   }
-
-  int get _entryCount =>
-      context.read<AppStore>().entries.length;
 
   int get _streak {
     final dates = context
@@ -74,39 +72,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final t = context.tokens;
     final s = store.settings;
     final sync = s.sync;
+    final total = store.entries.length;
+    final ym = DateFormat('yyyy-MM').format(DateTime.now());
+    final monthCount =
+        store.entries.where((e) => e.date.startsWith(ym)).length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [
-          // 个人头部
-          Row(
-            children: [
-              _Avatar(name: s.displayName, size: 64),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(s.displayName.isEmpty ? '我' : s.displayName,
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Text('$_entryCount 篇日记 · 连续 $_streak 天',
-                        style: context.caption),
-                  ],
+          // 卡 1：个人头部 + 三格统计
+          _Card(children: [
+            Row(
+              children: [
+                _Avatar(name: s.displayName, size: 64),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(s.displayName.isEmpty ? '我' : s.displayName,
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text('$total 篇日记 · 连续 $_streak 天',
+                          style: context.caption),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                _StatTile(value: '$monthCount', label: '本月'),
+                _vDivider(t),
+                _StatTile(value: '$_streak', label: '连续'),
+                _vDivider(t),
+                _StatTile(value: '$total', label: '总计'),
+              ],
+            ),
+          ]),
+          const SizedBox(height: 16),
 
-          // 本月统计：条数 + 心情分布
-          _StatsCard(entries: store.entries),
-          const SizedBox(height: 14),
-
-          // 本月心情 / 天气分布柱状图
+          // 卡 2 / 卡 3：本月心情 / 天气分布
           _BarChartCard(
               title: '本月心情',
               icon: Icons.mood_outlined,
@@ -117,7 +129,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 (m) => m.emoji,
                 (m) => m.label,
               )),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           _BarChartCard(
               title: '本月天气',
               icon: Icons.wb_sunny_outlined,
@@ -128,42 +140,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 (w) => w.emoji,
                 (w) => w.label,
               )),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
 
-          // 账户
+          // 卡 4：账户与同步
           _Card(children: [
-            if (auth.isCloudAuthenticated) ...[
-              ListTile(
-                leading: const Icon(Icons.verified_user_outlined),
-                title: Text(auth.email ?? '已登录'),
-                subtitle: const Text('云服务已连接'),
-                trailing: TextButton(
-                  onPressed: () async {
-                    await auth.logout();
-                    if (mounted) setState(() {});
-                  },
-                  child: const Text('注销'),
-                ),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ] else
-              ListTile(
-                leading: const Icon(Icons.cloud_outlined),
-                title: const Text('云服务账户'),
-                subtitle: const Text('登录后多端同步日记'),
-                trailing: const Icon(Icons.chevron_right),
-                contentPadding: EdgeInsets.zero,
+            if (auth.isCloudAuthenticated)
+              Row(
+                children: [
+                  const Icon(Icons.verified_user_outlined, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(auth.email ?? '已登录',
+                            style: const TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Text('云服务已连接', style: context.caption),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      await auth.logout();
+                      if (mounted) setState(() {});
+                    },
+                    child: const Text('注销'),
+                  ),
+                ],
+              )
+            else
+              InkWell(
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
                       builder: (_) => const SettingsScreen()),
                 ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cloud_outlined, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('云服务账户',
+                              style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text('登录后多端同步日记', style: context.caption),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: t.textTertiary),
+                  ],
+                ),
               ),
-          ]),
-          const SizedBox(height: 14),
-
-          // 同步
-          _Card(children: [
+            const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
             Row(
               children: [
                 Icon(sync.enabled
@@ -202,7 +239,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: context.caption),
             ],
             if (store.lastSync != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   _Stat(label: '上传', value: store.lastSync!.uploaded.length),
@@ -272,13 +309,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
           ]),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
 
-          // 外观
+          // 卡 5：外观
           _Card(children: [
             const Text('主题',
                 style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             SegmentedButton<ThemePreference>(
               segments: const [
                 ButtonSegment(
@@ -292,12 +329,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onSelectionChanged: (sel) => store
                   .saveSettings(s.copyWith(theme: sel.first)),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
             const Text('品牌色',
                 style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Wrap(
-              spacing: 12,
+              spacing: 14,
               children: AccentKey.values
                   .map((a) => InkWell(
                         onTap: () =>
@@ -323,9 +360,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   .toList(),
             ),
           ]),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
 
-          // 设置入口
+          // 卡 6：设置入口
           _Card(children: [
             ListTile(
               leading: const Icon(Icons.settings_outlined),
@@ -390,14 +427,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+/// 精致卡片：柔和投影、无边框、统一圆角与内距。
 class _Card extends StatelessWidget {
   final List<Widget> children;
   const _Card({required this.children});
 
   @override
   Widget build(BuildContext context) => Card(
+        elevation: 2,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+        shape: RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(context.tokens.radiusCard)),
+        clipBehavior: Clip.antiAlias,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: children,
@@ -405,6 +449,35 @@ class _Card extends StatelessWidget {
         ),
       );
 }
+
+/// 三格统计的单格：大数字 + 小标签（无底色，靠竖线分隔）。
+class _StatTile extends StatelessWidget {
+  final String value;
+  final String label;
+  const _StatTile({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Column(
+          children: [
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5)),
+            const SizedBox(height: 3),
+            Text(label, style: context.caption),
+          ],
+        ),
+      );
+}
+
+/// 统计格之间的细分隔竖线。
+Widget _vDivider(AppTokens t) => Container(
+      width: 1,
+      height: 34,
+      color: t.border,
+    );
 
 class _Stat extends StatelessWidget {
   final String label;
@@ -439,46 +512,6 @@ class _Stat extends StatelessWidget {
           ),
         ),
       );
-}
-
-class _StatsCard extends StatelessWidget {
-  final List<JournalEntry> entries;
-  const _StatsCard({required this.entries});
-
-  @override
-  Widget build(BuildContext context) {
-    final ym = DateFormat('yyyy-MM').format(DateTime.now());
-    var count = 0;
-    for (final e in entries) {
-      if (e.date.startsWith(ym)) count++;
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('本月', style: context.caption),
-            const SizedBox(height: 2),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text('$count',
-                    style: const TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -1)),
-                const SizedBox(width: 5),
-                Text('篇', style: context.caption),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 /// 柱状图单条数据：emoji 图标 + 中文标签 + 计数。

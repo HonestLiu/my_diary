@@ -176,223 +176,218 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _SectionTitle('账户（云服务）'),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: auth.isCloudAuthenticated
-                  ? Row(
-                      children: [
-                        const Icon(Icons.verified_user_outlined),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: Text('已登录：${auth.email ?? ""}')),
-                        TextButton(
-                          onPressed: () async {
-                            await auth.logout();
-                            setState(() {});
-                          },
-                          child: const Text('注销'),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      children: [
-                        TextField(
-                          controller: _emailCtl,
-                          decoration:
-                              const InputDecoration(hintText: '邮箱'),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _passwordCtl,
-                          obscureText: true,
-                          decoration:
-                              const InputDecoration(hintText: '密码（≥8 位）'),
-                        ),
-                        const SizedBox(height: 10),
-                        _accountBusy
-                            ? const CircularProgressIndicator()
-                            : Row(
-                                children: [
-                                  Expanded(
-                                    child: FilledButton(
-                                        onPressed: _login,
-                                        child: const Text('登录')),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: OutlinedButton(
-                                        onPressed: _register,
-                                        child: const Text('注册')),
-                                  ),
-                                ],
-                              ),
-                      ],
+          _Card(
+            children: [
+              if (auth.isCloudAuthenticated)
+                Row(
+                  children: [
+                    const Icon(Icons.verified_user_outlined, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text('已登录：${auth.email ?? ""}',
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600)),
                     ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          _SectionTitle('同步'),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                children: [
-                  DropdownButtonFormField<SyncProvider>(
-                    value: _provider,
-                    decoration:
-                        const InputDecoration(labelText: '同步方式'),
-                    items: const [
-                      DropdownMenuItem(
-                          value: SyncProvider.none, child: Text('不使用同步')),
-                      DropdownMenuItem(
-                          value: SyncProvider.cloud, child: Text('云服务（预签名中枢）')),
-                      DropdownMenuItem(
-                          value: SyncProvider.s3, child: Text('AWS S3')),
-                      DropdownMenuItem(
-                          value: SyncProvider.r2, child: Text('Cloudflare R2')),
-                      DropdownMenuItem(
-                          value: SyncProvider.minio, child: Text('MinIO')),
-                      DropdownMenuItem(
-                          value: SyncProvider.oss, child: Text('阿里云 OSS')),
-                    ],
-                    onChanged: (v) => setState(() => _provider = v!),
-                  ),
-                  if (_provider == SyncProvider.cloud) ...[
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _baseUrlCtl,
-                      decoration: const InputDecoration(
-                        hintText: '云服务地址，如 https://diary.example.com',
-                        labelText: '云服务 Base URL',
-                      ),
+                    TextButton(
+                      onPressed: () async {
+                        await auth.logout();
+                        setState(() {});
+                      },
+                      child: const Text('注销'),
                     ),
-                    const SizedBox(height: 6),
-                    const Text('选择「云服务」后，请在上方「账户」中登录或注册。',
-                        style: TextStyle(fontSize: 12)),
                   ],
-                  if (_isDirect(_provider)) ...[
+                )
+              else
+                Column(
+                  children: [
+                    TextField(
+                      controller: _emailCtl,
+                      decoration:
+                          const InputDecoration(hintText: '邮箱'),
+                    ),
                     const SizedBox(height: 10),
                     TextField(
-                      controller: _endpointCtl,
-                      decoration: const InputDecoration(
-                        hintText: 'https://s3.us-east-1.amazonaws.com',
-                        labelText: 'Endpoint',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _bucketCtl,
-                      decoration:
-                          const InputDecoration(labelText: 'Bucket'),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _regionCtl,
-                      decoration:
-                          const InputDecoration(labelText: 'Region'),
-                    ),
-                    const SizedBox(height: 8),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Path-style 寻址'),
-                      subtitle: const Text('MinIO / R2 / OSS 开启；AWS S3 关闭'),
-                      value: _pathStyle,
-                      onChanged: (v) => setState(() => _pathStyle = v),
-                    ),
-                    TextField(
-                      controller: _accessKeyCtl,
-                      decoration: const InputDecoration(
-                        labelText: 'Access Key（留空则不修改）',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _secretKeyCtl,
+                      controller: _passwordCtl,
                       obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Secret Key（留空则不修改）',
-                      ),
+                      decoration:
+                          const InputDecoration(hintText: '密码（≥8 位）'),
                     ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          _SectionTitle('外观'),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('主题'),
-                  SegmentedButton<ThemePreference>(
-                    segments: const [
-                      ButtonSegment(
-                          value: ThemePreference.light, label: Text('亮')),
-                      ButtonSegment(
-                          value: ThemePreference.dark, label: Text('暗')),
-                      ButtonSegment(
-                          value: ThemePreference.system, label: Text('跟随系统')),
-                    ],
-                    selected: {_theme},
-                    onSelectionChanged: (s) =>
-                        setState(() => _theme = s.first),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text('品牌色'),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 10,
-                    children: AccentKey.values
-                        .map((a) => ChoiceChip(
-                              label: Text(accentLabels[a]!),
-                              selected: _accent == a,
-                              avatar: CircleAvatar(
-                                backgroundColor: accentSeeds[a],
-                                radius: 8,
+                    const SizedBox(height: 14),
+                    _accountBusy
+                        ? const Center(child: CircularProgressIndicator())
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton(
+                                    onPressed: _login,
+                                    child: const Text('登录')),
                               ),
-                              onSelected: (_) => setState(() => _accent = a),
-                            ))
-                        .toList(),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text('默认心情'),
-                  Wrap(
-                    spacing: 6,
-                    children: Mood.ordered
-                        .map((m) => ChoiceChip(
-                              label: Text('${m.emoji} ${m.label}'),
-                              selected: _defaultMood == m,
-                              onSelected: (_) =>
-                                  setState(() => _defaultMood = m),
-                            ))
-                        .toList(),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    decoration: const InputDecoration(labelText: '昵称'),
-                    onChanged: (v) => _displayName = v,
-                    controller: TextEditingController(text: _displayName)
-                      ..selection = TextSelection.fromPosition(
-                          TextPosition(offset: _displayName.length)),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    value: _weekStartsOn,
-                    decoration:
-                        const InputDecoration(labelText: '每周起始日'),
-                    items: const [
-                      DropdownMenuItem(value: 0, child: Text('周日')),
-                      DropdownMenuItem(value: 1, child: Text('周一')),
-                    ],
-                    onChanged: (v) => setState(() => _weekStartsOn = v!),
-                  ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton(
+                                    onPressed: _register,
+                                    child: const Text('注册')),
+                              ),
+                            ],
+                          ),
+                  ],
+                ),
+            ],
+          ),
+          _SectionTitle('同步'),
+          _Card(
+            children: [
+              DropdownButtonFormField<SyncProvider>(
+                value: _provider,
+                decoration:
+                    const InputDecoration(labelText: '同步方式'),
+                items: const [
+                  DropdownMenuItem(
+                      value: SyncProvider.none, child: Text('不使用同步')),
+                  DropdownMenuItem(
+                      value: SyncProvider.cloud, child: Text('云服务（预签名中枢）')),
+                  DropdownMenuItem(
+                      value: SyncProvider.s3, child: Text('AWS S3')),
+                  DropdownMenuItem(
+                      value: SyncProvider.r2, child: Text('Cloudflare R2')),
+                  DropdownMenuItem(
+                      value: SyncProvider.minio, child: Text('MinIO')),
+                  DropdownMenuItem(
+                      value: SyncProvider.oss, child: Text('阿里云 OSS')),
                 ],
+                onChanged: (v) => setState(() => _provider = v!),
               ),
-            ),
+              if (_provider == SyncProvider.cloud) ...[
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _baseUrlCtl,
+                  decoration: const InputDecoration(
+                    hintText: 'https://diary.example.com',
+                    labelText: '云服务 Base URL',
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text('选择「云服务」后，请在上方「账户」中登录或注册。',
+                    style: TextStyle(fontSize: 12)),
+              ],
+              if (_isDirect(_provider)) ...[
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _endpointCtl,
+                  decoration: const InputDecoration(
+                    hintText: 'https://s3.us-east-1.amazonaws.com',
+                    labelText: 'Endpoint',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _bucketCtl,
+                  decoration:
+                      const InputDecoration(labelText: 'Bucket'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _regionCtl,
+                  decoration:
+                      const InputDecoration(labelText: 'Region'),
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Path-style 寻址'),
+                  subtitle: const Text('MinIO / R2 / OSS 开启；AWS S3 关闭'),
+                  value: _pathStyle,
+                  onChanged: (v) => setState(() => _pathStyle = v),
+                ),
+                TextField(
+                  controller: _accessKeyCtl,
+                  decoration: const InputDecoration(
+                    labelText: 'Access Key（留空则不修改）',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _secretKeyCtl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Secret Key（留空则不修改）',
+                  ),
+                ),
+              ],
+            ],
+          ),
+          _SectionTitle('外观'),
+          _Card(
+            children: [
+              const Text('主题',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              SegmentedButton<ThemePreference>(
+                segments: const [
+                  ButtonSegment(
+                      value: ThemePreference.light, label: Text('亮')),
+                  ButtonSegment(
+                      value: ThemePreference.dark, label: Text('暗')),
+                  ButtonSegment(
+                      value: ThemePreference.system, label: Text('跟随系统')),
+                ],
+                selected: {_theme},
+                onSelectionChanged: (s) =>
+                    setState(() => _theme = s.first),
+              ),
+              const SizedBox(height: 18),
+              const Text('品牌色',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 10,
+                children: AccentKey.values
+                    .map((a) => ChoiceChip(
+                          label: Text(accentLabels[a]!),
+                          selected: _accent == a,
+                          avatar: CircleAvatar(
+                            backgroundColor: accentSeeds[a],
+                            radius: 8,
+                          ),
+                          onSelected: (_) => setState(() => _accent = a),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 18),
+              const Text('默认心情',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                children: Mood.ordered
+                    .map((m) => ChoiceChip(
+                          label: Text('${m.emoji} ${m.label}'),
+                          selected: _defaultMood == m,
+                          onSelected: (_) =>
+                              setState(() => _defaultMood = m),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 18),
+              TextField(
+                decoration: const InputDecoration(labelText: '昵称'),
+                onChanged: (v) => _displayName = v,
+                controller: TextEditingController(text: _displayName)
+                  ..selection = TextSelection.fromPosition(
+                      TextPosition(offset: _displayName.length)),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<int>(
+                value: _weekStartsOn,
+                decoration:
+                    const InputDecoration(labelText: '每周起始日'),
+                items: const [
+                  DropdownMenuItem(value: 0, child: Text('周日')),
+                  DropdownMenuItem(value: 1, child: Text('周一')),
+                ],
+                onChanged: (v) => setState(() => _weekStartsOn = v!),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
         ],
@@ -401,12 +396,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
+/// 分区标题：小号加粗 caption，作为卡片之间的分组标记。
 class _SectionTitle extends StatelessWidget {
   final String text;
   const _SectionTitle(this.text);
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 10, top: 4),
-        child: Text(text, style: context.titleMedium),
+        padding: const EdgeInsets.only(top: 22, bottom: 10),
+        child: Text(text,
+            style: context.caption.copyWith(
+                fontSize: 13, fontWeight: FontWeight.w700)),
+      );
+}
+
+/// 精致卡片：柔和投影、无边框、统一圆角与内距。
+class _Card extends StatelessWidget {
+  final List<Widget> children;
+  const _Card({required this.children});
+
+  @override
+  Widget build(BuildContext context) => Card(
+        elevation: 2,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+        shape: RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(context.tokens.radiusCard)),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: children,
+          ),
+        ),
       );
 }
