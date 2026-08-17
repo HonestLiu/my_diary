@@ -367,7 +367,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// 统计某维度（心情 / 天气）在本月的分布，返回降序排列、且只含「有记录」的类别。
+  /// 统计某维度（心情 / 天气）在本月的分布，返回降序排列、含全部类别（含 0 值）。
   List<_BarDatum> _distribution<T>(
     List<JournalEntry> entries,
     T Function(JournalEntry) pick,
@@ -384,7 +384,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     final list = ordered
         .map((k) => _BarDatum(emoji(k), label(k), counts[k] ?? 0))
-        .where((d) => d.count > 0)
         .toList()
       ..sort((a, b) => b.count.compareTo(a.count));
     return list;
@@ -538,6 +537,7 @@ class _BarChartCard extends StatelessWidget {
               children: data.map((d) {
                 final ratio = maxCount == 0 ? 0.0 : d.count / maxCount;
                 final barH = 10.0 + ratio * 100.0; // 最小 10，最大 110
+                final isZero = d.count == 0;
                 return Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -546,7 +546,7 @@ class _BarChartCard extends StatelessWidget {
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: d.count == 0
+                              color: isZero
                                   ? t.textTertiary
                                   : t.textPrimary)),
                       const SizedBox(height: 5),
@@ -555,14 +555,21 @@ class _BarChartCard extends StatelessWidget {
                         height: barH,
                         margin: const EdgeInsets.symmetric(horizontal: 5),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              primary,
-                              primary.withValues(alpha: 0.5),
-                            ],
-                          ),
+                          // 0 值用中性空槽（浅底 + 描边），避免强调色顶满再配空槽的突兀感。
+                          color: isZero ? t.fill : null,
+                          gradient: isZero
+                              ? null
+                              : LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    primary,
+                                    primary.withValues(alpha: 0.5),
+                                  ],
+                                ),
+                          border: isZero
+                              ? Border.all(color: t.border, width: 1)
+                              : null,
                           borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(6)),
                         ),
