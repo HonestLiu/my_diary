@@ -13,6 +13,7 @@ import 'package:my_diary_mobile/editor/media_card.dart';
 import 'package:my_diary_mobile/editor/rich_text_controller.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
+import 'package:my_diary_mobile/ui/map_picker_page.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:provider/provider.dart';
 
@@ -42,6 +43,8 @@ class _EditorScreenState extends State<EditorScreen> {
   late Weather _weather;
   late String _date;
   late List<String> _tags;
+  double? _latitude;
+  double? _longitude;
 
   final List<DocBlock> _blocks = <DocBlock>[];
   final Map<String, RichTextController> _controllers = {};
@@ -72,6 +75,8 @@ class _EditorScreenState extends State<EditorScreen> {
     _weather = e.weather;
     _date = e.date;
     _tags = List.of(e.tags);
+    _latitude = e.latitude;
+    _longitude = e.longitude;
     _blocks.addAll(decodeEntryBody(e.body, e.assets));
     _ensureTrailingText();
     _titleCtl.addListener(_markDirty);
@@ -507,7 +512,32 @@ class _EditorScreenState extends State<EditorScreen> {
       weather: _weather,
       date: _date,
       tags: _tags,
+      latitude: _latitude,
+      longitude: _longitude,
     );
+  }
+
+  /// 打开地图选点页，回写经纬度与地点名称。
+  Future<void> _pickLocation() async {
+    final key = context.read<AppStore>().settings.mapKey;
+    final result = await Navigator.push<Map<String, dynamic>?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MapPickerPage(
+          initialLat: _latitude,
+          initialLon: _longitude,
+          mapKey: key,
+        ),
+      ),
+    );
+    if (result == null) return;
+    setState(() {
+      _latitude = result['lat'] as double?;
+      _longitude = result['lon'] as double?;
+      final name = (result['name'] as String? ?? '').trim();
+      if (name.isNotEmpty) _locationCtl.text = name;
+      _markDirty();
+    });
   }
 
   Future<void> _save() async {
@@ -1182,16 +1212,51 @@ class _EditorScreenState extends State<EditorScreen> {
                   child: TextField(
                     controller: _locationCtl,
                     onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: '地点',
                       isDense: true,
-                      prefixIcon: Icon(Icons.place_outlined, size: 18),
+                      prefixIcon: const Icon(Icons.place_outlined, size: 18),
                       prefixIconConstraints:
-                          BoxConstraints(minWidth: 34, minHeight: 34),
+                          const BoxConstraints(minWidth: 34, minHeight: 34),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.map_outlined, size: 18),
+                        tooltip: '地图选点',
+                        onPressed: _pickLocation,
+                      ),
+                      suffixIconConstraints:
+                          const BoxConstraints(minWidth: 34, minHeight: 34),
                     ),
                   ),
                 ),
               ]),
+              if (_latitude != null && _longitude != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Wrap(
+                    spacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Icon(Icons.location_pin,
+                          size: 14, color: Colors.redAccent),
+                      Text(
+                        '已选坐标 ${_latitude!.toStringAsFixed(5)}, '
+                        '${_longitude!.toStringAsFixed(5)}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      GestureDetector(
+                        onTap: () => setState(() {
+                          _latitude = null;
+                          _longitude = null;
+                        }),
+                        child: const Text('清除',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.redAccent,
+                                decoration: TextDecoration.underline)),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 14),
               _panelLabel('心情'),
               _chipRow<Mood>(
