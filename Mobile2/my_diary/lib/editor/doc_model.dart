@@ -116,6 +116,14 @@ class InlineMark {
 }
 
 /// 媒体节点负载（图片 / 音频 / 视频 / 附件）。
+/// 视频在正文里的展示模式。
+enum VideoDisplayMode {
+  /// 占位卡片，点击弹出软件内播放器（默认，保持原有行为）。
+  card,
+  /// 内嵌小播放器，直接在日记里点击播放。
+  inline,
+}
+
 class MediaPayload {
   final AssetKind kind;
 
@@ -130,6 +138,9 @@ class MediaPayload {
   /// 图片的 alt 文本。
   final String alt;
 
+  /// 视频展示模式（仅 [AssetKind.video] 生效），序列化为 `data-video-mode`。
+  final VideoDisplayMode videoMode;
+
   const MediaPayload({
     required this.kind,
     required this.src,
@@ -137,6 +148,7 @@ class MediaPayload {
     this.size = 0,
     this.width,
     this.alt = '',
+    this.videoMode = VideoDisplayMode.card,
   });
 
   factory MediaPayload.fromAssetRef(AssetRef ref) => MediaPayload(
@@ -161,6 +173,7 @@ class MediaPayload {
     int? width,
     bool clearWidth = false,
     String? alt,
+    VideoDisplayMode? videoMode,
   }) =>
       MediaPayload(
         kind: kind ?? this.kind,
@@ -169,6 +182,7 @@ class MediaPayload {
         size: size ?? this.size,
         width: clearWidth ? null : (width ?? this.width),
         alt: alt ?? this.alt,
+        videoMode: videoMode ?? this.videoMode,
       );
 }
 

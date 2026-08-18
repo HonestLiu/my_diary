@@ -302,6 +302,9 @@ DocBlock? _tryDecodeMediaLine(String line) {
       name: attrs['data-name'] ?? attrs['name'] ?? src.split('/').last,
       size: int.tryParse(sizeRaw) ?? 0,
       width: widthRaw == null ? null : int.tryParse(widthRaw),
+      videoMode: attrs['data-video-mode'] == 'inline'
+          ? VideoDisplayMode.inline
+          : VideoDisplayMode.card,
     ));
   }
   return null;
@@ -466,6 +469,9 @@ String encodeMedia(MediaPayload m) {
     'data-kind="${m.kind.name}"',
     'data-size="${m.size}"',
     if (m.width != null) 'data-width="${m.width}"',
+    if (m.kind == AssetKind.video &&
+        m.videoMode == VideoDisplayMode.inline)
+      'data-video-mode="inline"',
   ];
   return '<attachment ${attrs.join(' ')}></attachment>';
 }

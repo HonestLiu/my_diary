@@ -155,6 +155,25 @@ void main() {}
       expect(encodeMarkdown(decodeMarkdown(md)), md);
     });
 
+    test('视频 data-video-mode=inline 往返（默认 card）', () {
+      // 未带属性 → 默认 card，编码时不输出该属性。
+      const cardMd =
+          '<attachment data-src="assets/video/c.mp4" data-name="clip.mp4" '
+          'data-kind="video" data-size="1024"></attachment>';
+      expect(decodeMarkdown(cardMd).single.media!.videoMode,
+          VideoDisplayMode.card);
+      expect(encodeMarkdown(decodeMarkdown(cardMd)), cardMd);
+
+      // 显式 inline → 编码保留属性。
+      const inlineMd =
+          '<attachment data-src="assets/video/c.mp4" data-name="clip.mp4" '
+          'data-kind="video" data-size="1024" data-video-mode="inline">'
+          '</attachment>';
+      expect(decodeMarkdown(inlineMd).single.media!.videoMode,
+          VideoDisplayMode.inline);
+      expect(encodeMarkdown(decodeMarkdown(inlineMd)), inlineMd);
+    });
+
     test('collectAssets 按出现顺序去重', () {
       final blocks = decodeMarkdown('''![](assets/images/a.png)
 
