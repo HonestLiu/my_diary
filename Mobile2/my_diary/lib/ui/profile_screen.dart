@@ -624,28 +624,30 @@ class _StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final tile = Expanded(
-      child: Column(
-        children: [
-          Icon(icon, size: 19, color: iconColor ?? t.textSecondary),
-          const SizedBox(height: 6),
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                  height: 1.1)),
-          const SizedBox(height: 3),
-          Text(label, style: context.caption),
-        ],
-      ),
+    final content = Column(
+      children: [
+        Icon(icon, size: 19, color: iconColor ?? t.textSecondary),
+        const SizedBox(height: 6),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                height: 1.1)),
+        const SizedBox(height: 3),
+        Text(label, style: context.caption),
+      ],
     );
-    if (onTap == null) return tile;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: tile,
-    );
+    // Expanded 必须是 Row 的直接子级才能均分宽度，
+    // 因此 InkWell 包在内容上、Expanded 留在最外层。
+    final inner = onTap == null
+        ? content
+        : InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: content,
+          );
+    return Expanded(child: inner);
   }
 }
 
