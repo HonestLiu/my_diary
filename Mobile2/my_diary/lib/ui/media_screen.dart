@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
@@ -158,17 +159,7 @@ class _EntryFan extends StatelessWidget {
     final deckW = cardW + 22;
     final deckH = cardH + 16;
     final cover = entry.assets.first;
-    final file = context.read<AppStore>().resolveAsset(cover.path);
-    final isImage = cover.kind == AssetKind.image;
-
-    final coverInner = isImage
-        ? Image.file(file,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-                  color: t.fill,
-                  child: const Icon(Icons.broken_image_outlined),
-                ))
-        : _kindPlaceholder(context, cover.kind, cover.name);
+    final store = context.read<AppStore>();
 
     final coverCard = Hero(
       tag: 'media-${entry.id}',
@@ -183,7 +174,12 @@ class _EntryFan extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(t.radiusCard),
           ),
-          child: coverInner,
+          child: _MediaCover(
+            asset: cover,
+            store: store,
+            width: cardW,
+            height: cardH,
+          ),
         ),
       ),
     );
@@ -357,15 +353,18 @@ class _PreviewSheet extends StatelessWidget {
                       }
                       if (a.kind == AssetKind.audio) {
                         return Center(
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 20),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                InAppAudioPlayer(
-                                    file: file, title: a.name ?? ''),
-                              ],
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 560),
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  InAppAudioPlayer(
+                                      file: file, title: a.name ?? ''),
+                                ],
+                              ),
                             ),
                           ),
                         );
@@ -714,17 +713,6 @@ class _Thumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final file = store.resolveAsset(asset.path);
-    final inner = asset.kind == AssetKind.image
-        ? Image.file(
-            file,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-                  color: t.fill,
-                  child: const Icon(Icons.broken_image_outlined, size: 20),
-                ),
-          )
-        : _kindPlaceholder(context, asset.kind, asset.name);
     return Container(
       width: size.width,
       height: size.height,
@@ -734,7 +722,104 @@ class _Thumb extends StatelessWidget {
         color: t.fill,
       ),
       clipBehavior: Clip.antiAlias,
-      child: inner,
+      child: _MediaCover(
+        asset: asset,
+        store: store,
+        width: size.width,
+        height: size.height,
+        showBadge: false,
+      ),
+    );
+  }
+}
+
+/// 媒体画廊用的统一封面：图片取缩略图裁切；视频取封面帧（无则渐变+播放标）；
+/// 音频用渐变+音符标。所有情况都约束在给定尺寸内，竖屏视频也不会溢出。
+class _MediaCover extends StatelessWidget {
+  final AssetRef asset;
+  final AppStore store;
+  final double width;
+  final double height;
+  final bool showBadge;
+  const _MediaCover({
+    required this.asset,
+    required this.store,
+    required this.width,
+    required this.height,
+    this.showBadge = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isImage = asset.kind == AssetKind.image;
+    final File? coverFile = isImage
+        ? store.resolveThumb(asset)
+        : (asset.kind == AssetKind.video ? store.tryThumb(asset) : null);
+
+    if (coverFile != null) {
+      final img = Image.file(
+        coverFile,
+        width: width,
+        height: height,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _gradientIcon(context, asset.kind),
+      );
+      if (asset.kind == AssetKind.video && showBadge) {
+        return SizedBox(
+          width: width,
+          height: height,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              img,
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.play_arrow_rounded,
+                      color: Colors.white, size: 26),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+      return SizedBox(width: width, height: height, child: img);
+    }
+    return _gradientIcon(context, asset.kind);
+  }
+
+  Widget _gradientIcon(BuildContext context, AssetKind kind) {
+    final t = context.tokens;
+    final icon = kind == AssetKind.video
+        ? Icons.play_circle_outline
+        : kind == AssetKind.audio
+            ? Icons.graphic_eq
+            : Icons.insert_drive_file;
+    final tint = kind == AssetKind.video
+        ? Colors.blueGrey
+        : kind == AssetKind.audio
+            ? Colors.deepPurple
+            : Colors.teal;
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [t.surfaceVariant, t.fill],
+          ),
+        ),
+        child: Center(child: Icon(icon, size: 30, color: tint)),
+      ),
     );
   }
 }
