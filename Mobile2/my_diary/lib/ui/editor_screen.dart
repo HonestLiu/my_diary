@@ -474,7 +474,7 @@ class _EditorScreenState extends State<EditorScreen> {
     String? name;
     await _importAndInsert(
       () async {
-        final x = await _picker.pickImage(source: source, imageQuality: 92);
+        final x = await _picker.pickImage(source: source, imageQuality: 100);
         if (x == null) return null;
         name = x.name;
         return File(x.path);

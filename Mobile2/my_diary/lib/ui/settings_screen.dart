@@ -36,6 +36,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _pathStyle;
   late bool _autoLocateNew;
   late bool _showDetailMap;
+  late int _imageQuality; // 图片上传压缩质量（1–100）
+  late int _videoQuality; // 视频上传压缩质量（1–100）
 
   late TextEditingController _displayNameCtl;
   late TextEditingController _endpointCtl;
@@ -64,6 +66,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _pathStyle = s.sync.pathStyle ?? false;
     _autoLocateNew = s.autoLocateNew;
     _showDetailMap = s.showDetailMap;
+    _imageQuality = s.imageCompressQuality;
+    _videoQuality = s.videoCompressQuality;
 
     _displayNameCtl = TextEditingController(text: _displayName);
     _endpointCtl = TextEditingController(text: s.sync.endpoint ?? '');
@@ -115,6 +119,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       sync: sync,
       autoLocateNew: _autoLocateNew,
       showDetailMap: _showDetailMap,
+      imageCompressQuality: _imageQuality,
+      videoCompressQuality: _videoQuality,
     );
     await store.saveSettings(newSettings);
     if (mounted) {
@@ -297,6 +303,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: _showDetailMap,
                 onChanged: (v) => setState(() => _showDetailMap = v),
               ),
+            ],
+          ),
+          _SectionTitle('媒体'),
+          _Card(
+            children: [
+              const Text('图片上传压缩',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              const Text('导入图片时按此质量重压缩（上限 2000px 长边）并生成列表缩略图。',
+                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: _imageQuality.toDouble(),
+                      min: 1,
+                      max: 100,
+                      divisions: 99,
+                      label: '$_imageQuality',
+                      onChanged: (v) =>
+                          setState(() => _imageQuality = v.round()),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 44,
+                    child: Text('$_imageQuality',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text('视频上传压缩',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              const Text('导入视频时按此质量压缩（100 为不压缩）并抽取封面帧。',
+                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: _videoQuality.toDouble(),
+                      min: 1,
+                      max: 100,
+                      divisions: 99,
+                      label: '$_videoQuality',
+                      onChanged: (v) =>
+                          setState(() => _videoQuality = v.round()),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 44,
+                    child: Text('$_videoQuality',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text('两项均只影响之后导入的素材，已存在的图片/视频不会被重新处理。',
+                  style: TextStyle(fontSize: 12, color: Colors.grey)),
             ],
           ),
           _SectionTitle('同步'),
