@@ -23,7 +23,7 @@ class AppSettings {
   const AppSettings({
     this.version = 1,
     this.theme = ThemePreference.light,
-    this.accent = AccentKey.amber,
+    this.accent = AccentKey.sky,
     this.font = FontKey.sans,
     this.displayName = '',
     this.motto = '',
@@ -48,7 +48,7 @@ class AppSettings {
       theme: ThemePreference.values.asNameMap()[themeStr] ??
           ThemePreference.light,
       accent:
-          AccentKey.values.asNameMap()[accentStr] ?? AccentKey.amber,
+          AccentKey.values.asNameMap()[accentStr] ?? AccentKey.sky,
       font: FontKey.values.asNameMap()[fontStr] ?? FontKey.sans,
       displayName: (json['displayName'] as String?) ?? '',
       motto: (json['motto'] as String?) ?? '',

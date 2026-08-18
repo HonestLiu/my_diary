@@ -25,6 +25,7 @@ class AppStore extends ChangeNotifier {
   AppSettings _settings = defaultSettings;
   List<JournalEntry> _entries = [];
   bool _initialized = false;
+  bool _settingsPreloaded = false; // 首帧前是否已预载设置
   bool _busy = false;
   String _deviceId = 'mobile';
   String? _docsPath; // 应用文档目录（头像等非 vault 文件存放处）
@@ -62,22 +63,40 @@ class AppStore extends ChangeNotifier {
     }).toList();
   }
 
-  Future<void> init() async {
-    _deviceId = prefs.getString('local_device_id') ?? const Uuid().v4();
-    await prefs.setString('local_device_id', _deviceId);
-
+  /// 首帧前预载设置：先初始化 vault 并读取 settings.json，让 MaterialApp
+  /// 从一开始就用保存的主题/品牌色，避免启动时先按默认色渲染一帧再跳变。
+  Future<void> preloadSettings() async {
     final docs = await getApplicationDocumentsDirectory();
     _docsPath = docs.path;
-    final vaultRoot = '${docs.path}/my-diary';
-    await repo.init(vaultRoot);
-
+    await repo.init('${docs.path}/my-diary');
     var loaded = await repo.loadSettings();
     // 去掉可能来自桌面端的凭据，避免移动端写回 / 泄露。
     loaded = loaded.copyWith(sync: loaded.sync.copyWith(clearCredentials: true));
     _settings = loaded;
-
+    _settingsPreloaded = true;
     // 旧版头像（文档目录裸文件）迁移到 vault profile/（2026-08-18 早前方案）。
     await _migrateLegacyAvatar();
+    notifyListeners();
+  }
+
+  Future<void> init() async {
+    _deviceId = prefs.getString('local_device_id') ?? const Uuid().v4();
+    await prefs.setString('local_device_id', _deviceId);
+
+    if (!_settingsPreloaded) {
+      final docs = await getApplicationDocumentsDirectory();
+      _docsPath = docs.path;
+      await repo.init('${docs.path}/my-diary');
+
+      var loaded = await repo.loadSettings();
+      // 去掉可能来自桌面端的凭据，避免移动端写回 / 泄露。
+      loaded =
+          loaded.copyWith(sync: loaded.sync.copyWith(clearCredentials: true));
+      _settings = loaded;
+
+      // 旧版头像（文档目录裸文件）迁移到 vault profile/（2026-08-18 早前方案）。
+      await _migrateLegacyAvatar();
+    }
 
     await refreshEntries();
     _initialized = true;

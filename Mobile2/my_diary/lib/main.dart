@@ -27,6 +27,9 @@ Future<void> main() async {
   final locatorData = LocatorData();
   final locator = LocatorService(locatorData);
 
+  // 首帧前预载设置（主题/品牌色等），避免启动画面先按默认色渲染再跳变。
+  await store.preloadSettings();
+
   runApp(
     MultiProvider(
       providers: [
