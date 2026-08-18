@@ -4,6 +4,10 @@
 /// 这里的所有类型都镜像落盘 frontmatter + 正文的内容。
 
 /// 心情。顺序与桌面端一致（用于选择器展示）。
+library;
+
+import "package:flutter/material.dart";
+
 enum Mood {
   happy,
   excited,
@@ -128,6 +132,37 @@ enum Weather {
         return '🌬️';
       case Weather.unknown:
         return '🤷';
+    }
+  }
+
+  // ---- 自定义 iconfont 图标（font-family: iconfont） ---------------------
+  // 矢量、随主题色、任意大小。Weather.emoji 保留作为文本场景（如无图标字体
+  // 时的兜底），UI 默认走 iconData / iconChar。
+  static const _iconfontFamily = 'iconfont';
+
+  /// 用于 [Icon] widget：呈现自定义天气图标（透明矢量，色随主题）。
+  IconData get iconData => IconData(_iconCode, fontFamily: _iconfontFamily);
+
+  /// 用于 [Text] / [TextSpan]（混排场景如 MetaLine）：在 `fontFamily: iconfont`
+  /// 样式下渲染图标字符。
+  String get iconChar => String.fromCharCode(_iconCode);
+
+  int get _iconCode {
+    switch (this) {
+      case Weather.sunny:
+        return 0xe90d; // qing
+      case Weather.cloudy:
+        return 0xe949; // duoyun
+      case Weather.rainy:
+        return 0xe912; // xiaoyu（小雨作通用雨）
+      case Weather.snowy:
+        return 0xe91a; // xiaoxue（小雪作通用雪）
+      case Weather.foggy:
+        return 0xe929; // wu
+      case Weather.windy:
+        return 0xe934; // weifeng（微风）
+      case Weather.unknown:
+        return 0xe948; // weizhi
     }
   }
 }

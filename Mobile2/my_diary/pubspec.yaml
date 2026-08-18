@@ -54,3 +54,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # 自定义天气图标字体（iconfont）：Weather 枚举通过 codepoint + fontFamily
+  # 渲染成矢量图标，可任意缩放并跟随主题色（详见 lib/models/journal_entry.dart）。
+  fonts:
+    - family: iconfont
+      fonts:
+        - asset: assets/fonts/iconfont.ttf
