@@ -215,14 +215,18 @@ class JournalRepository {
 
   /// 搜索日记。[filters] 为空时搜全部字段（向后兼容）；指定后仅匹配对应类别。
   /// 可多选（取并集），如 {SearchScope.tags, SearchScope.location} 同时搜标签和地点。
+  /// [mood] 非空时额外限定心情；仅给 mood 不给关键词也会返回该心情的全部日记。
   Future<List<JournalEntry>> search(
     String query, {
     Set<SearchScope> filters = const {},
+    Mood? mood,
   }) async {
     final all = await listEntries();
     final q = query.trim().toLowerCase();
-    if (q.isEmpty) return all;
+    if (q.isEmpty && mood == null) return all;
     return all.where((e) {
+      if (mood != null && e.mood != mood) return false;
+      if (q.isEmpty) return true;
       final matchTitle = e.title.toLowerCase().contains(q);
       final matchBody = e.body.toLowerCase().contains(q);
       final matchTags = e.tags.any((t) => t.toLowerCase().contains(q));

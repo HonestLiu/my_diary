@@ -125,8 +125,8 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<List<JournalEntry>> search(String q,
-          {Set<SearchScope> filters = const {}}) =>
-      repo.search(q, filters: filters);
+          {Set<SearchScope> filters = const {}, Mood? mood}) =>
+      repo.search(q, filters: filters, mood: mood);
 
   Future<void> saveSettings(AppSettings s) async {
     _settings = s;

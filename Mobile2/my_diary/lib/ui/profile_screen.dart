@@ -272,6 +272,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               (m) => Icon(m.iconData,
                   size: 17, color: t.textSecondary),
               (m) => m.label,
+              // 点击心情柱子 → 进入该心情的条件搜索。
+              onTapBuilder: (m) => () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SearchScreen(initialMood: m),
+                    ),
+                  ),
             ),
             weatherData: _distribution(
               store.entries,
@@ -315,20 +322,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   /// 统计某维度（心情 / 天气）在全部日记中的分布，返回降序排列、含全部类别（含 0 值）。
+  /// [onTapBuilder] 提供每个类别柱子的点击回调（如心情 → 条件搜索），null 则不可点。
   List<_BarDatum> _distribution<T>(
     List<JournalEntry> entries,
     T Function(JournalEntry) pick,
     Iterable<T> ordered,
     Widget Function(T) iconBuilder,
-    String Function(T) label,
-  ) {
+    String Function(T) label, {
+    VoidCallback? Function(T)? onTapBuilder,
+  }) {
     final counts = <T, int>{};
     for (final e in entries) {
       final k = pick(e);
       counts[k] = (counts[k] ?? 0) + 1;
     }
     final list = ordered
-        .map((k) => _BarDatum(iconBuilder(k), label(k), counts[k] ?? 0))
+        .map((k) => _BarDatum(iconBuilder(k), label(k), counts[k] ?? 0,
+            onTap: onTapBuilder?.call(k)))
         .toList()
       ..sort((a, b) => b.count.compareTo(a.count));
     return list;
@@ -488,7 +498,8 @@ class _BarDatum {
   final Widget icon;
   final String label;
   final int count;
-  const _BarDatum(this.icon, this.label, this.count);
+  final VoidCallback? onTap; // 非空时柱子可点（如心情 → 条件搜索）
+  const _BarDatum(this.icon, this.label, this.count, {this.onTap});
 }
 
 /// 心情 / 天气分布统计卡：顶部 Tab 切换（心情 | 天气），
@@ -573,44 +584,51 @@ class _StatsChartCardState extends State<_StatsChartCard> {
                 final ratio = maxCount == 0 ? 0.0 : d.count / maxCount;
                 final barH = 10.0 + ratio * 100.0; // 最小 10，最大 110
                 final isZero = d.count == 0;
-                return Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Text('${d.count}',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isZero
-                                  ? t.textTertiary
-                                  : t.textPrimary)),
-                      const SizedBox(height: 5),
-                      Container(
-                        width: double.infinity,
-                        height: barH,
-                        margin: const EdgeInsets.symmetric(horizontal: 5),
-                        decoration: BoxDecoration(
-                          // 0 值用中性空槽（浅底 + 描边），避免强调色顶满再配空槽的突兀感。
-                          color: isZero ? t.fill : null,
-                          gradient: isZero
-                              ? null
-                              : LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    primary,
-                                    primary.withValues(alpha: 0.5),
-                                  ],
-                                ),
-                          border: isZero
-                              ? Border.all(color: t.border, width: 1)
-                              : null,
-                          borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(6)),
-                        ),
+                final bar = Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text('${d.count}',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isZero
+                                ? t.textTertiary
+                                : t.textPrimary)),
+                    const SizedBox(height: 5),
+                    Container(
+                      width: double.infinity,
+                      height: barH,
+                      margin: const EdgeInsets.symmetric(horizontal: 5),
+                      decoration: BoxDecoration(
+                        // 0 值用中性空槽（浅底 + 描边），避免强调色顶满再配空槽的突兀感。
+                        color: isZero ? t.fill : null,
+                        gradient: isZero
+                            ? null
+                            : LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  primary,
+                                  primary.withValues(alpha: 0.5),
+                                ],
+                              ),
+                        border: isZero
+                            ? Border.all(color: t.border, width: 1)
+                            : null,
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(6)),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                );
+                return Expanded(
+                  child: d.onTap == null
+                      ? bar
+                      : GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: d.onTap,
+                          child: bar,
+                        ),
                 );
               }).toList(),
             ),
@@ -622,27 +640,46 @@ class _StatsChartCardState extends State<_StatsChartCard> {
                 .map((d) => Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 5),
-                        child: Column(
-                          children: [
-                            SizedBox(
-                              width: 17,
-                              height: 17,
-                              child: Center(child: d.icon),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(d.label,
-                                style: TextStyle(
-                                    fontSize: 11, color: t.textTertiary),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center),
-                          ],
-                        ),
+                        child: d.onTap == null
+                            ? _barLabel(d)
+                            : GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: d.onTap,
+                                child: _barLabel(d),
+                              ),
                       ),
                     ))
                 .toList(),
           ),
+          // 心情模式：提示柱子可点进条件搜索。
+          if (_showMood && widget.moodData.any((d) => d.onTap != null)) ...[
+            const SizedBox(height: 10),
+            Center(
+              child: Text('点击柱子可筛选该心情的日记',
+                  style: context.caption),
+            ),
+          ],
         ],
+      ],
+    );
+  }
+
+  Widget _barLabel(_BarDatum d) {
+    final t = context.tokens;
+    return Column(
+      children: [
+        SizedBox(
+          width: 17,
+          height: 17,
+          child: Center(child: d.icon),
+        ),
+        const SizedBox(height: 3),
+        Text(d.label,
+            style:
+                TextStyle(fontSize: 11, color: t.textTertiary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center),
       ],
     );
   }
