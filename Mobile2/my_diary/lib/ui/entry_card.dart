@@ -75,26 +75,6 @@ class EntryCard extends StatelessWidget {
                         ],
                       ],
                     ),
-                    // 地点行：📍 图标 + 文本。
-                    if (loc.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.place_outlined,
-                              size: 13, color: t.textTertiary),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(
-                              loc,
-                              style: TextStyle(
-                                  fontSize: 12, color: t.textTertiary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
                     // 正文预览两行。
                     if (hasPreview) ...[
                       const SizedBox(height: 7),
@@ -104,22 +84,30 @@ class EntryCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                    // 底部标签胶囊。
-                    if (entry.tags.isNotEmpty) ...[
+                    // 底部胶囊行：地点 + 标签。
+                    if (loc.isNotEmpty || entry.tags.isNotEmpty) ...[
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 6,
                         runSpacing: 6,
                         children: [
-                          for (final tag in entry.tags.take(2))
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: t.fill,
-                                borderRadius:
-                                    BorderRadius.circular(t.radiusChip),
+                          if (loc.isNotEmpty)
+                            _MetaChip(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.place_outlined,
+                                      size: 12, color: t.textTertiary),
+                                  const SizedBox(width: 3),
+                                  Text(loc,
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: t.textTertiary)),
+                                ],
                               ),
+                            ),
+                          for (final tag in entry.tags.take(2))
+                            _MetaChip(
                               child: Text('#$tag',
                                   style: TextStyle(
                                       fontSize: 11,
@@ -139,6 +127,25 @@ class EntryCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 底部 meta 胶囊：浅底小圆角，内容由调用方提供。
+class _MetaChip extends StatelessWidget {
+  final Widget child;
+  const _MetaChip({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: t.fill,
+        borderRadius: BorderRadius.circular(t.radiusChip),
+      ),
+      child: child,
     );
   }
 }
