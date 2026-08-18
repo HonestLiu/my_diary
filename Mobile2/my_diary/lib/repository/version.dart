@@ -53,6 +53,7 @@ Future<JournalEntry?> readVersion(
     location: parsed.meta.location,
     latitude: parsed.meta.latitude,
     longitude: parsed.meta.longitude,
+    favorite: parsed.meta.favorite,
     tags: parsed.meta.tags,
     assets: parsed.meta.assets,
     createdAt: parsed.meta.createdAt,

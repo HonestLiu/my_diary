@@ -86,6 +86,12 @@ class AppStore extends ChangeNotifier {
     await refreshEntries();
   }
 
+  /// 切换喜欢标记（轻量元数据更新，不归档历史版本）。
+  Future<void> setFavorite(JournalEntry entry, bool fav) async {
+    await repo.saveEntry(entry.copyWith(favorite: fav), archive: false);
+    await refreshEntries();
+  }
+
   Future<void> deleteEntry(String id) async {
     await repo.deleteEntry(id);
     await refreshEntries();

@@ -197,6 +197,7 @@ class JournalMeta {
   final String? location;
   final double? latitude; // 纬度（WGS-84；天地图瓦片为 CGCS2000，与 WGS-84 偏差 <1m，可直接共用）
   final double? longitude; // 经度
+  final bool favorite; // 喜欢标记（frontmatter 里仅 true 时落盘）
   final List<String> tags;
   final List<AssetRef> assets;
   final String createdAt; // ISO 8601
@@ -211,6 +212,7 @@ class JournalMeta {
     this.location,
     this.latitude,
     this.longitude,
+    this.favorite = false,
     required this.tags,
     required this.assets,
     required this.createdAt,
@@ -227,6 +229,7 @@ class JournalMeta {
     bool clearLocation = false,
     double? latitude,
     double? longitude,
+    bool? favorite,
     List<String>? tags,
     List<AssetRef>? assets,
     String? createdAt,
@@ -241,6 +244,7 @@ class JournalMeta {
         location: clearLocation ? null : (location ?? this.location),
         latitude: latitude ?? this.latitude,
         longitude: longitude ?? this.longitude,
+        favorite: favorite ?? this.favorite,
         tags: tags ?? this.tags,
         assets: assets ?? this.assets,
         createdAt: createdAt ?? this.createdAt,
@@ -265,6 +269,7 @@ class JournalEntry extends JournalMeta {
     super.location,
     super.latitude,
     super.longitude,
+    super.favorite,
     required super.tags,
     required super.assets,
     required super.createdAt,
@@ -284,6 +289,7 @@ class JournalEntry extends JournalMeta {
     bool clearLocation = false,
     double? latitude,
     double? longitude,
+    bool? favorite,
     List<String>? tags,
     List<AssetRef>? assets,
     String? createdAt,
@@ -300,6 +306,7 @@ class JournalEntry extends JournalMeta {
         location: clearLocation ? null : (location ?? this.location),
         latitude: latitude ?? this.latitude,
         longitude: longitude ?? this.longitude,
+        favorite: favorite ?? this.favorite,
         tags: tags ?? this.tags,
         assets: assets ?? this.assets,
         createdAt: createdAt ?? this.createdAt,

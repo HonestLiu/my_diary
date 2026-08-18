@@ -138,6 +138,7 @@ class JournalRepository {
       weather: Weather.unknown,
       latitude: defaults?.latitude,
       longitude: defaults?.longitude,
+      favorite: defaults?.favorite ?? false,
       tags: const [],
       assets: const [],
       createdAt: now,
@@ -147,7 +148,7 @@ class JournalRepository {
     );
   }
 
-  Future<void> saveEntry(JournalEntry entry) async {
+  Future<void> saveEntry(JournalEntry entry, {bool archive = true}) async {
     final now = DateTime.now().toUtc().toIso8601String();
     final e = entry.copyWith(updatedAt: now);
     final nextPath = entryFilePath(
@@ -157,7 +158,8 @@ class JournalRepository {
     final nextRaw = serializeEntryFile(e);
 
     // 仅当传入内容与之前不同时，才把「上一次」磁盘内容快照为版本（首次保存不快照）。
-    if (prevPath != null) {
+    // archive=false 用于「喜欢切换」这类轻量元数据更新，避免污染历史版本。
+    if (archive && prevPath != null) {
       try {
         final prevRaw = await storage.readText(prevPath);
         if (prevRaw.trim() != nextRaw.trim()) {
@@ -274,6 +276,7 @@ class JournalRepository {
         location: meta.location,
         latitude: meta.latitude,
         longitude: meta.longitude,
+        favorite: meta.favorite,
         tags: meta.tags,
         assets: meta.assets,
         createdAt: meta.createdAt,

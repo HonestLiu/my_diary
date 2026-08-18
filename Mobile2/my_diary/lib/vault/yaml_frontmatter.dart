@@ -18,6 +18,7 @@ const List<String> _fmKeys = [
   'location',
   'latitude',
   'longitude',
+  'favorite',
   'tags',
   'assets',
   'created_at',
@@ -55,6 +56,10 @@ String encodeFrontmatter(JournalEntry entry) {
   }
   if (entry.longitude != null) {
     buf.writeln('longitude: ${_yamlScalar(entry.longitude)}');
+  }
+  // 喜欢标记：仅 true 时落盘（缺省即 false，保持旧文件最小改动）。
+  if (entry.favorite) {
+    buf.writeln('favorite: true');
   }
 
   if (entry.tags.isEmpty) {
@@ -146,6 +151,7 @@ JournalMeta parseFrontmatter(String text, {String? fallbackId}) {
       obj['latitude'] is num ? (obj['latitude'] as num).toDouble() : null;
   final longitude =
       obj['longitude'] is num ? (obj['longitude'] as num).toDouble() : null;
+  final favorite = obj['favorite'] == true;
   final tags = obj['tags'] is List
       ? (obj['tags'] as List)
           .whereType<String>()
@@ -169,6 +175,7 @@ JournalMeta parseFrontmatter(String text, {String? fallbackId}) {
     location: location,
     latitude: latitude,
     longitude: longitude,
+    favorite: favorite,
     tags: tags,
     assets: assets,
     createdAt: createdAt,
