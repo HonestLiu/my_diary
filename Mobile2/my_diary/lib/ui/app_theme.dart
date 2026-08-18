@@ -181,8 +181,7 @@ ThemeData buildTheme(ThemePreference mode, AccentKey accent, FontKey font) {
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: scheme.primary,
       foregroundColor: scheme.onPrimary,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(tokens.radiusInput)),
+      // 不覆盖 shape：默认 extended 为胶囊（StadiumBorder）、圆形 FAB 为圆。
       elevation: 0,
     ),
     inputDecorationTheme: InputDecorationTheme(
