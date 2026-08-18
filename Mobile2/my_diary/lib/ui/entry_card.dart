@@ -169,8 +169,9 @@ class _Cover extends StatelessWidget {
         fit: BoxFit.cover,
         // 仅按显示尺寸解码（缩略图本就很小，原图回退时也只解到 2x），
         // 避免把数 MB 的原图全量解码到 84px 的封面。
+        // 注意：只设一个 cache 维度以保留原始宽高比；同时设 cacheWidth+cacheHeight
+        // 会把图强行解码成该尺寸的方块，导致非正方形照片被「拍扁」拉伸。
         cacheWidth: 168,
-        cacheHeight: 168,
         errorBuilder: (_, __, ___) => Container(
           width: 84,
           height: 84,

@@ -574,7 +574,6 @@ class _MemoryCard extends StatelessWidget {
           Image.file(file,
               fit: BoxFit.cover,
               cacheWidth: 290,
-              cacheHeight: 290,
               errorBuilder: (_, __, ___) => Container(color: t.fill)),
           Container(
             decoration: BoxDecoration(
