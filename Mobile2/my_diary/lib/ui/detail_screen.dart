@@ -37,6 +37,22 @@ class _DetailScreenState extends State<DetailScreen> {
     if (updated != null) setState(() => _entry = updated);
   }
 
+  /// 切换喜欢标记（写库后刷新本地条目状态）。
+  Future<void> _toggleFavorite(JournalEntry e) async {
+    final store = context.read<AppStore>();
+    await store.setFavorite(e, !e.favorite);
+    if (!mounted) return;
+    JournalEntry? fresh;
+    for (final x in store.entries) {
+      if (x.id == e.id) {
+        fresh = x;
+        break;
+      }
+    }
+    final f = fresh; // 闭包捕获的可变变量不提升，拷贝为 final 再判空
+    if (f != null) setState(() => _entry = f);
+  }
+
   void _showVersions() async {
     final store = context.read<AppStore>();
     final versions = await store.entryVersions(_entry);
@@ -110,6 +126,13 @@ class _DetailScreenState extends State<DetailScreen> {
       appBar: AppBar(
         title: Text(e.displayTitle, overflow: TextOverflow.ellipsis),
         actions: [
+          IconButton(
+              icon: Icon(
+                e.favorite ? Icons.favorite : Icons.favorite_border,
+                color: e.favorite ? Colors.redAccent : null,
+              ),
+              tooltip: e.favorite ? '取消喜欢' : '喜欢',
+              onPressed: () => _toggleFavorite(e)),
           IconButton(
               icon: const Icon(Icons.history),
               tooltip: '版本历史',
