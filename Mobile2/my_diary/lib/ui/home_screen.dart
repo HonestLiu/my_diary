@@ -13,6 +13,16 @@ import 'package:my_diary_mobile/ui/profile_screen.dart';
 import 'package:my_diary_mobile/ui/search_screen.dart';
 import 'package:provider/provider.dart';
 
+/// 首页日记列表的排序方式。
+enum HomeSort {
+  dateDesc('日期最新优先'),
+  dateAsc('日期最旧优先'),
+  updatedDesc('最近更新优先');
+
+  final String label;
+  const HomeSort(this.label);
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -21,6 +31,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class HomeScreenState extends State<HomeScreen> {
+  HomeSort _sortBy = HomeSort.dateDesc; // 排序方式
+  bool _onlyMedia = false; // 是否只看带媒体的日记
+
   /// 由外壳 FAB 在返回后调用，强制刷新时间轴。
   void refresh() => setState(() {});
 
@@ -29,11 +42,26 @@ class HomeScreenState extends State<HomeScreen> {
     final store = context.watch<AppStore>();
     final entries = store.entries;
 
+    // 筛选 + 分组 + 排序。
+    final visible = _onlyMedia
+        ? entries.where((e) => e.assets.isNotEmpty).toList()
+        : entries;
     final groups = <String, List<JournalEntry>>{};
-    for (final e in entries) {
+    for (final e in visible) {
       groups.putIfAbsent(e.date, () => []).add(e);
     }
-    final dates = groups.keys.toList()..sort((a, b) => b.compareTo(a));
+    final dates = groups.keys.toList();
+    if (_sortBy == HomeSort.dateAsc) {
+      dates.sort((a, b) => a.compareTo(b));
+    } else {
+      dates.sort((a, b) => b.compareTo(a));
+    }
+    // 「最近更新优先」：同一天内按更新时间倒序。
+    if (_sortBy == HomeSort.updatedDesc) {
+      for (final g in groups.values) {
+        g.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -51,26 +79,80 @@ class HomeScreenState extends State<HomeScreen> {
       ),
       body: entries.isEmpty
           ? _EmptyState(onCreate: () => _create(context))
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          : Column(
               children: [
-                if (store.lastSync?.conflicts.isNotEmpty == true)
-                  _ConflictBanner(onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                      )),
-                if (store.syncError != null)
-                  _ErrorBanner(message: store.syncError!),
-                ..._memorySection(context, entries),
-                for (final d in dates) ...[
-                  _DayHeader(dateKey: d),
-                  for (var i = 0; i < groups[d]!.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 12),
-                    EntryCard(entry: groups[d]![i]),
-                  ],
-                ],
+                _buildToolbar(context, visible.length),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    children: [
+                      if (store.lastSync?.conflicts.isNotEmpty == true)
+                        _ConflictBanner(onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const ProfileScreen()),
+                            )),
+                      if (store.syncError != null)
+                        _ErrorBanner(message: store.syncError!),
+                      ..._memorySection(context, entries),
+                      if (visible.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 48),
+                          child: Center(
+                            child: Text('没有符合条件的日记',
+                                style: context.caption),
+                          ),
+                        ),
+                      for (final d in dates) ...[
+                        _DayHeader(dateKey: d),
+                        for (var i = 0; i < groups[d]!.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 12),
+                          EntryCard(entry: groups[d]![i]),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ),
+    );
+  }
+
+  /// 列表工具条：计数 + 媒体筛选 + 排序。
+  Widget _buildToolbar(BuildContext context, int count) {
+    final t = context.tokens;
+    final primary = Theme.of(context).colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 6, 6, 2),
+      child: Row(
+        children: [
+          Text('$count 篇日记', style: context.caption),
+          const Spacer(),
+          IconButton(
+            icon: Icon(
+              _onlyMedia ? Icons.filter_alt : Icons.filter_alt_outlined,
+              size: 20,
+              color: _onlyMedia ? primary : t.textSecondary,
+            ),
+            tooltip: _onlyMedia ? '仅带媒体 · 点击恢复全部' : '仅看带媒体的日记',
+            onPressed: () => setState(() => _onlyMedia = !_onlyMedia),
+          ),
+          PopupMenuButton<HomeSort>(
+            tooltip: '排序',
+            icon: Icon(Icons.sort_outlined, size: 20, color: t.textSecondary),
+            initialValue: _sortBy,
+            onSelected: (v) => setState(() => _sortBy = v),
+            itemBuilder: (_) => [
+              for (final s in HomeSort.values)
+                CheckedPopupMenuItem(
+                  value: s,
+                  checked: s == _sortBy,
+                  child: Text(s.label),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
