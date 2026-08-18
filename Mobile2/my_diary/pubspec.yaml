@@ -41,6 +41,8 @@ dependencies:
   latlong2: ^0.9.1
   # 定位（获取当前 GPS 坐标）
   geolocator: ^14.0.2
+  # 导出 Markdown zip（打包 vault 中的 .md 与配置）
+  archive: ^4.0.2
 
 dev_dependencies:
   flutter_test:
