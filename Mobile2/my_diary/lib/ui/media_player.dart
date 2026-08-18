@@ -131,39 +131,54 @@ class _InAppVideoPlayerState extends State<InAppVideoPlayer> {
     final ctrl = _ctrl;
     Widget inner;
     if (_failed) {
-      inner = const SizedBox(
-        height: 140,
+      inner = const _PlayerBox(
         child: Center(
             child: Text('视频加载失败',
                 style: TextStyle(color: Colors.white70, fontSize: 13))),
       );
     } else if (!_ready || ctrl == null) {
-      inner = const AspectRatio(
-        aspectRatio: 16 / 9,
-        child: Center(
-            child: CircularProgressIndicator(color: Colors.white70)),
+      inner = const _PlayerBox(
+        child:
+            Center(child: CircularProgressIndicator(color: Colors.white70)),
       );
     } else {
       final ratio =
           ctrl.value.aspectRatio == 0 ? 16 / 9 : ctrl.value.aspectRatio;
-      inner = Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AspectRatio(aspectRatio: ratio, child: VideoPlayer(ctrl)),
-          _VideoControls(
-            playing: ctrl.value.isPlaying,
-            position: ctrl.value.position,
-            duration: ctrl.value.duration,
-            onToggle: () {
-              if (ctrl.value.isPlaying) {
-                ctrl.pause();
-              } else {
-                ctrl.play();
-              }
-            },
-            onSeek: (d) => ctrl.seekTo(d),
-          ),
-        ],
+      inner = LayoutBuilder(
+        builder: (ctx, c) {
+          final aw = c.maxWidth;
+          final ah = c.maxHeight;
+          const controlsH = 52.0;
+          // 在父约束内按视频比例算出「能放下的最大矩形」：
+          // 竖屏视频自动左右留黑边而非溢出；父高度无限（如内嵌态）时回退默认上限。
+          double vh = ah.isFinite
+              ? (ah - controlsH).clamp(80.0, ah)
+              : 360.0;
+          double vw = vh * ratio;
+          if (vw > aw) {
+            vw = aw;
+            vh = vw / ratio;
+          }
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(width: vw, height: vh, child: VideoPlayer(ctrl)),
+              _VideoControls(
+                playing: ctrl.value.isPlaying,
+                position: ctrl.value.position,
+                duration: ctrl.value.duration,
+                onToggle: () {
+                  if (ctrl.value.isPlaying) {
+                    ctrl.pause();
+                  } else {
+                    ctrl.play();
+                  }
+                },
+                onSeek: (d) => ctrl.seekTo(d),
+              ),
+            ],
+          );
+        },
       );
     }
     return ClipRRect(
@@ -171,6 +186,20 @@ class _InAppVideoPlayerState extends State<InAppVideoPlayer> {
       child: Container(color: Colors.black, child: inner),
     );
   }
+}
+
+/// 加载/失败占位：在父约束内取一个有限高度（无界时回退默认），避免视频区溢出。
+class _PlayerBox extends StatelessWidget {
+  final Widget child;
+  const _PlayerBox({required this.child});
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (_, c) => SizedBox(
+          width: c.maxWidth,
+          height: c.maxHeight.isFinite ? c.maxHeight : 320.0,
+          child: child,
+        ),
+      );
 }
 
 class _VideoControls extends StatelessWidget {
