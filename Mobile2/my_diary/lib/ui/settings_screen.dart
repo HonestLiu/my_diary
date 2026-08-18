@@ -29,6 +29,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   late SyncProvider _provider;
   late bool _pathStyle;
+  late bool _autoLocateNew;
+  late bool _showDetailMap;
   late TextEditingController _baseUrlCtl;
   late TextEditingController _endpointCtl;
   late TextEditingController _bucketCtl;
@@ -52,6 +54,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _weekStartsOn = s.weekStartsOn;
     _provider = s.sync.provider;
     _pathStyle = s.sync.pathStyle ?? false;
+    _autoLocateNew = s.autoLocateNew;
+    _showDetailMap = s.showDetailMap;
     _baseUrlCtl = TextEditingController(text: s.sync.baseUrl ?? '');
     _endpointCtl = TextEditingController(text: s.sync.endpoint ?? '');
     _bucketCtl = TextEditingController(text: s.sync.bucket ?? '');
@@ -113,6 +117,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       weekStartsOn: _weekStartsOn,
       defaultMood: _defaultMood,
       sync: sync,
+      autoLocateNew: _autoLocateNew,
+      showDetailMap: _showDetailMap,
     );
     await store.saveSettings(newSettings);
     if (mounted) {
@@ -314,6 +320,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ],
+            ],
+          ),
+          _SectionTitle('日记'),
+          _Card(
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('新建日记自动定位'),
+                subtitle: const Text('创建新日记时自动获取位置与天气并填充（需已配置地图与天气 Key）'),
+                value: _autoLocateNew,
+                onChanged: (v) => setState(() => _autoLocateNew = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('预览页显示地图'),
+                subtitle: const Text('日记预览页（详情）底部展示位置地图块'),
+                value: _showDetailMap,
+                onChanged: (v) => setState(() => _showDetailMap = v),
+              ),
             ],
           ),
           _SectionTitle('外观'),

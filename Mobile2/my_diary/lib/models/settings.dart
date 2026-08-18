@@ -12,6 +12,8 @@ class AppSettings {
   final int weekStartsOn; // 0 = 周日, 1 = 周一
   final Mood defaultMood;
   final SyncConfig sync;
+  final bool autoLocateNew; // 新建日记时自动定位填充位置与天气
+  final bool showDetailMap; // 日记预览页是否显示地图块
 
   const AppSettings({
     this.version = 1,
@@ -22,6 +24,8 @@ class AppSettings {
     this.weekStartsOn = 1,
     this.defaultMood = Mood.neutral,
     this.sync = const SyncConfig(),
+    this.autoLocateNew = false,
+    this.showDetailMap = true,
   });
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -43,6 +47,8 @@ class AppSettings {
       sync: syncJson != null
           ? SyncConfig.fromJson(syncJson)
           : const SyncConfig(),
+      autoLocateNew: json['autoLocateNew'] as bool? ?? false,
+      showDetailMap: json['showDetailMap'] as bool? ?? true,
     );
   }
 
@@ -55,6 +61,8 @@ class AppSettings {
         'weekStartsOn': weekStartsOn,
         'defaultMood': defaultMood.name,
         'sync': sync.toJson(),
+        'autoLocateNew': autoLocateNew,
+        'showDetailMap': showDetailMap,
       };
 
   AppSettings copyWith({
@@ -65,6 +73,8 @@ class AppSettings {
     int? weekStartsOn,
     Mood? defaultMood,
     SyncConfig? sync,
+    bool? autoLocateNew,
+    bool? showDetailMap,
   }) =>
       AppSettings(
         version: version,
@@ -75,6 +85,8 @@ class AppSettings {
         weekStartsOn: weekStartsOn ?? this.weekStartsOn,
         defaultMood: defaultMood ?? this.defaultMood,
         sync: sync ?? this.sync,
+        autoLocateNew: autoLocateNew ?? this.autoLocateNew,
+        showDetailMap: showDetailMap ?? this.showDetailMap,
       );
 }
 

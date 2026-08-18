@@ -87,6 +87,37 @@ class _EditorScreenState extends State<EditorScreen> {
     _ensureTrailingText();
     _titleCtl.addListener(_markDirty);
     _locationCtl.addListener(_markDirty);
+    // 设置项：新建日记自动定位填充位置与天气（静默，不打扰）。
+    if (_isNew && context.read<AppStore>().settings.autoLocateNew) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _autoLocateCurrentLocation();
+      });
+    }
+  }
+
+  /// 静默版一键定位：自动填充位置与天气，不弹 SnackBar（用于新建日记自动定位）。
+  Future<void> _autoLocateCurrentLocation() async {
+    if (!MapConfig.isConfigured) return;
+    final locatorData = context.read<LocatorData>();
+    final locator = context.read<LocatorService>();
+    await locator.getUserAddress();
+    if (!mounted) return;
+    setState(() {
+      final p = locatorData.currentPosition;
+      if (p != null) {
+        _latitude = p.latitude;
+        _longitude = p.longitude;
+      }
+      final addr = locatorData.userAddress;
+      if (addr != null && addr.isNotEmpty) {
+        _locationCtl.text = addr;
+      }
+    });
+    final p = locatorData.currentPosition;
+    if (p != null && _weather == Weather.unknown) {
+      await _fetchWeatherForPosition();
+    }
+    _markDirty();
   }
 
   @override

@@ -162,7 +162,9 @@ class _DetailScreenState extends State<DetailScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             child: DocView(blocks: blocks, emptyHint: '这一天还没有内容'),
           ),
-          if (e.latitude != null && e.longitude != null)
+          if (e.latitude != null &&
+              e.longitude != null &&
+              context.read<AppStore>().settings.showDetailMap)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               child: _LocationMiniMap(
