@@ -45,6 +45,8 @@ dependencies:
   archive: ^4.0.2
   # 分享大文件备份（share sheet 由系统流式传输，避免整包进内存）
   share_plus: ^10.1.0
+  video_player: ^2.14.0
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
