@@ -11,6 +11,7 @@ import 'package:my_diary_mobile/services/map_service.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/detail_screen.dart';
 import 'package:my_diary_mobile/ui/journey_location_group_page.dart';
+import 'package:my_diary_mobile/ui/map_type_sheet.dart';
 import 'package:provider/provider.dart';
 
 /// 足迹地图：把全部带经纬度的日记标注在天地图上，按缩放级别网格聚类；
@@ -33,6 +34,7 @@ class _MapScreenState extends State<MapScreen> {
   double _currentZoom = 4;
   bool _mapReady = false;
   bool _locating = false;
+  TdtMapType _mapType = TdtMapType.satellite; // 当前底图类型
   VoidCallback? _locateListener; // 等待首次定位完成的临时监听
 
   List<JournalEntry> _entries = [];
@@ -225,10 +227,16 @@ class _MapScreenState extends State<MapScreen> {
     _mapController.move(_mapController.camera.center, z);
   }
 
+  /// 打开地图类型切换（矢量 / 影像 / 地形）。
+  Future<void> _pickMapType() async {
+    final chosen = await showMapTypeSheet(context, _mapType);
+    if (chosen != null && mounted) setState(() => _mapType = chosen);
+  }
+
   @override
   Widget build(BuildContext context) {
     final key = MapConfig.mapApiKey;
-    final tiles = tdtTileLayers(key);
+    final tiles = tdtTileLayers(_mapType);
     return Scaffold(
       appBar: AppBar(
         title: const Text('足迹'),
@@ -315,6 +323,11 @@ class _MapScreenState extends State<MapScreen> {
                   _RoundBtn(
                     icon: Icons.my_location,
                     onTap: _locating ? null : _locate,
+                  ),
+                  const SizedBox(height: 6),
+                  _RoundBtn(
+                    icon: Icons.layers_outlined,
+                    onTap: _pickMapType,
                   ),
                   const SizedBox(height: 6),
                   Container(

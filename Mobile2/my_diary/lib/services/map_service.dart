@@ -27,28 +27,38 @@ const int _tdtMaxNativeZoom = 18; // 天地图原生瓦片最大级别
 const double _tdtMaxZoom = 20; // 允许继续放大（拉伸）
 const String tdtCopyright = '© 天地图';
 
-/// 影像底图瓦片层 URL（带 tk=key）。
-String tdtImgUrl(String key) =>
-    'https://t{s}.tianditu.gov.cn/img_w/wmts'
+/// 天地图底图类型（2D，`_w` 球面墨卡托投影，与 flutter_map 默认投影一致）。
+/// 每种类型 = 底图层 + 注记层，见天地图服务列表：
+/// - vector: vec_w / cva_w（矢量）
+/// - satellite: img_w / cia_w（影像）
+/// - terrain: ter_w / cta_w（地形晕渲）
+enum TdtMapType {
+  vector('矢量', 'vec', 'cva'),
+  satellite('影像', 'img', 'cia'),
+  terrain('地形', 'ter', 'cta');
+
+  final String label; // 中文名
+  final String baseLayer; // 底图层名
+  final String annoLayer; // 注记层名
+  const TdtMapType(this.label, this.baseLayer, this.annoLayer);
+}
+
+/// 指定类型某图层的瓦片 URL（带 tk=key）。
+String tdtTileUrl(TdtMapType type, String layer, String key) =>
+    'https://t{s}.tianditu.gov.cn/${layer}_w/wmts'
     '?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'
-    '&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles'
+    '&LAYER=$layer&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles'
     '&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=$key';
 
-/// 中文注记叠层 URL（带 tk=key，透明 PNG 叠加在影像之上）。
-String tdtCiaUrl(String key) =>
-    'https://t{s}.tianditu.gov.cn/cia_w/wmts'
-    '?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'
-    '&LAYER=cia&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles'
-    '&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=$key';
-
-/// 构建天地图瓦片层（影像 + 中文注记）。[key] 缺省时取 [MapConfig.mapApiKey]；
-/// key 仍为空时返回空列表，由调用方提示配置。
-List<TileLayer> tdtTileLayers([String? key]) {
+/// 构建天地图瓦片层（底图 + 中文注记）。[type] 缺省影像；[key] 缺省时取
+/// [MapConfig.mapApiKey]；key 仍为空时返回空列表，由调用方提示配置。
+List<TileLayer> tdtTileLayers(
+    [TdtMapType type = TdtMapType.satellite, String? key]) {
   key ??= MapConfig.mapApiKey;
   if (key.isEmpty) return const [];
   return [
     TileLayer(
-      urlTemplate: tdtImgUrl(key),
+      urlTemplate: tdtTileUrl(type, type.baseLayer, key),
       subdomains: _tdtSubdomains,
       tileDimension: 256,
       maxZoom: _tdtMaxZoom,
@@ -56,7 +66,7 @@ List<TileLayer> tdtTileLayers([String? key]) {
       userAgentPackageName: 'com.mydiary.my_diary_mobile',
     ),
     TileLayer(
-      urlTemplate: tdtCiaUrl(key),
+      urlTemplate: tdtTileUrl(type, type.annoLayer, key),
       subdomains: _tdtSubdomains,
       tileDimension: 256,
       maxZoom: _tdtMaxZoom,

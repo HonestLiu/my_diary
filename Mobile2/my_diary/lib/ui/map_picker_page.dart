@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:my_diary_mobile/config/map_config.dart';
 import 'package:my_diary_mobile/services/map_service.dart';
+import 'package:my_diary_mobile/ui/map_type_sheet.dart';
 
 /// 地图选点页：在合规天地图瓦片上点击落点，自动逆地理编码填充地点名称，
 /// 也可一键 GPS 定位。确定后回传 {lat, lon, name} 给调用方（编辑器）。
@@ -30,6 +31,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
   bool _locating = false;
   bool _geocoding = false;
   bool _searching = false;
+  TdtMapType _mapType = TdtMapType.satellite; // 当前底图类型
   final TextEditingController _nameCtl = TextEditingController();
   final TextEditingController _searchCtl = TextEditingController();
 
@@ -87,6 +89,12 @@ class _MapPickerPageState extends State<MapPickerPage> {
     await _onTap(p);
   }
 
+  /// 打开地图类型切换（矢量 / 影像 / 地形）。
+  Future<void> _pickMapType() async {
+    final chosen = await showMapTypeSheet(context, _mapType);
+    if (chosen != null && mounted) setState(() => _mapType = chosen);
+  }
+
   /// 地址搜索：天地图正地理编码 → 地图飞到结果位置并作为落点。
   Future<void> _searchAddress() async {
     final kw = _searchCtl.text.trim();
@@ -131,7 +139,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tiles = tdtTileLayers();
+    final tiles = tdtTileLayers(_mapType);
     return Scaffold(
       appBar: AppBar(
         title: const Text('选择位置'),
@@ -245,6 +253,11 @@ class _MapPickerPageState extends State<MapPickerPage> {
                 _RoundBtn(
                   icon: Icons.my_location,
                   onTap: _locating ? null : _locate,
+                ),
+                const SizedBox(height: 6),
+                _RoundBtn(
+                  icon: Icons.layers_outlined,
+                  onTap: _pickMapType,
                 ),
               ],
             ),
