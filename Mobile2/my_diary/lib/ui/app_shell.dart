@@ -164,11 +164,17 @@ class _HomeFab extends StatelessWidget {
                   children: [
                     Icon(Icons.edit_outlined, size: 22, color: cs.onPrimary),
                     const SizedBox(width: 6),
-                    Text('写日记',
-                        style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: cs.onPrimary)),
+                    // Flexible + 单行裁剪：宽度动画收缩到小于文案自然宽度时，
+                    // 文字跟随压缩（配合整体淡出），避免 RenderFlex 横向溢出。
+                    Flexible(
+                      child: Text('写日记',
+                          maxLines: 1,
+                          overflow: TextOverflow.clip,
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onPrimary)),
+                    ),
                   ],
                 ),
               ),
