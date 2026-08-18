@@ -1,11 +1,11 @@
 {
-    "name": "my_diary_mobile",
-    "short_name": "my_diary_mobile",
+    "name": "MyDiary",
+    "short_name": "MyDiary",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFFFFF",
+    "theme_color": "#AED2EB",
+    "description": "MyDiary · 我的日记 · A personal diary.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

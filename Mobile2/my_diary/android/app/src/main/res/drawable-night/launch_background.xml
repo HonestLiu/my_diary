@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 同 drawable/launch_background.xml，分两份以匹配 Flutter 创建的默认布局，兼容未来可能的 v21+ 差异。 -->
+<!-- 深色启动遮罩：黑底 + 居中应用图标。系统切换到深色模式时自动选用。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
+    <item android:drawable="@android:color/black" />
     <item>
         <bitmap
             android:gravity="center"

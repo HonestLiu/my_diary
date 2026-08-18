@@ -18,18 +18,31 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="MyDiary · 我的日记 · A personal diary.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="my_diary_mobile">
+  <meta name="apple-mobile-web-app-title" content="MyDiary">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>my_diary_mobile</title>
+  <!-- 应用名按浏览器语言自动切换：中文系统显示「我的日记」，其它显示「MyDiary」。
+       设置静态 <title> 为 MyDiary 作为无 JS / 默认降级，脚本立即覆盖以避免闪烁。 -->
+  <title>MyDiary</title>
+  <script>
+    (function () {
+      try {
+        var lang = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+        var name = lang.indexOf('zh') === 0 ? '我的日记' : 'MyDiary';
+        document.title = name;
+        var m = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+        if (m) m.setAttribute('content', name);
+      } catch (e) { /* 保持默认 MyDiary */ }
+    })();
+  </script>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
