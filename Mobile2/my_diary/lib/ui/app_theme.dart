@@ -206,7 +206,11 @@ ThemeData buildTheme(ThemePreference mode, AccentKey accent, FontKey font) {
     chipTheme: ChipThemeData(
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(tokens.radiusChip)),
-      labelStyle: const TextStyle(fontSize: 13),
+      // 必须显式给 label 颜色：chipTheme.labelStyle 不带 color 时，会覆盖掉
+      // M3 默认的 onSurfaceVariant 文字色，label 颜色解析为 null、回落到不可控
+      // 的继承色——亮色主题下出现白字白底看不清（设置页品牌色/默认心情、搜索筛选）。
+      // textPrimary 亮色深字 / 暗色浅字，选中态背景（secondaryContainer 淡染）上同样可读。
+      labelStyle: TextStyle(fontSize: 13, color: textPrimary),
       backgroundColor: fill,
       side: BorderSide(color: border),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
