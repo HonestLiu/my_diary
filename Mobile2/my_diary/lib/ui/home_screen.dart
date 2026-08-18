@@ -548,8 +548,8 @@ class _MemoryCard extends StatelessWidget {
     final e = item.entry;
     final t = context.tokens;
     final accent = Theme.of(context).colorScheme.primary;
-    final imgs = e.assets.where((a) => a.kind == AssetKind.image);
-    final cover = imgs.isEmpty ? null : imgs.first;
+    final store = context.read<AppStore>();
+    final cover = store.coverFor(e.assets);
     // 渲染后的预览：解码正文为文档块，压平成带行内样式的 span（保留加粗/斜体/代码等），
     // 而非 Markdown 源码；底色（图 / 文）决定预览基色。
     final previewBase = cover != null
@@ -567,12 +567,14 @@ class _MemoryCard extends StatelessWidget {
     final Widget inner;
     if (cover != null) {
       // 图片卡：图作底，底部暗渐变保证文字可读。
-      final file = context.read<AppStore>().resolveAsset(cover.path);
+      final file = store.resolveThumb(cover);
       inner = Stack(
         fit: StackFit.expand,
         children: [
           Image.file(file,
               fit: BoxFit.cover,
+              cacheWidth: 290,
+              cacheHeight: 290,
               errorBuilder: (_, __, ___) => Container(color: t.fill)),
           Container(
             decoration: BoxDecoration(

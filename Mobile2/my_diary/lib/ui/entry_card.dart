@@ -17,8 +17,8 @@ class EntryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final imgs = entry.assets.where((a) => a.kind == AssetKind.image);
-    final cover = imgs.isEmpty ? null : imgs.first;
+    final store = context.read<AppStore>();
+    final cover = store.coverFor(entry.assets);
     final loc = entry.location?.trim() ?? '';
     // 渲染后的预览：解码正文为文档块，再压平成带行内样式的 span（保留加粗/斜体等）。
     final previewSpans = docBlocksToPreviewSpans(
@@ -159,7 +159,7 @@ class _Cover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final file = context.read<AppStore>().resolveAsset(asset.path);
+    final file = context.read<AppStore>().resolveThumb(asset);
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Image.file(
@@ -167,6 +167,10 @@ class _Cover extends StatelessWidget {
         width: 84,
         height: 84,
         fit: BoxFit.cover,
+        // 仅按显示尺寸解码（缩略图本就很小，原图回退时也只解到 2x），
+        // 避免把数 MB 的原图全量解码到 84px 的封面。
+        cacheWidth: 168,
+        cacheHeight: 168,
         errorBuilder: (_, __, ___) => Container(
           width: 84,
           height: 84,
