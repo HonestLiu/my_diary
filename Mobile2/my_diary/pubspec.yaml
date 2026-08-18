@@ -43,6 +43,8 @@ dependencies:
   geolocator: ^14.0.2
   # 导出 Markdown zip（打包 vault 中的 .md 与配置）
   archive: ^4.0.2
+  # 分享大文件备份（share sheet 由系统流式传输，避免整包进内存）
+  share_plus: ^10.1.0
 
 dev_dependencies:
   flutter_test:

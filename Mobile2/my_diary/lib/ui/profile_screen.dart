@@ -10,7 +10,9 @@ import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/search_screen.dart';
 import 'package:my_diary_mobile/ui/settings_screen.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 /// 我的：个人中心 + 统计 + 账户与同步 + 外观快捷 + 设置入口。
 /// 精致卡片风：柔和投影无边框卡，散落小组件合并成更少的卡。
@@ -58,25 +60,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) setState(() => _conflicts = store.pendingConflictPaths());
   }
 
-  /// 导出完整备份（流式压缩，含媒体），经系统保存对话框选择位置。
+  /// 导出完整备份：流式生成 zip 到临时目录后走系统分享面板
+  /// （移动端 saveFile 强制要求 bytes，整包进内存违背流式初衷，故用分享）。
   Future<void> _exportFullBackup() async {
     final store = context.read<AppStore>();
     setState(() => _exporting = true);
     try {
+      final tmp = await getTemporaryDirectory();
       final stamp = DateFormat('yyyyMMdd-HHmm').format(DateTime.now());
-      // bytes: null → 只弹系统保存框返回路径，zip 由流式管道直接写入目标文件。
-      final target = await FilePicker.platform.saveFile(
-        dialogTitle: '导出完整备份',
-        fileName: 'my-diary-full-$stamp.zip',
-        bytes: null,
+      final zipPath = '${tmp.path}/my-diary-full-$stamp.zip';
+      final count =
+          await ExportService.buildFullZip(store.repo.storage.root, zipPath);
+      if (!mounted) return;
+      if (count == 0) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('还没有可导出的数据')));
+        return;
+      }
+      await Share.shareXFiles(
+        [XFile(zipPath, mimeType: 'application/zip')],
+        text: 'MyDiary 完整备份（$count 个文件）',
       );
       if (!mounted) return;
-      if (target == null) return; // 用户取消
-      final count =
-          await ExportService.buildFullZip(store.repo.storage.root, target);
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('完整备份已导出（$count 个文件）：$target'),
+        content: Text('备份已生成（$count 个文件）：$zipPath'),
       ));
     } catch (e) {
       if (mounted) {
