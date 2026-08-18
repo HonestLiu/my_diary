@@ -16,6 +16,9 @@ class AppSettings {
   final SyncConfig sync;
   final bool autoLocateNew; // 新建日记时自动定位填充位置与天气
   final bool showDetailMap; // 日记预览页是否显示地图块
+  // 上传压缩质量（1–100，越高越清晰、文件越大；100 = 不压缩）。
+  final int imageCompressQuality; // 图片
+  final int videoCompressQuality; // 视频
 
   const AppSettings({
     this.version = 1,
@@ -30,6 +33,8 @@ class AppSettings {
     this.sync = const SyncConfig(),
     this.autoLocateNew = false,
     this.showDetailMap = true,
+    this.imageCompressQuality = 80,
+    this.videoCompressQuality = 60,
   });
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -55,6 +60,10 @@ class AppSettings {
           : const SyncConfig(),
       autoLocateNew: json['autoLocateNew'] as bool? ?? false,
       showDetailMap: json['showDetailMap'] as bool? ?? true,
+      imageCompressQuality:
+          ((json['imageCompressQuality'] as int? ?? 80).clamp(1, 100)).toInt(),
+      videoCompressQuality:
+          ((json['videoCompressQuality'] as int? ?? 60).clamp(1, 100)).toInt(),
     );
   }
 
@@ -71,6 +80,8 @@ class AppSettings {
         'sync': sync.toJson(),
         'autoLocateNew': autoLocateNew,
         'showDetailMap': showDetailMap,
+        'imageCompressQuality': imageCompressQuality,
+        'videoCompressQuality': videoCompressQuality,
       };
 
   AppSettings copyWith({
@@ -85,6 +96,8 @@ class AppSettings {
     SyncConfig? sync,
     bool? autoLocateNew,
     bool? showDetailMap,
+    int? imageCompressQuality,
+    int? videoCompressQuality,
   }) =>
       AppSettings(
         version: version,
@@ -99,6 +112,10 @@ class AppSettings {
         sync: sync ?? this.sync,
         autoLocateNew: autoLocateNew ?? this.autoLocateNew,
         showDetailMap: showDetailMap ?? this.showDetailMap,
+        imageCompressQuality:
+            imageCompressQuality ?? this.imageCompressQuality,
+        videoCompressQuality:
+            videoCompressQuality ?? this.videoCompressQuality,
       );
 }
 

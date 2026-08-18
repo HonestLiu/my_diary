@@ -29,6 +29,7 @@ class VaultLayout {
     'assets/audio',
     'assets/video',
     'assets/attachments',
+    'assets/thumbnails',
     'metadata',
     'versions',
     'conflicts',
