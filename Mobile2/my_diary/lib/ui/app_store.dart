@@ -11,6 +11,9 @@ import 'package:my_diary_mobile/sync/sync_engine.dart';
 import 'package:my_diary_mobile/vault/vault_layout.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:video_compress/video_compress.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 /// 全局状态：聚合仓储、鉴权与同步，供 UI 消费。
@@ -233,23 +236,167 @@ class AppStore extends ChangeNotifier {
   ///
   /// 文件名用 uuid，扩展名沿用原文件（做白名单归一），原始名保存在 AssetRef.name 里，
   /// 与桌面端的 vault 约定一致，两端互通后都能正确显示与播放。
+  ///
+  /// 图片：按设置质量重压缩（上限 2000px 长边）并额外生成 256px 列表缩略图；
+  /// 视频：按设置质量压缩（失败回退原文件）并抽取封面帧缩略图；
+  /// 音频/附件：原样拷贝。缩略图统一落在 `assets/thumbnails/<uuid>.jpg`，
+  /// 列表渲染通过 [resolveThumb] 优先取缩略图，旧数据无缩略图时回退原图。
   Future<AssetRef> importAsset(
     File source,
     AssetKind kind, {
     String? name,
   }) async {
     final original = name ?? source.path.split(RegExp(r'[/\\]')).last;
-    final ext = _safeExtension(source.path, original, kind);
-    final filename = '${const Uuid().v4()}$ext';
-    final rel = assetPath(kind, filename);
-    final bytes = await source.readAsBytes();
-    await repo.storage.writeBytes(rel, bytes);
+    switch (kind) {
+      case AssetKind.image:
+        return _importImage(source, original);
+      case AssetKind.video:
+        return _importVideo(source, original);
+      case AssetKind.audio:
+      case AssetKind.attachment:
+        final ext = _safeExtension(source.path, original, kind);
+        final filename = '${const Uuid().v4()}$ext';
+        final rel = assetPath(kind, filename);
+        final bytes = await source.readAsBytes();
+        await repo.storage.writeBytes(rel, bytes);
+        return AssetRef(
+          kind: kind,
+          path: rel,
+          name: original,
+          size: bytes.length,
+        );
+    }
+  }
+
+  /// 图片导入：重压缩存储 + 生成列表缩略图。
+  Future<AssetRef> _importImage(File source, String original) async {
+    final q = settings.imageCompressQuality;
+    final base = const Uuid().v4();
+    final rel = assetPath(AssetKind.image, '$base.jpg');
+    final abs = repo.storage.resolveFile(rel).path;
+
+    // 压缩后的字节；若压缩失败/关闭则回退原始字节。
+    late final Uint8List bytes;
+    var written = false; // compressAndGetFile 已直接写入 rel 时无需再写。
+    if (q < 100) {
+      try {
+        await Directory(File(abs).parent.path).create(recursive: true);
+        final out = await FlutterImageCompress.compressAndGetFile(
+          source.path,
+          abs,
+          quality: q,
+          minWidth: 2000,
+          minHeight: 2000,
+          format: CompressFormat.jpeg,
+          keepExif: true,
+        );
+        if (out != null) {
+          bytes = await out.readAsBytes();
+          written = true;
+        } else {
+          bytes = await source.readAsBytes();
+        }
+      } catch (_) {
+        bytes = await source.readAsBytes();
+      }
+    } else {
+      bytes = await source.readAsBytes();
+    }
+    if (!written) await repo.storage.writeBytes(rel, bytes);
+
+    // 列表缩略图（始终尝试生成；生成失败不影响正文，仅列表回退原图）。
+    try {
+      final thumbRel = _thumbRelFor(rel);
+      final thumbAbs = repo.storage.resolveFile(thumbRel).path;
+      await Directory(File(thumbAbs).parent.path).create(recursive: true);
+      await FlutterImageCompress.compressAndGetFile(
+        source.path,
+        thumbAbs,
+        quality: 82,
+        minWidth: 256,
+        minHeight: 256,
+        format: CompressFormat.jpeg,
+      );
+    } catch (_) {}
+
     return AssetRef(
-      kind: kind,
-      path: rel,
-      name: original,
-      size: bytes.length,
-    );
+        kind: AssetKind.image, path: rel, name: original, size: bytes.length);
+  }
+
+  /// 视频导入：按质量压缩（失败回退原文件）+ 抽取封面缩略图。
+  Future<AssetRef> _importVideo(File source, String original) async {
+    final q = settings.videoCompressQuality;
+    final base = const Uuid().v4();
+    final ext = _videoExtFor(source.path, original);
+    final rel = assetPath(AssetKind.video, '$base$ext');
+
+    Uint8List finalBytes = await source.readAsBytes();
+    if (q < 100) {
+      try {
+        final info = await VideoCompress.compressVideo(
+          source.path,
+          quality: _videoQualityFor(q),
+          deleteOrigin: false,
+        );
+        final compressed = info?.file;
+        if (compressed != null && await compressed.exists()) {
+          finalBytes = await compressed.readAsBytes();
+        }
+      } catch (_) {
+        // 压缩失败时保留原始字节。
+      }
+    }
+    await repo.storage.writeBytes(rel, finalBytes);
+
+    // 封面缩略图：供列表/回忆区直接展示，避免逐条解码视频。
+    try {
+      final poster = await VideoCompress.getFileThumbnail(source.path,
+          quality: 50);
+      final thumbRel = _thumbRelFor(rel);
+      final thumbAbs = repo.storage.resolveFile(thumbRel).path;
+      await Directory(File(thumbAbs).parent.path).create(recursive: true);
+      await poster.copy(thumbAbs);
+    } catch (_) {}
+
+    return AssetRef(
+        kind: AssetKind.video, path: rel, name: original, size: finalBytes.length);
+  }
+
+  /// 视频压缩输出恒为 MP4；未开启压缩时沿用原扩展名。
+  String _videoExtFor(String path, String original) {
+    if (settings.videoCompressQuality < 100) return '.mp4';
+    final ext = _safeExtension(path, original, AssetKind.video);
+    return ext.isNotEmpty ? ext : '.mp4';
+  }
+
+  /// 将 1–100 的质量映射为 video_compress 的质量预设。
+  static VideoQuality _videoQualityFor(int q) {
+    if (q >= 85) return VideoQuality.HighestQuality;
+    if (q >= 60) return VideoQuality.DefaultQuality;
+    if (q >= 35) return VideoQuality.MediumQuality;
+    return VideoQuality.LowQuality;
+  }
+
+  /// 缩略图相对路径：与资产同 uuid 基名，落在 `assets/thumbnails/`。
+  static String _thumbRelFor(String assetRel) =>
+      'assets/thumbnails/${p.basenameWithoutExtension(assetRel)}.jpg';
+
+  /// 为列表选取封面资产：优先图片；视频仅在已生成封面缩略图时才作为封面。
+  AssetRef? coverFor(List<AssetRef> assets) {
+    for (final a in assets) {
+      if (a.kind == AssetKind.image) return a;
+      if (a.kind == AssetKind.video && tryThumb(a) != null) return a;
+    }
+    return null;
+  }
+
+  /// 列表封面文件：优先返回预生成的缩略图（解码极快），否则回退原图。
+  File resolveThumb(AssetRef a) => tryThumb(a) ?? resolveAsset(a.path);
+
+  /// 若存在预生成的缩略图则返回其文件，否则返回 null（由调用方回退原图）。
+  File? tryThumb(AssetRef a) {
+    final f = repo.storage.resolveFile(_thumbRelFor(a.path));
+    return f.existsSync() ? f : null;
   }
 
   static const Map<AssetKind, List<String>> _knownExtensions = {
