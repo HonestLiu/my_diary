@@ -80,7 +80,6 @@ export default function Dashboard() {
             value={stats.words.toLocaleString()}
             hint="累计字数"
             delay={0.1}
-            accent="hsl(200 70% 55%)"
           />
           <StatCard
             icon={ImageIcon}
@@ -88,7 +87,6 @@ export default function Dashboard() {
             value={stats.images}
             hint="附件图片"
             delay={0.15}
-            accent="hsl(280 60% 60%)"
           />
           <StatCard
             icon={Flame}
@@ -96,7 +94,6 @@ export default function Dashboard() {
             value={streak}
             hint="坚持记录"
             delay={0.2}
-            accent="hsl(20 85% 58%)"
           />
         </div>
 

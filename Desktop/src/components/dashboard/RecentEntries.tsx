@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
-import { MOOD_MAP, WEATHER_MAP } from "@/lib/constants";
+import { MoodGlyph } from "@/components/MoodGlyph";
+import { WeatherGlyph } from "@/components/WeatherGlyph";
 import { useAppStore } from "@/store/appStore";
 import type { JournalEntry } from "@/types/journal";
 
@@ -31,8 +32,6 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
       </div>
       <div className="divide-y divide-border/70">
         {entries.map((e, i) => {
-          const mood = MOOD_MAP[e.mood];
-          const weather = WEATHER_MAP[e.weather];
           return (
             <motion.button
               key={e.id}
@@ -42,14 +41,16 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
               transition={{ duration: 0.3, delay: i * 0.05 }}
               className="group flex w-full items-start gap-4 px-6 py-4 text-left transition-colors hover:bg-accent/50"
             >
-              <div className="mt-0.5 text-2xl leading-none">{mood.emoji}</div>
+              <div className="mt-0.5 text-2xl leading-none">
+                <MoodGlyph mood={e.mood} className="text-2xl" />
+              </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium">
                     {e.title || "未命名"}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {weather.emoji}
+                    <WeatherGlyph weather={e.weather} className="text-xs" />
                   </span>
                 </div>
                 <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">

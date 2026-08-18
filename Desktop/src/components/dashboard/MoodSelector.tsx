@@ -21,17 +21,16 @@ export function MoodSelector({ value, onSelect }: MoodSelectorProps) {
             className={cn(
               "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-all duration-200",
               active
-                ? "border-transparent text-white shadow-soft"
+                ? "border-transparent bg-primary text-primary-foreground shadow-soft"
                 : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             )}
-            style={active ? { backgroundColor: m.color } : undefined}
           >
-            <span className="text-base leading-none">{m.emoji}</span>
+            <span className="font-mood text-base leading-none">{m.char}</span>
             <span>{m.label}</span>
             {active && (
               <motion.span
                 layoutId="mood-dot"
-                className="ml-0.5 h-1.5 w-1.5 rounded-full bg-white/80"
+                className="ml-0.5 h-1.5 w-1.5 rounded-full bg-primary-foreground/80"
               />
             )}
           </button>

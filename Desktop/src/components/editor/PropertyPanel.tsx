@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CalendarDays, MapPin, Tag, X, Paperclip, FileText } from "lucide-react";
 import { MoodSelector } from "@/components/dashboard/MoodSelector";
+import { WeatherGlyph } from "@/components/WeatherGlyph";
 import { WEATHERS } from "@/lib/constants";
 import { cn, formatHumanDate } from "@/lib/utils";
 import type { AssetRef, Mood, Weather } from "@/types/journal";
@@ -87,7 +88,7 @@ export function PropertyPanel({
                   : "text-muted-foreground hover:bg-muted",
               )}
             >
-              <span>{w.emoji}</span>
+              <WeatherGlyph weather={w.key} className="text-base" />
               <span>{w.label}</span>
             </button>
           ))}

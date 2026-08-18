@@ -304,13 +304,13 @@ export async function buildHtml(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>我的日记 · MyDiary 导出</title>
 <style>
-  :root { color-scheme: light dark; --bg:#f5f1e6; --card:#fffdf7; --ink:#2a241c; --muted:#8b8070; --line:#e6ddca; --accent:#a3520a; --soft:#f3e3c6; }
-  @media (prefers-color-scheme:dark){ :root { --bg:#18150f; --card:#211d15; --ink:#ece5d3; --muted:#9b8f79; --line:#37301f; --accent:#e0a23e; --soft:#2d2517; } }
+  :root { color-scheme: light dark; --bg:#f6f7f9; --card:#ffffff; --ink:#101828; --muted:#667085; --line:#e6e8eb; --accent:#0284c7; --soft:#e0f2fe; }
+  @media (prefers-color-scheme:dark){ :root { --bg:#0e0f12; --card:#17191e; --ink:#f2f4f7; --muted:#98a2b3; --line:#272a31; --accent:#38bdf8; --soft:#17283a; } }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
-  body { margin:0; font-family: Georgia, "Songti SC", "Noto Serif SC", "SimSun", serif; background:var(--bg); color:var(--ink); line-height:1.8; }
+  body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif; background:var(--bg); color:var(--ink); line-height:1.8; }
   .page { max-width: 1080px; margin: 0 auto; padding: 30px 20px 90px; }
-  .cover { background: linear-gradient(135deg,#7a4a16,#b97a2c 55%,#e6b968); color:#fff; border-radius:22px; padding:52px 26px 44px; text-align:center; box-shadow:0 14px 34px rgba(120,80,20,.22); margin-bottom:30px; }
+  .cover { background: linear-gradient(135deg,#0369a1,#0284c7 55%,#38bdf8); color:#fff; border-radius:22px; padding:52px 26px 44px; text-align:center; box-shadow:0 14px 34px rgba(2,132,199,.22); margin-bottom:30px; }
   .cover h1 { margin:0; font-size:2.5rem; letter-spacing:6px; text-shadow:0 2px 8px rgba(0,0,0,.25); }
   .cover .byline { margin:10px 0 0; font-size:1.1rem; font-weight:600; opacity:.98; }
   .cover .sub { margin:14px 0 0; opacity:.95; font-size:.96rem; }
@@ -328,8 +328,8 @@ export async function buildHtml(
   .meta { color:var(--muted); font-size:.86rem; display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:18px; }
   .meta .dat { font-weight:600; color:var(--ink); margin-right:4px; }
   .chip { display:inline-flex; align-items:center; gap:4px; background:var(--soft); color:var(--accent); border-radius:999px; padding:2px 10px; font-size:.78rem; }
-  .chip.tag { background:#ece5d5; color:#6b6152; }
-  @media (prefers-color-scheme:dark){ .chip.tag { background:#322b1e; color:#c6b596; } }
+  .chip.tag { background:#f1f3f5; color:#667085; }
+  @media (prefers-color-scheme:dark){ .chip.tag { background:#1f222a; color:#98a2b3; } }
   .content p { margin:.65em 0; }
   .content img { max-width:100%; height:auto; border-radius:14px; margin:16px 0; box-shadow:0 3px 12px rgba(0,0,0,.1); }
   .content h2 { font-size:1.28rem; margin:30px 0 8px; border-left:4px solid var(--accent); padding-left:10px; }
@@ -340,8 +340,8 @@ export async function buildHtml(
   .content blockquote { border-left:3px solid var(--accent); background:var(--soft); margin:14px 0; padding:8px 16px; border-radius:10px; }
   .content code { background:rgba(0,0,0,.07); padding:1px 7px; border-radius:6px; font-size:.88em; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
   @media (prefers-color-scheme:dark){ .content code { background:rgba(255,255,255,.12); } }
-  .content pre { background:#211d16; color:#f0e9d4; border-radius:12px; padding:14px 16px; overflow:auto; font-size:.85rem; }
-  @media (prefers-color-scheme:dark){ .content pre { background:#0f0e0b; } }
+  .content pre { background:#17191e; color:#f2f4f7; border-radius:12px; padding:14px 16px; overflow:auto; font-size:.85rem; }
+  @media (prefers-color-scheme:dark){ .content pre { background:#0e0f12; } }
   .content pre code { background:none; padding:0; }
   .content hr { border:none; border-top:1px dashed var(--line); margin:24px 0; }
   .attachment { display:flex; align-items:center; gap:12px; background:var(--soft); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:14px 0; }

@@ -100,7 +100,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   settings: {
     version: 1,
     theme: "light",
-    accent: "amber",
+    accent: "sky",
     font: "sans",
     displayName: "",
     weekStartsOn: 1,

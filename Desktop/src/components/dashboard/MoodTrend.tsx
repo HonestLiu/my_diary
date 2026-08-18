@@ -15,11 +15,6 @@ const SCORE: Record<Mood, number> = {
   angry: 1,
 };
 
-// Continuous color scale from low (red) to high (green) mood.
-const SCALE = ["#ef4444", "#f59e0b", "#94a3b8", "#06b6d4", "#22c55e"];
-const scoreToColor = (v: number) =>
-  SCALE[Math.min(4, Math.max(0, Math.round(v) - 1))];
-
 // Writing-frequency heatmap greens (intensity 1..4).
 const EMPTY = "hsl(var(--muted-foreground))";
 const LEVELS = ["#dcfce7", "#86efac", "#4ade80", "#16a34a"];
@@ -158,11 +153,8 @@ export function MoodTrend() {
           <CardTitle>心情与习惯</CardTitle>
           {series.length > 0 && (
             <span
-              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-              style={{
-                color: scoreToColor(avgNow),
-                background: scoreToColor(avgNow) + "22",
-              }}
+              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-primary"
+              style={{ background: "hsl(var(--primary) / 0.12)" }}
             >
               {delta >= 0 ? "▲" : "▼"} {avgNow.toFixed(1)}
             </span>
@@ -229,7 +221,7 @@ export function MoodTrend() {
                     cx={xAt(i)}
                     cy={yAt(s.avg)}
                     r={3.5}
-                    fill={scoreToColor(s.avg)}
+                    fill="hsl(var(--primary))"
                     stroke="hsl(var(--card))"
                     strokeWidth={1.5}
                   >

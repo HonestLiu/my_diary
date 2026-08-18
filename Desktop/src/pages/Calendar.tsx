@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
-import { MOOD_MAP } from "@/lib/constants";
+import { MoodGlyph } from "@/components/MoodGlyph";
 import { formatDateKey } from "@/lib/utils";
 import type { JournalEntry } from "@/types/journal";
 
@@ -157,7 +157,6 @@ function MonthCard({
           const count = dayEntries?.length ?? 0;
           const isToday = cell.key === formatDateKey();
           const isActive = cell.key === activeDate;
-          const mood = first ? MOOD_MAP[first.mood] : undefined;
           return (
             <motion.button
               key={cell.key}
@@ -180,8 +179,8 @@ function MonthCard({
               >
                 {cell.day}
               </span>
-              {mood && (
-                <span className="text-base leading-none">{mood.emoji}</span>
+              {first && (
+                <MoodGlyph mood={first.mood} className="text-base" />
               )}
               {count > 1 && (
                 <span className="absolute right-1 top-1 rounded-full bg-primary/90 px-1.5 text-[10px] font-semibold leading-4 text-primary-foreground">

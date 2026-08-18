@@ -32,59 +32,59 @@ export interface AccentDef {
 }
 
 /**
- * Six curated palettes. The default `amber` intentionally reproduces the
- * original warm "paper" theme so existing installs see no visual change until
- * they pick a different accent.
+ * Six curated palettes, aligned with the mobile app's accent seeds
+ * (Flutter `accentSeeds` in app_theme.dart). Default is `sky` (天青),
+ * matching the mobile default accent so the two apps read as one product.
  */
 export const ACCENTS: Record<AccentKey, AccentDef> = {
   amber: {
     key: "amber",
-    label: "暖琥珀",
-    swatch: "hsl(24 70% 54%)",
+    label: "琥珀",
+    swatch: "hsl(26 90% 37%)",
     light: {
-      primary: "24 70% 54%",
-      primaryForeground: "30 40% 99%",
-      accent: "22 60% 95%",
-      accentForeground: "24 60% 38%",
-      ring: "24 70% 54%",
+      primary: "26 90% 37%",
+      primaryForeground: "0 0% 100%",
+      accent: "26 70% 95%",
+      accentForeground: "26 75% 32%",
+      ring: "26 90% 37%",
     },
     dark: {
-      primary: "24 72% 58%",
-      primaryForeground: "25 14% 10%",
-      accent: "25 14% 20%",
-      accentForeground: "38 24% 88%",
-      ring: "24 72% 58%",
+      primary: "27 92% 55%",
+      primaryForeground: "25 30% 10%",
+      accent: "26 25% 20%",
+      accentForeground: "26 80% 88%",
+      ring: "27 92% 55%",
     },
   },
   rose: {
     key: "rose",
-    label: "蔷薇粉",
-    swatch: "hsl(346 77% 50%)",
+    label: "玫瑰",
+    swatch: "hsl(345 83% 41%)",
     light: {
-      primary: "346 77% 50%",
+      primary: "345 83% 41%",
       primaryForeground: "0 0% 100%",
-      accent: "346 60% 96%",
-      accentForeground: "346 60% 35%",
-      ring: "346 77% 50%",
+      accent: "345 60% 96%",
+      accentForeground: "345 60% 35%",
+      ring: "345 83% 41%",
     },
     dark: {
-      primary: "346 84% 62%",
+      primary: "345 84% 62%",
       primaryForeground: "340 40% 12%",
       accent: "340 30% 22%",
       accentForeground: "346 80% 88%",
-      ring: "346 84% 62%",
+      ring: "345 84% 62%",
     },
   },
   violet: {
     key: "violet",
     label: "紫罗兰",
-    swatch: "hsl(262 70% 56%)",
+    swatch: "hsl(262 61% 58%)",
     light: {
-      primary: "262 70% 56%",
+      primary: "262 61% 58%",
       primaryForeground: "0 0% 100%",
       accent: "262 60% 96%",
       accentForeground: "262 55% 38%",
-      ring: "262 70% 56%",
+      ring: "262 61% 58%",
     },
     dark: {
       primary: "263 80% 68%",
@@ -96,33 +96,33 @@ export const ACCENTS: Record<AccentKey, AccentDef> = {
   },
   emerald: {
     key: "emerald",
-    label: "松石绿",
-    swatch: "hsl(152 60% 40%)",
+    label: "翡翠",
+    swatch: "hsl(161 94% 30%)",
     light: {
-      primary: "152 60% 40%",
+      primary: "161 94% 30%",
       primaryForeground: "0 0% 100%",
-      accent: "152 50% 95%",
-      accentForeground: "152 55% 28%",
-      ring: "152 60% 40%",
+      accent: "161 50% 95%",
+      accentForeground: "161 55% 28%",
+      ring: "161 94% 30%",
     },
     dark: {
-      primary: "152 65% 50%",
-      primaryForeground: "152 40% 10%",
-      accent: "152 28% 20%",
-      accentForeground: "152 60% 85%",
-      ring: "152 65% 50%",
+      primary: "160 65% 48%",
+      primaryForeground: "160 40% 10%",
+      accent: "160 28% 20%",
+      accentForeground: "160 60% 85%",
+      ring: "160 65% 48%",
     },
   },
   sky: {
     key: "sky",
-    label: "晴空蓝",
-    swatch: "hsl(205 85% 48%)",
+    label: "天青",
+    swatch: "hsl(200 98% 39%)",
     light: {
-      primary: "205 85% 48%",
+      primary: "200 98% 39%",
       primaryForeground: "0 0% 100%",
-      accent: "205 70% 95%",
-      accentForeground: "205 60% 32%",
-      ring: "205 85% 48%",
+      accent: "200 70% 95%",
+      accentForeground: "200 60% 32%",
+      ring: "200 98% 39%",
     },
     dark: {
       primary: "199 90% 60%",
@@ -134,14 +134,14 @@ export const ACCENTS: Record<AccentKey, AccentDef> = {
   },
   slate: {
     key: "slate",
-    label: "石墨灰",
-    swatch: "hsl(215 20% 35%)",
+    label: "岩灰",
+    swatch: "hsl(215 19% 35%)",
     light: {
-      primary: "215 20% 35%",
+      primary: "215 19% 35%",
       primaryForeground: "0 0% 100%",
       accent: "215 20% 95%",
       accentForeground: "215 25% 25%",
-      ring: "215 20% 35%",
+      ring: "215 19% 35%",
     },
     dark: {
       primary: "215 20% 70%",
@@ -198,7 +198,7 @@ export function applyAppearance(opts: {
   root.classList.toggle("dark", dark);
   root.style.colorScheme = dark ? "dark" : "light";
 
-  const def = ACCENTS[opts.accent] ?? ACCENTS.amber;
+  const def = ACCENTS[opts.accent] ?? ACCENTS.sky;
   setVars(root, dark ? def.dark : def.light);
   root.style.setProperty(
     "--diary-font",

@@ -5,7 +5,7 @@ import { useAppStore } from "@/store/appStore";
 import { byRecency } from "@/lib/journal";
 import { formatDateKey, formatHumanDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MOOD_MAP } from "@/lib/constants";
+import { MoodGlyph } from "@/components/MoodGlyph";
 import type { JournalEntry } from "@/types/journal";
 
 function snippet(body: string): string {
@@ -80,7 +80,8 @@ export default function OnThisDay() {
                   <div className="flex items-center justify-between gap-3">
                     <span className="truncate font-medium">{e.title || "(无标题)"}</span>
                     <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatHumanDate(new Date(e.date + "T00:00:00"))} · {MOOD_MAP[e.mood].emoji}
+                      {formatHumanDate(new Date(e.date + "T00:00:00"))} ·{" "}
+                      <MoodGlyph mood={e.mood} className="text-xs" />
                     </span>
                   </div>
                   {e.body && (

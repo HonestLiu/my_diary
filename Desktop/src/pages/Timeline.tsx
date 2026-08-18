@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAppStore } from "@/store/appStore";
 import { byRecency } from "@/lib/journal";
-import { MOOD_MAP } from "@/lib/constants";
+import { MoodGlyph } from "@/components/MoodGlyph";
 import { formatHumanDate } from "@/lib/utils";
 import type { JournalEntry } from "@/types/journal";
 
@@ -57,7 +57,6 @@ export default function Timeline() {
                   </p>
                   <div className="flex flex-col gap-1.5">
                     {month.entries.map((e, i) => {
-                      const mood = MOOD_MAP[e.mood];
                       return (
                         <motion.button
                           key={e.id}
@@ -71,9 +70,7 @@ export default function Timeline() {
                           <span className="mt-0.5 w-8 shrink-0 text-right text-xs text-muted-foreground">
                             {e.date.slice(8)}
                           </span>
-                          <span className="text-lg leading-none">
-                            {mood?.emoji ?? "📝"}
-                          </span>
+                          <MoodGlyph mood={e.mood} className="text-lg" />
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium text-foreground group-hover:text-primary">
                               {e.title || "未命名"}

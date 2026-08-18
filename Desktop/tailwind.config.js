@@ -58,8 +58,8 @@ export default {
         serif: ["Georgia", "Songti SC", "SimSun", "serif"],
       },
       boxShadow: {
-        soft: "0 1px 2px rgba(16, 12, 8, 0.04), 0 8px 24px rgba(16, 12, 8, 0.06)",
-        "soft-lg": "0 2px 4px rgba(16, 12, 8, 0.05), 0 16px 40px rgba(16, 12, 8, 0.08)",
+        soft: "0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06)",
+        "soft-lg": "0 2px 4px rgba(16, 24, 40, 0.05), 0 16px 40px rgba(16, 24, 40, 0.08)",
       },
       keyframes: {
         "fade-in": {

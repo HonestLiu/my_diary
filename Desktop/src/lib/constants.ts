@@ -3,19 +3,20 @@ import type { Mood, Weather } from "@/types/journal";
 export interface MoodInfo {
   key: Mood;
   label: string;
+  /** 心情矢量图标字形（moodfont，与移动端同款），UI 用 `font-mood` 渲染。 */
+  char: string;
+  /** 导出 HTML 等自包含场景的兜底 emoji。 */
   emoji: string;
-  /** Tailwind-friendly accent color (hsl) for chips. */
-  color: string;
 }
 
 export const MOODS: MoodInfo[] = [
-  { key: "happy", label: "开心", emoji: "😊", color: "hsl(45 90% 60%)" },
-  { key: "excited", label: "兴奋", emoji: "🤩", color: "hsl(20 90% 60%)" },
-  { key: "calm", label: "平静", emoji: "😌", color: "hsl(200 70% 65%)" },
-  { key: "neutral", label: "普通", emoji: "😐", color: "hsl(40 10% 60%)" },
-  { key: "tired", label: "疲惫", emoji: "😪", color: "hsl(260 30% 60%)" },
-  { key: "sad", label: "难过", emoji: "😢", color: "hsl(220 50% 60%)" },
-  { key: "angry", label: "生气", emoji: "😠", color: "hsl(0 70% 60%)" },
+  { key: "happy", label: "开心", char: "", emoji: "😊" },
+  { key: "excited", label: "兴奋", char: "", emoji: "🤩" },
+  { key: "calm", label: "平静", char: "", emoji: "😌" },
+  { key: "neutral", label: "普通", char: "", emoji: "😐" },
+  { key: "tired", label: "疲惫", char: "", emoji: "😪" },
+  { key: "sad", label: "难过", char: "", emoji: "😢" },
+  { key: "angry", label: "生气", char: "", emoji: "😠" },
 ];
 
 export const MOOD_MAP: Record<Mood, MoodInfo> = Object.fromEntries(
@@ -25,17 +26,20 @@ export const MOOD_MAP: Record<Mood, MoodInfo> = Object.fromEntries(
 export interface WeatherInfo {
   key: Weather;
   label: string;
+  /** 天气矢量图标字形（iconfont，与移动端同款），UI 用 `font-icon` 渲染。 */
+  char: string;
+  /** 导出 HTML 等自包含场景的兜底 emoji。 */
   emoji: string;
 }
 
 export const WEATHERS: WeatherInfo[] = [
-  { key: "sunny", label: "晴", emoji: "☀️" },
-  { key: "cloudy", label: "多云", emoji: "⛅" },
-  { key: "rainy", label: "雨", emoji: "🌧️" },
-  { key: "snowy", label: "雪", emoji: "❄️" },
-  { key: "foggy", label: "雾", emoji: "🌫️" },
-  { key: "windy", label: "风", emoji: "💨" },
-  { key: "unknown", label: "未知", emoji: "🌡️" },
+  { key: "sunny", label: "晴", char: "", emoji: "☀️" },
+  { key: "cloudy", label: "多云", char: "", emoji: "⛅" },
+  { key: "rainy", label: "雨", char: "", emoji: "🌧️" },
+  { key: "snowy", label: "雪", char: "", emoji: "❄️" },
+  { key: "foggy", label: "雾", char: "", emoji: "🌫️" },
+  { key: "windy", label: "风", char: "", emoji: "💨" },
+  { key: "unknown", label: "未知", char: "", emoji: "🌡️" },
 ];
 
 export const WEATHER_MAP: Record<Weather, WeatherInfo> = Object.fromEntries(

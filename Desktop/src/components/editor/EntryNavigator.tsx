@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MOOD_MAP } from "@/lib/constants";
+import { MoodGlyph } from "@/components/MoodGlyph";
 import type { JournalEntry } from "@/types/journal";
 
 interface Props {
@@ -57,7 +57,6 @@ export function EntryNavigator({
             <div className="flex flex-col gap-1">
               {g.entries.map((e) => {
                 const active = e.id === activeId;
-                const mood = MOOD_MAP[e.mood];
                 return (
                   <div
                     key={e.id}
@@ -71,9 +70,7 @@ export function EntryNavigator({
                       onClick={() => onSelect(e)}
                       className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left"
                     >
-                      <span className="shrink-0 text-base leading-none">
-                        {mood?.emoji ?? "📝"}
-                      </span>
+                      <MoodGlyph mood={e.mood} className="text-base" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-foreground">
                           {e.title || "未命名"}

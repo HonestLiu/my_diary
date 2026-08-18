@@ -4,54 +4,55 @@
 
 @layer base {
   :root {
-    /* Warm, paper-like journal theme — premium, calm, lots of whitespace */
-    --background: 40 33% 98%;
-    --foreground: 25 18% 16%;
+    /* 与移动端（Flutter buildTheme）一致的中性极简配色 —— 中性灰白底 + 天青强调色 */
+    --background: 220 5% 97%; /* #F6F7F9 */
+    --foreground: 220 43% 11%; /* #101828 */
 
-    --card: 0 0% 100%;
-    --card-foreground: 25 18% 16%;
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 220 43% 11%;
 
-    --primary: 24 70% 54%;
-    --primary-foreground: 30 40% 99%;
+    --primary: 200 98% 39%; /* 天青 #0284C7（默认强调色） */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 36 30% 94%;
-    --secondary-foreground: 25 18% 22%;
+    --secondary: 220 5% 96%; /* #F2F4F7 */
+    --secondary-foreground: 220 43% 11%;
 
-    --muted: 38 24% 95%;
-    --muted-foreground: 28 10% 46%;
+    --muted: 220 5% 95%; /* #F1F3F5 */
+    --muted-foreground: 220 13% 46%; /* #667085 */
 
-    --accent: 22 60% 95%;
-    --accent-foreground: 24 60% 38%;
+    --accent: 200 70% 95%; /* 天青浅染（选中/悬停底） */
+    --accent-foreground: 200 60% 32%;
 
-    --border: 34 20% 90%;
-    --input: 34 20% 90%;
-    --ring: 24 70% 54%;
+    --border: 220 5% 91%; /* #E6E8EB */
+    --input: 220 5% 91%;
+    --ring: 200 98% 39%;
 
-    --radius: 0.9rem;
+    /* 对齐移动端圆角体系：input 12 / chip 20 / card 16~22 / sheet 24 */
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 25 14% 10%;
-    --foreground: 38 20% 92%;
+    --background: 220 13% 6%; /* #0E0F12 */
+    --foreground: 220 20% 96%; /* #F2F4F7 */
 
-    --card: 25 12% 13%;
-    --card-foreground: 38 20% 92%;
+    --card: 220 14% 10%; /* #17191E */
+    --card-foreground: 220 20% 96%;
 
-    --primary: 24 72% 58%;
-    --primary-foreground: 25 14% 10%;
+    --primary: 199 90% 60%; /* 天青（暗色） */
+    --primary-foreground: 200 40% 12%;
 
-    --secondary: 25 10% 18%;
-    --secondary-foreground: 38 20% 92%;
+    --secondary: 220 15% 15%; /* #20232B */
+    --secondary-foreground: 220 20% 96%;
 
-    --muted: 25 10% 18%;
-    --muted-foreground: 33 12% 62%;
+    --muted: 220 15% 14%; /* #1F222A */
+    --muted-foreground: 218 8% 65%; /* #98A2B3 */
 
-    --accent: 25 14% 20%;
-    --accent-foreground: 38 24% 88%;
+    --accent: 200 30% 22%;
+    --accent-foreground: 199 85% 90%;
 
-    --border: 25 10% 22%;
-    --input: 25 10% 22%;
-    --ring: 24 72% 58%;
+    --border: 222 11% 17%; /* #272A31 */
+    --input: 222 11% 17%;
+    --ring: 199 90% 60%;
   }
 
   * {
@@ -94,14 +95,29 @@
   .drag-region {
     -webkit-app-region: drag;
   }
-  /* Subtle paper grain for the app background */
-  .paper-grain {
-    background-image: radial-gradient(
-      hsl(var(--foreground) / 0.025) 1px,
-      transparent 1px
-    );
-    background-size: 22px 22px;
+  /* 心情 / 天气矢量图标字体（与移动端同款 moodfont / iconfont） */
+  .font-mood {
+    font-family: "moodfont", sans-serif;
   }
+  .font-icon {
+    font-family: "iconfont", sans-serif;
+  }
+  /* 中性底色（替代原纸纹），保持留白但无纹理 */
+  .paper-grain {
+    background-image: none;
+  }
+}
+
+/* 心情 / 天气图标字体（assets 与移动端一致，色随 currentColor） */
+@font-face {
+  font-family: "moodfont";
+  src: url("/fonts/moodfont.ttf") format("truetype");
+  font-display: block;
+}
+@font-face {
+  font-family: "iconfont";
+  src: url("/fonts/iconfont.ttf") format("truetype");
+  font-display: block;
 }
 
 /* ---- Journal editor typography (no typography plugin needed) ---- */

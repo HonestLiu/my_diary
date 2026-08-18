@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Search as SearchIcon, Tag } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
-import { MOOD_MAP } from "@/lib/constants";
+import { MoodGlyph } from "@/components/MoodGlyph";
 import { formatHumanDate } from "@/lib/utils";
 import type { IndexedEntry } from "@/lib/db/schema";
+import type { Mood } from "@/types/journal";
 
 /**
  * Search — full-text lookup across indexed title / body / tags / location.
@@ -64,7 +65,6 @@ export default function Search() {
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {results.map((r, i) => {
-            const mood = MOOD_MAP[r.mood as keyof typeof MOOD_MAP];
             return (
               <motion.button
                 key={r.id}
@@ -76,7 +76,7 @@ export default function Search() {
                 className="rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:border-primary"
               >
                 <div className="mb-1 flex items-center gap-2">
-                  <span className="text-base">{mood?.emoji ?? "📝"}</span>
+                  <MoodGlyph mood={r.mood as Mood} className="text-base" />
                   <span className="font-medium text-foreground">
                     {r.title || "未命名"}
                   </span>

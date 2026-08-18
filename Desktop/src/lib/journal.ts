@@ -15,7 +15,7 @@ import { formatDateKey, uuid } from "./utils";
 const DEFAULT_SETTINGS: AppSettings = {
   version: 1,
   theme: "light",
-  accent: "amber",
+  accent: "sky",
   font: "sans",
   displayName: "",
   weekStartsOn: 1,
