@@ -10,12 +10,29 @@ import 'package:my_diary_mobile/ui/entry_card.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
 
-/// 媒体画廊：按日记所属日期（entry.date）降序，按行优先横向铺满、排不下自动换行；
-/// 每篇含媒体的日记是一个「扑克扇」单元（封面 + 两张纯色牌背做堆叠暗示），
-/// 扇内浮动该日记自己的日期（entry.date）；点扇展开该日记全部图片预览，
-/// 预览窗下方一条白色信息条（类似首页卡片），点条跳转对应日记。
-class MediaScreen extends StatelessWidget {
+/// 媒体页的展示模式。
+enum MediaMode {
+  /// 扑克扇：按日记日期降序，两列铺满，每篇含媒体的日记是一个扑克扇单元。
+  fan,
+  /// 时间轴：左侧日期列 + 时间线圆点竖线，右侧卡片（标题 + 媒体缩略图）。
+  timeline,
+}
+
+/// 媒体画廊，两种展示模式可切换：
+/// - **扑克扇**：按日记所属日期（entry.date）降序，两列铺满；每篇含媒体的
+///   日记是一个「扑克扇」单元（封面 + 两张纯色牌背做堆叠暗示），扇内浮动
+///   该日记自己的日期；点扇展开该日记全部图片预览。
+/// - **时间轴**：同样按日期降序，左侧日期（月-日 + 年份）+ 主题色圆点时间线，
+///   右侧卡片（标题 + 媒体缩略图行），点击进预览。
+class MediaScreen extends StatefulWidget {
   const MediaScreen({super.key});
+
+  @override
+  State<MediaScreen> createState() => _MediaScreenState();
+}
+
+class _MediaScreenState extends State<MediaScreen> {
+  MediaMode _mode = MediaMode.fan;
 
   @override
   Widget build(BuildContext context) {
@@ -35,36 +52,79 @@ class MediaScreen extends StatelessWidget {
         actions: [
           if (total > 0)
             Padding(
-              padding: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.only(right: 8),
               child: Center(child: Text('$total', style: context.caption)),
             ),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: SegmentedButton<MediaMode>(
+              segments: const [
+                ButtonSegment(
+                  value: MediaMode.fan,
+                  icon: Icon(Icons.style_outlined),
+                  tooltip: '扑克扇',
+                ),
+                ButtonSegment(
+                  value: MediaMode.timeline,
+                  icon: Icon(Icons.view_agenda_outlined),
+                  tooltip: '时间轴',
+                ),
+              ],
+              selected: {_mode},
+              onSelectionChanged: (s) => setState(() => _mode = s.first),
+              showSelectedIcon: false,
+              style: SegmentedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+            ),
+          ),
         ],
       ),
       body: entries.isEmpty
           ? _EmptyMedia()
-          : SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 22, 16, 36),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  // 两列铺满：牌背右探 22 已计入 deck 尺寸，两个 deck + 一个间隔恰好占满行宽，
-                  // 不再像固定宽度那样右侧空出一大块。
-                  final deckW = (constraints.maxWidth - 20) / 2;
-                  final coverW = deckW - 22;
-                  return Wrap(
-                    spacing: 20,
-                    runSpacing: 32,
-                    children: [
-                      for (final e in entries)
-                        _EntryFan(
-                          entry: e,
-                          coverW: coverW,
-                          onOpen: () => _openPreview(context, e),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ),
+          : _mode == MediaMode.fan
+              ? _buildFan(context, entries)
+              : _buildTimeline(context, entries),
+    );
+  }
+
+  /// 扑克扇布局：两列铺满，牌背右探 22 已计入 deck 尺寸。
+  Widget _buildFan(BuildContext context, List<JournalEntry> entries) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 22, 16, 36),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final deckW = (constraints.maxWidth - 20) / 2;
+          final coverW = deckW - 22;
+          return Wrap(
+            spacing: 20,
+            runSpacing: 32,
+            children: [
+              for (final e in entries)
+                _EntryFan(
+                  entry: e,
+                  coverW: coverW,
+                  onOpen: () => _openPreview(context, e),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// 时间轴布局：日期列 + 圆点竖线 + 内容卡片，按日期降序。
+  Widget _buildTimeline(BuildContext context, List<JournalEntry> entries) {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 22, 16, 36),
+      itemCount: entries.length,
+      itemBuilder: (_, i) => _TimelineItem(
+        entry: entries[i],
+        isLast: i == entries.length - 1,
+        onOpen: () => _openPreview(context, entries[i]),
+      ),
     );
   }
 }
@@ -444,6 +504,207 @@ Widget _kindPlaceholder(
       ],
     ),
   );
+}
+
+/// 时间轴单个条目：左日期列 + 中时间线（圆点 + 贯穿竖线）+ 右内容卡片。
+/// 卡片显示标题与媒体缩略图行（最多 4 张 + 计数），点击进入预览。
+class _TimelineItem extends StatelessWidget {
+  final JournalEntry entry;
+  final bool isLast;
+  final VoidCallback onOpen;
+  const _TimelineItem({
+    required this.entry,
+    required this.isLast,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final cs = context.cs;
+    final d = _entryDate(entry);
+    final store = context.read<AppStore>();
+    final media = entry.assets;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 日期列：月-日 + 年份，右对齐。
+          SizedBox(
+            width: 82,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 3, right: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${d.month.toString().padLeft(2, '0')}-'
+                    '${d.day.toString().padLeft(2, '0')}',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: t.textPrimary,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text('${d.year}', style: context.caption),
+                ],
+              ),
+            ),
+          ),
+          // 时间线：圆点 + 贯穿竖线（最后一条不延伸）。
+          SizedBox(
+            width: 26,
+            child: Column(
+              children: [
+                Container(
+                  width: 11,
+                  height: 11,
+                  margin: const EdgeInsets.only(top: 5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: cs.primary,
+                    border: Border.all(color: cs.surface, width: 2),
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.only(top: 3),
+                      color: t.border,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // 内容卡片。
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 8 : 20),
+              child: Material(
+                color: context.cs.surface,
+                borderRadius: BorderRadius.circular(t.radiusCard),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onOpen,
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(t.radiusCard),
+                      border: Border.all(color: t.border, width: 0.5),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.displayTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: t.textPrimary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Material(
+                              color: t.surfaceVariant,
+                              borderRadius:
+                                  BorderRadius.circular(t.radiusChip),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                child: Text('${media.length}',
+                                    style: context.caption),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 64,
+                          child: Row(
+                            children: [
+                              for (final a in media.take(4))
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: _Thumb(
+                                    asset: a,
+                                    store: store,
+                                    size: const Size(88, 64),
+                                  ),
+                                ),
+                              if (media.length > 4)
+                                Container(
+                                  width: 44,
+                                  height: 64,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: t.fill,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                        color: t.border, width: 0.5),
+                                  ),
+                                  child: Text('+${media.length - 4}',
+                                      style: context.caption.copyWith(
+                                          fontWeight: FontWeight.w700)),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 时间轴 / 卡片内的媒体缩略图（图片按 cover 裁切，非图片显示占位）。
+class _Thumb extends StatelessWidget {
+  final AssetRef asset;
+  final AppStore store;
+  final Size size;
+  const _Thumb({required this.asset, required this.store, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final file = store.resolveAsset(asset.path);
+    final inner = asset.kind == AssetKind.image
+        ? Image.file(
+            file,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+                  color: t.fill,
+                  child: const Icon(Icons.broken_image_outlined, size: 20),
+                ),
+          )
+        : _kindPlaceholder(context, asset.kind, asset.name);
+    return Container(
+      width: size.width,
+      height: size.height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: t.border, width: 0.5),
+        color: t.fill,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: inner,
+    );
+  }
 }
 
 class _EmptyMedia extends StatelessWidget {
