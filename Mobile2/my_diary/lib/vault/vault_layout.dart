@@ -5,6 +5,7 @@ import 'package:my_diary_mobile/models/journal_entry.dart';
 /// MyDiary/
 /// ├── entries/YYYY/MM/YYYY-MM-DD-<shortid>.md
 /// ├── assets/{images,audio,video,attachments}/
+/// ├── profile/avatar.<ext>          ← 个人资料（头像），随 vault 备份/同步
 /// ├── metadata/{index.json,sync.json}
 /// ├── versions/<entry-id>/vN.md
 /// ├── conflicts/<entry-file-name>.{local,remote}.md
@@ -20,6 +21,7 @@ class VaultLayout {
   static const String assets = 'assets';
   static const String versions = 'versions';
   static const String conflicts = 'conflicts';
+  static const String profile = 'profile';
 
   static const List<String> requiredDirectories = [
     'entries',
@@ -74,6 +76,9 @@ String assetDir(AssetKind kind) {
 }
 
 String assetPath(AssetKind kind, String filename) => '${assetDir(kind)}/$filename';
+
+/// 个人资料文件（如头像）：`profile/<filename>`，随 vault 导出/同步。
+String profileAvatarPath(String filename) => '${VaultLayout.profile}/$filename';
 
 String versionDir(String entryKey) => 'versions/${sanitizeKey(entryKey)}';
 

@@ -73,6 +73,9 @@ class AppStore extends ChangeNotifier {
     loaded = loaded.copyWith(sync: loaded.sync.copyWith(clearCredentials: true));
     _settings = loaded;
 
+    // 旧版头像（文档目录裸文件）迁移到 vault profile/（2026-08-18 早前方案）。
+    await _migrateLegacyAvatar();
+
     await refreshEntries();
     _initialized = true;
     notifyListeners();
@@ -109,40 +112,68 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 当前头像文件（应用文档目录下；未设置或文件丢失时返回 null）。
+  /// 当前头像文件。新方案：vault 内 `profile/avatar.<ext>`（随备份/同步/还原，
+  /// settings.json 存 vault 相对路径）；旧方案兼容：应用文档目录下裸文件名。
+  /// 未设置或文件丢失时返回 null。
   File? get avatarFile {
-    final name = _settings.avatar;
-    if (name.isEmpty || _docsPath == null) return null;
-    final f = File('$_docsPath/$name');
-    return f.existsSync() ? f : null;
+    final ref = _settings.avatar;
+    if (ref.isEmpty) return null;
+    if (ref.contains('/')) {
+      final f = repo.storage.resolveFile(ref);
+      return f.existsSync() ? f : null;
+    }
+    if (_docsPath != null) {
+      final f = File('$_docsPath/$ref');
+      return f.existsSync() ? f : null;
+    }
+    return null;
   }
 
-  /// 设置头像：把所选图片拷贝到应用文档目录（替换旧文件），文件名写入 settings。
+  /// 设置头像：把所选图片写入 vault 的 `profile/`（替换旧文件），
+  /// vault 相对路径写入 settings.json —— 导出完整备份 / 导入还原均可完全复原。
   Future<File> setAvatar(File source) async {
-    _docsPath ??= (await getApplicationDocumentsDirectory()).path;
-    await _deleteAvatarFile();
+    await _deleteAvatarFiles();
     final ext = _safeExtension(
         source.path, source.uri.pathSegments.last, AssetKind.image);
-    final name = 'avatar$ext';
-    final dst = File('$_docsPath/$name');
-    await source.copy(dst.path);
-    await saveSettings(_settings.copyWith(avatar: name));
-    return dst;
+    final rel = profileAvatarPath('avatar$ext');
+    await repo.storage.writeBytes(rel, await source.readAsBytes());
+    await saveSettings(_settings.copyWith(avatar: rel));
+    return repo.storage.resolveFile(rel);
   }
 
-  /// 移除头像（删文件 + 清 settings.avatar）。
+  /// 移除头像（删 vault 文件 + 旧文档目录文件，清 settings.avatar）。
   Future<void> clearAvatar() async {
-    await _deleteAvatarFile();
+    await _deleteAvatarFiles();
     await saveSettings(_settings.copyWith(avatar: ''));
   }
 
-  Future<void> _deleteAvatarFile() async {
-    final old = _settings.avatar;
-    if (old.isEmpty || _docsPath == null) return;
+  Future<void> _deleteAvatarFiles() async {
+    final ref = _settings.avatar;
+    if (ref.isEmpty) return;
     try {
-      final f = File('$_docsPath/$old');
-      if (await f.exists()) await f.delete();
+      if (ref.contains('/')) {
+        final f = repo.storage.resolveFile(ref);
+        if (await f.exists()) await f.delete();
+      } else if (_docsPath != null) {
+        final f = File('$_docsPath/$ref');
+        if (await f.exists()) await f.delete();
+      }
     } catch (_) {/* 文件不存在等，忽略 */}
+  }
+
+  /// 迁移旧版头像（<docs>/<裸文件名>，2026-08-18 早前方案）到 vault `profile/`。
+  Future<void> _migrateLegacyAvatar() async {
+    final ref = _settings.avatar;
+    if (ref.isEmpty || ref.contains('/') || _docsPath == null) return;
+    final legacy = File('$_docsPath/$ref');
+    if (!await legacy.exists()) return;
+    try {
+      final rel = profileAvatarPath(
+          RegExp(r'\.\w+$').hasMatch(ref) ? ref : 'avatar.png');
+      await repo.storage.writeBytes(rel, await legacy.readAsBytes());
+      await saveSettings(_settings.copyWith(avatar: rel));
+      await legacy.delete();
+    } catch (_) {/* 迁移失败保留旧文件，不阻断启动 */}
   }
 
   /// 设置座右铭（个人主页展示）。
