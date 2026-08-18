@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/models/sync_types.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/sync/auth_service.dart';
+import 'package:my_diary_mobile/services/export_service.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
+/// 直接对象存储（S3 / R2 / MinIO / OSS）：需要 SigV4 凭据，本地配置。
 bool _isDirect(SyncProvider p) =>
     p == SyncProvider.s3 ||
     p == SyncProvider.r2 ||
@@ -31,51 +36,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _pathStyle;
   late bool _autoLocateNew;
   late bool _showDetailMap;
-  late TextEditingController _baseUrlCtl;
+
+  late TextEditingController _displayNameCtl;
   late TextEditingController _endpointCtl;
   late TextEditingController _bucketCtl;
   late TextEditingController _regionCtl;
   late TextEditingController _accessKeyCtl;
   late TextEditingController _secretKeyCtl;
-  late TextEditingController _emailCtl;
-  late TextEditingController _passwordCtl;
 
-  bool _accountBusy = false;
+  bool _exporting = false;
+  late Future<List<String>> _conflicts;
 
   @override
   void initState() {
     super.initState();
     final s = context.read<AppStore>().settings;
+    // 云账号已移除：历史 cloud 配置降级为「不使用同步」，避免下拉项缺失报错。
+    _provider = s.sync.provider == SyncProvider.cloud
+        ? SyncProvider.none
+        : s.sync.provider;
     _theme = s.theme;
     _accent = s.accent;
     _font = s.font;
     _defaultMood = s.defaultMood;
     _displayName = s.displayName;
     _weekStartsOn = s.weekStartsOn;
-    _provider = s.sync.provider;
     _pathStyle = s.sync.pathStyle ?? false;
     _autoLocateNew = s.autoLocateNew;
     _showDetailMap = s.showDetailMap;
-    _baseUrlCtl = TextEditingController(text: s.sync.baseUrl ?? '');
+
+    _displayNameCtl = TextEditingController(text: _displayName);
     _endpointCtl = TextEditingController(text: s.sync.endpoint ?? '');
     _bucketCtl = TextEditingController(text: s.sync.bucket ?? '');
     _regionCtl = TextEditingController(text: s.sync.region ?? '');
     _accessKeyCtl = TextEditingController();
     _secretKeyCtl = TextEditingController();
-    _emailCtl = TextEditingController();
-    _passwordCtl = TextEditingController();
+    _conflicts = context.read<AppStore>().pendingConflictPaths();
   }
 
   @override
   void dispose() {
-    _baseUrlCtl.dispose();
+    _displayNameCtl.dispose();
     _endpointCtl.dispose();
     _bucketCtl.dispose();
     _regionCtl.dispose();
     _accessKeyCtl.dispose();
     _secretKeyCtl.dispose();
-    _emailCtl.dispose();
-    _passwordCtl.dispose();
     super.dispose();
   }
 
@@ -86,34 +92,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final sync = SyncConfig(
       enabled: _provider != SyncProvider.none,
       provider: _provider,
-      baseUrl: _provider == SyncProvider.cloud
-          ? _baseUrlCtl.text.trim()
-          : null,
       endpoint: _isDirect(_provider) ? _endpointCtl.text.trim() : null,
       bucket: _isDirect(_provider) ? _bucketCtl.text.trim() : null,
       region: _isDirect(_provider) ? _regionCtl.text.trim() : null,
       pathStyle: _isDirect(_provider) ? _pathStyle : null,
     );
 
-    if (_provider == SyncProvider.cloud && _baseUrlCtl.text.trim().isNotEmpty) {
-      await auth.configureCloud(_baseUrlCtl.text.trim());
-    } else {
-      // 切走云服务时清空可能残留的旧地址（如 ab.bblmw.cn），避免后续同步误用它。
-      await auth.clearCloudConfig();
-    }
-    if (_isDirect(_provider)) {
-      final ak = _accessKeyCtl.text.trim();
-      final sk = _secretKeyCtl.text.trim();
-      if (ak.isNotEmpty && sk.isNotEmpty) {
-        await auth.saveS3Secrets(ak, sk);
-      }
+    // 直接对象存储秘钥存本地保险箱（不经过 settings.json，避免明文落盘）。
+    final ak = _accessKeyCtl.text.trim();
+    final sk = _secretKeyCtl.text.trim();
+    if (ak.isNotEmpty && sk.isNotEmpty) {
+      await auth.saveS3Secrets(ak, sk);
     }
 
     final newSettings = store.settings.copyWith(
       theme: _theme,
       accent: _accent,
       font: _font,
-      displayName: _displayName,
+      displayName: _displayNameCtl.text.trim(),
       weekStartsOn: _weekStartsOn,
       defaultMood: _defaultMood,
       sync: sync,
@@ -128,49 +124,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _login() async {
-    final auth = context.read<AuthService>();
-    setState(() => _accountBusy = true);
-    try {
-      await auth.login(_emailCtl.text.trim(), _passwordCtl.text.trim());
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('登录成功')));
-        setState(() {});
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('登录失败：$e')));
-      }
-    } finally {
-      if (mounted) setState(() => _accountBusy = false);
+  Future<void> _sync() async {
+    final store = context.read<AppStore>();
+    await store.syncNow();
+    if (mounted) {
+      setState(() => _conflicts = store.pendingConflictPaths());
     }
   }
 
-  Future<void> _register() async {
-    final auth = context.read<AuthService>();
-    setState(() => _accountBusy = true);
+  Future<void> _resolve(String path, ConflictResolution r) async {
+    final store = context.read<AppStore>();
+    await store.resolveConflict(path, r);
+    if (mounted) {
+      setState(() => _conflicts = store.pendingConflictPaths());
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(r == ConflictResolution.local
+              ? '已保留本地版本'
+              : '已采用远程版本')));
+    }
+  }
+
+  /// 导出完整备份：流式生成 zip 到临时目录后走系统分享面板。
+  Future<void> _exportFullBackup() async {
+    final store = context.read<AppStore>();
+    setState(() => _exporting = true);
     try {
-      await auth.register(_emailCtl.text.trim(), _passwordCtl.text.trim());
-      if (mounted) {
+      final tmp = await getTemporaryDirectory();
+      final stamp = DateFormat('yyyyMMdd-HHmm').format(DateTime.now());
+      final zipPath = '${tmp.path}/my-diary-full-$stamp.zip';
+      final count =
+          await ExportService.buildFullZip(store.repo.storage.root, zipPath);
+      if (!mounted) return;
+      if (count == 0) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('注册成功并创建设备')));
-        setState(() {});
+            .showSnackBar(const SnackBar(content: Text('还没有可导出的数据')));
+        return;
       }
+      await Share.shareXFiles(
+        [XFile(zipPath, mimeType: 'application/zip')],
+        text: 'MyDiary 完整备份（$count 个文件）',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('备份已生成（$count 个文件）：$zipPath'),
+      ));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('注册失败：$e')));
+            .showSnackBar(SnackBar(content: Text('导出失败：$e')));
       }
     } finally {
-      if (mounted) setState(() => _accountBusy = false);
+      if (mounted) setState(() => _exporting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthService>();
+    final store = context.watch<AppStore>();
+    final t = context.tokens;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('设置'),
@@ -181,63 +193,110 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _SectionTitle('账户（云服务）'),
+          _SectionTitle('外观'),
           _Card(
             children: [
-              if (auth.isCloudAuthenticated)
-                Row(
-                  children: [
-                    const Icon(Icons.verified_user_outlined, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text('已登录：${auth.email ?? ""}',
-                          style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w600)),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        await auth.logout();
-                        setState(() {});
-                      },
-                      child: const Text('注销'),
-                    ),
-                  ],
-                )
-              else
-                Column(
-                  children: [
-                    TextField(
-                      controller: _emailCtl,
-                      decoration:
-                          const InputDecoration(hintText: '邮箱'),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _passwordCtl,
-                      obscureText: true,
-                      decoration:
-                          const InputDecoration(hintText: '密码（≥8 位）'),
-                    ),
-                    const SizedBox(height: 14),
-                    _accountBusy
-                        ? const Center(child: CircularProgressIndicator())
-                        : Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton(
-                                    onPressed: _login,
-                                    child: const Text('登录')),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: OutlinedButton(
-                                    onPressed: _register,
-                                    child: const Text('注册')),
-                              ),
-                            ],
+              const Text('主题',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              SegmentedButton<ThemePreference>(
+                segments: const [
+                  ButtonSegment(
+                      value: ThemePreference.light, label: Text('亮')),
+                  ButtonSegment(
+                      value: ThemePreference.dark, label: Text('暗')),
+                  ButtonSegment(
+                      value: ThemePreference.system, label: Text('跟随系统')),
+                ],
+                selected: {_theme},
+                onSelectionChanged: (s) =>
+                    setState(() => _theme = s.first),
+              ),
+              const SizedBox(height: 18),
+              const Text('品牌色',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 10,
+                children: AccentKey.values
+                    .map((a) => ChoiceChip(
+                          label: Text(accentLabels[a]!),
+                          selected: _accent == a,
+                          avatar: CircleAvatar(
+                            backgroundColor: accentSeeds[a],
+                            radius: 8,
                           ),
-                  ],
-                ),
+                          onSelected: (_) => setState(() => _accent = a),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 18),
+              const Text('字体',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              SegmentedButton<FontKey>(
+                segments: const [
+                  ButtonSegment(
+                      value: FontKey.sans, label: Text('无衬线')),
+                  ButtonSegment(
+                      value: FontKey.serif, label: Text('衬线')),
+                ],
+                selected: {_font},
+                onSelectionChanged: (s) => setState(() => _font = s.first),
+              ),
+              const SizedBox(height: 18),
+              const Text('默认心情',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              const Text('新建日记时自动采用',
+                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                children: Mood.ordered
+                    .map((m) => ChoiceChip(
+                          label: Text('${m.emoji} ${m.label}'),
+                          selected: _defaultMood == m,
+                          onSelected: (_) =>
+                              setState(() => _defaultMood = m),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 18),
+              TextField(
+                controller: _displayNameCtl,
+                decoration: const InputDecoration(labelText: '昵称'),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<int>(
+                value: _weekStartsOn,
+                decoration:
+                    const InputDecoration(labelText: '每周起始日'),
+                items: const [
+                  DropdownMenuItem(value: 0, child: Text('周日')),
+                  DropdownMenuItem(value: 1, child: Text('周一')),
+                ],
+                onChanged: (v) => setState(() => _weekStartsOn = v!),
+              ),
+            ],
+          ),
+          _SectionTitle('日记'),
+          _Card(
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('新建日记自动定位'),
+                subtitle: const Text('创建新日记时自动获取位置与天气并填充（需已配置地图与天气 Key）'),
+                value: _autoLocateNew,
+                onChanged: (v) => setState(() => _autoLocateNew = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('预览页显示地图'),
+                subtitle: const Text('日记预览页（详情）底部展示位置地图块'),
+                value: _showDetailMap,
+                onChanged: (v) => setState(() => _showDetailMap = v),
+              ),
             ],
           ),
           _SectionTitle('同步'),
@@ -251,8 +310,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   DropdownMenuItem(
                       value: SyncProvider.none, child: Text('不使用同步')),
                   DropdownMenuItem(
-                      value: SyncProvider.cloud, child: Text('云服务（预签名中枢）')),
-                  DropdownMenuItem(
                       value: SyncProvider.s3, child: Text('AWS S3')),
                   DropdownMenuItem(
                       value: SyncProvider.r2, child: Text('Cloudflare R2')),
@@ -263,19 +320,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
                 onChanged: (v) => setState(() => _provider = v!),
               ),
-              if (_provider == SyncProvider.cloud) ...[
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _baseUrlCtl,
-                  decoration: const InputDecoration(
-                    hintText: 'https://diary.example.com',
-                    labelText: '云服务 Base URL',
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text('选择「云服务」后，请在上方「账户」中登录或注册。',
-                    style: TextStyle(fontSize: 12)),
-              ],
               if (_isDirect(_provider)) ...[
                 const SizedBox(height: 10),
                 TextField(
@@ -320,97 +364,115 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ],
-            ],
-          ),
-          _SectionTitle('日记'),
-          _Card(
-            children: [
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('新建日记自动定位'),
-                subtitle: const Text('创建新日记时自动获取位置与天气并填充（需已配置地图与天气 Key）'),
-                value: _autoLocateNew,
-                onChanged: (v) => setState(() => _autoLocateNew = v),
+              const SizedBox(height: 14),
+              const Divider(height: 1),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: store.busy ? null : _sync,
+                  icon: store.busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.sync),
+                  label: Text(store.busy ? '同步中…' : '立即同步'),
+                ),
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('预览页显示地图'),
-                subtitle: const Text('日记预览页（详情）底部展示位置地图块'),
-                value: _showDetailMap,
-                onChanged: (v) => setState(() => _showDetailMap = v),
-              ),
-            ],
-          ),
-          _SectionTitle('外观'),
-          _Card(
-            children: [
-              const Text('主题',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 10),
-              SegmentedButton<ThemePreference>(
-                segments: const [
-                  ButtonSegment(
-                      value: ThemePreference.light, label: Text('亮')),
-                  ButtonSegment(
-                      value: ThemePreference.dark, label: Text('暗')),
-                  ButtonSegment(
-                      value: ThemePreference.system, label: Text('跟随系统')),
-                ],
-                selected: {_theme},
-                onSelectionChanged: (s) =>
-                    setState(() => _theme = s.first),
-              ),
-              const SizedBox(height: 18),
-              const Text('品牌色',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 10,
-                children: AccentKey.values
-                    .map((a) => ChoiceChip(
-                          label: Text(accentLabels[a]!),
-                          selected: _accent == a,
-                          avatar: CircleAvatar(
-                            backgroundColor: accentSeeds[a],
-                            radius: 8,
+              if (store.lastSyncAt != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                    '上次同步：${DateFormat('MM-dd HH:mm').format(store.lastSyncAt!.toLocal())}',
+                    style: context.caption),
+              ],
+              if (store.lastSync != null) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _Stat(label: '上传', value: store.lastSync!.uploaded.length),
+                    _Stat(label: '下载', value: store.lastSync!.downloaded.length),
+                    _Stat(
+                        label: '冲突',
+                        value: store.lastSync!.conflicts.length,
+                        danger: store.lastSync!.conflicts.isNotEmpty),
+                  ],
+                ),
+              ],
+              FutureBuilder<List<String>>(
+                future: _conflicts,
+                builder: (c, snap) {
+                  final conflicts = snap.data;
+                  if (conflicts == null || conflicts.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      const Divider(height: 1),
+                      const SizedBox(height: 10),
+                      Text('待解决冲突', style: context.titleMedium),
+                      const SizedBox(height: 8),
+                      for (final p in conflicts)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: t.fill,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          onSelected: (_) => setState(() => _accent = a),
-                        ))
-                    .toList(),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(p.split('/').last,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () => _resolve(
+                                          p, ConflictResolution.local),
+                                      child: const Text('保留本地'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: FilledButton(
+                                      onPressed: () => _resolve(
+                                          p, ConflictResolution.remote),
+                                      child: const Text('采用远程'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
-              const SizedBox(height: 18),
-              const Text('默认心情',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 6,
-                children: Mood.ordered
-                    .map((m) => ChoiceChip(
-                          label: Text('${m.emoji} ${m.label}'),
-                          selected: _defaultMood == m,
-                          onSelected: (_) =>
-                              setState(() => _defaultMood = m),
-                        ))
-                    .toList(),
-              ),
-              const SizedBox(height: 18),
-              TextField(
-                decoration: const InputDecoration(labelText: '昵称'),
-                onChanged: (v) => _displayName = v,
-                controller: TextEditingController(text: _displayName)
-                  ..selection = TextSelection.fromPosition(
-                      TextPosition(offset: _displayName.length)),
-              ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<int>(
-                value: _weekStartsOn,
-                decoration:
-                    const InputDecoration(labelText: '每周起始日'),
-                items: const [
-                  DropdownMenuItem(value: 0, child: Text('周日')),
-                  DropdownMenuItem(value: 1, child: Text('周一')),
-                ],
-                onChanged: (v) => setState(() => _weekStartsOn = v!),
+            ],
+          ),
+          _SectionTitle('数据与备份'),
+          _Card(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.backup_outlined),
+                title: const Text('导出完整备份'),
+                subtitle: const Text('含图片/音视频等全部数据（流式压缩）'),
+                trailing: _exporting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.chevron_right),
+                contentPadding: EdgeInsets.zero,
+                onTap: _exporting ? null : _exportFullBackup,
               ),
             ],
           ),
@@ -452,6 +514,41 @@ class _Card extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: children,
+          ),
+        ),
+      );
+}
+
+class _Stat extends StatelessWidget {
+  final String label;
+  final int value;
+  final bool danger;
+  const _Stat(
+      {required this.label, required this.value, this.danger = false});
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Container(
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: context.tokens.fill,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            children: [
+              Text('$value',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: danger
+                          ? const Color(0xFFB42318)
+                          : context.tokens.textPrimary)),
+              const SizedBox(height: 2),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 12, color: context.tokens.textSecondary)),
+            ],
           ),
         ),
       );
