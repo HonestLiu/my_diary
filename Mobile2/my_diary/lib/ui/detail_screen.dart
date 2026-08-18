@@ -152,7 +152,7 @@ class _DetailScreenState extends State<DetailScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _metaChip('${e.mood.emoji} ${e.mood.label}'),
+                _metaChip(e.mood.label, icon: e.mood.iconData),
                 _WeatherChip(weather: e.weather),
                 if (e.location != null && e.location!.isNotEmpty)
                   _metaChip('📍 ${e.location}'),
@@ -201,16 +201,25 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget _metaChip(String text) => Container(
+  Widget _metaChip(String text, {IconData? icon}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: context.tokens.fill,
           borderRadius:
               BorderRadius.circular(context.tokens.radiusChip),
         ),
-        child: Text(text,
-            style:
-                TextStyle(fontSize: 13, color: context.tokens.textSecondary)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: context.tokens.textSecondary),
+              const SizedBox(width: 4),
+            ],
+            Text(text,
+                style: TextStyle(
+                    fontSize: 13, color: context.tokens.textSecondary)),
+          ],
+        ),
       );
 }
 

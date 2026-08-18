@@ -196,8 +196,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               store.entries,
               (e) => e.mood,
               Mood.ordered,
-              (m) => Text(m.emoji,
-                  style: const TextStyle(fontSize: 17)),
+              (m) => Icon(m.iconData,
+                  size: 17, color: t.textSecondary),
               (m) => m.label,
             ),
             weatherData: _distribution(

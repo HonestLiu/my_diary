@@ -787,7 +787,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final loc = _locationCtl.text.trim();
     final chips = <Widget>[
       _metaChip(icon: Icons.calendar_today_outlined, label: _date),
-      _metaChip(label: '${_mood.emoji} ${_mood.label}'),
+      _metaChip(icon: _mood.iconData, label: _mood.label),
       _metaChip(icon: _weather.iconData, label: _weather.label),
       if (loc.isNotEmpty) _metaChip(icon: Icons.place_outlined, label: loc),
       for (final tag in _tags) _metaChip(label: '#$tag'),

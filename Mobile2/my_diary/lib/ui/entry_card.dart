@@ -61,8 +61,8 @@ class EntryCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        Text(entry.mood.emoji,
-                            style: const TextStyle(fontSize: 14)),
+                        Icon(entry.mood.iconData,
+                            size: 16, color: t.textSecondary),
                         if (entry.weather != Weather.unknown) ...[
                           const SizedBox(width: 3),
                           Icon(entry.weather.iconData,
@@ -182,6 +182,7 @@ class _Cover extends StatelessWidget {
 
 /// 单行 meta：`😄 开心 · ☀️ 晴 · 上海 · #日记`，超长省略。
 /// 供媒体预览条等场景复用（日记卡片内部已改用 _MetaChips 胶囊）。
+/// 心情 / 天气用 iconfont 字形渲染（moodfont / iconfont family）。
 class MetaLine extends StatelessWidget {
   final JournalEntry entry;
   const MetaLine({super.key, required this.entry});
@@ -190,15 +191,26 @@ class MetaLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final loc = entry.location?.trim() ?? '';
-    final parts = <String>[
-      '${entry.mood.emoji} ${entry.mood.label}',
-      '${entry.weather.emoji} ${entry.weather.label}',
-      if (loc.isNotEmpty) loc,
-      ...entry.tags.map((tag) => '#$tag'),
+    final parts = <InlineSpan>[
+      TextSpan(
+        text: '${entry.mood.iconChar} ${entry.mood.label}',
+        style: const TextStyle(fontFamily: 'moodfont'),
+      ),
+      TextSpan(
+        text: '${entry.weather.iconChar} ${entry.weather.label}',
+        style: const TextStyle(fontFamily: 'iconfont'),
+      ),
+      if (loc.isNotEmpty) TextSpan(text: loc),
+      ...entry.tags.map((tag) => TextSpan(text: '#$tag')),
     ];
     if (parts.isEmpty) return const SizedBox.shrink();
-    return Text(
-      parts.join(' · '),
+    return Text.rich(
+      TextSpan(children: [
+        for (var i = 0; i < parts.length; i++) ...[
+          if (i > 0) const TextSpan(text: ' · '),
+          parts[i],
+        ],
+      ]),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(fontSize: 12, color: t.textTertiary),
