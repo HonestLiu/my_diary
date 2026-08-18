@@ -92,25 +92,10 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
       floatingActionButton: _index == 0
-          ? AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              transitionBuilder: (child, anim) => ScaleTransition(
-                  scale: anim, child: FadeTransition(opacity: anim, child: child)),
-              child: _homeScrolled
-                  ? FloatingActionButton(
-                      key: const ValueKey('fab-top'),
-                      tooltip: '回到顶部',
-                      shape: const CircleBorder(),
-                      onPressed: _scrollHomeToTop,
-                      child: const Icon(Icons.vertical_align_top),
-                    )
-                  : FloatingActionButton.extended(
-                      key: const ValueKey('fab-write'),
-                      shape: const StadiumBorder(),
-                      onPressed: () => _openEditor(store),
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text('写日记'),
-                    ),
+          ? _HomeFab(
+              scrolled: _homeScrolled,
+              onWrite: () => _openEditor(store),
+              onTop: _scrollHomeToTop,
             )
           : null,
       bottomNavigationBar: NavigationBar(
@@ -135,4 +120,70 @@ class _TabInfo {
   final String label;
   const _TabInfo(
       {required this.icon, required this.active, required this.label});
+}
+
+/// 首页悬浮按钮：单个 StadiumBorder 容器，宽度在「胶囊（写日记）」与
+/// 「正圆（回到顶部）」间平滑变形，内容淡入淡出——避免两个不同尺寸
+/// FAB 交叉切换的生硬跳变。
+class _HomeFab extends StatelessWidget {
+  final bool scrolled;
+  final VoidCallback onWrite;
+  final VoidCallback onTop;
+  const _HomeFab({
+    required this.scrolled,
+    required this.onWrite,
+    required this.onTop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.primary,
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      elevation: 0,
+      child: InkWell(
+        onTap: scrolled ? onTop : onWrite,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          height: 56,
+          width: scrolled ? 56 : 112,
+          alignment: Alignment.center,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // 写日记：图标 + 文字（收起时淡出）。
+              AnimatedOpacity(
+                opacity: scrolled ? 0 : 1,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.edit_outlined, size: 22, color: cs.onPrimary),
+                    const SizedBox(width: 6),
+                    Text('写日记',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onPrimary)),
+                  ],
+                ),
+              ),
+              // 回到顶部：箭头（展开时淡入）。
+              AnimatedOpacity(
+                opacity: scrolled ? 1 : 0,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                child: Icon(Icons.vertical_align_top,
+                    size: 24, color: cs.onPrimary),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
