@@ -34,7 +34,7 @@ class _MapScreenState extends State<MapScreen> {
   double _currentZoom = 4;
   bool _mapReady = false;
   bool _locating = false;
-  TdtMapType _mapType = TdtMapType.satellite; // 当前底图类型
+  TdtMapType _mapType = TdtMapType.vector; // 当前底图类型
   VoidCallback? _locateListener; // 等待首次定位完成的临时监听
 
   List<JournalEntry> _entries = [];

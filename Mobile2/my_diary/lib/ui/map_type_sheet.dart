@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:my_diary_mobile/services/map_service.dart';
 
-/// 地图类型选择底部弹层（矢量 / 影像 / 地形）。
+/// 地图类型选择底部弹层（矢量 / 影像）。
 /// 用户选择后返回新类型；未选择（点击遮罩）返回 null。
 Future<TdtMapType?> showMapTypeSheet(
     BuildContext context, TdtMapType current) {

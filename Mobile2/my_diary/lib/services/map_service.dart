@@ -31,11 +31,9 @@ const String tdtCopyright = '© 天地图';
 /// 每种类型 = 底图层 + 注记层，见天地图服务列表：
 /// - vector: vec_w / cva_w（矢量）
 /// - satellite: img_w / cia_w（影像）
-/// - terrain: ter_w / cta_w（地形晕渲）
 enum TdtMapType {
   vector('矢量', 'vec', 'cva'),
-  satellite('影像', 'img', 'cia'),
-  terrain('地形', 'ter', 'cta');
+  satellite('影像', 'img', 'cia');
 
   final String label; // 中文名
   final String baseLayer; // 底图层名
@@ -50,10 +48,10 @@ String tdtTileUrl(TdtMapType type, String layer, String key) =>
     '&LAYER=$layer&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles'
     '&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=$key';
 
-/// 构建天地图瓦片层（底图 + 中文注记）。[type] 缺省影像；[key] 缺省时取
+/// 构建天地图瓦片层（底图 + 中文注记）。[type] 缺省矢量；[key] 缺省时取
 /// [MapConfig.mapApiKey]；key 仍为空时返回空列表，由调用方提示配置。
 List<TileLayer> tdtTileLayers(
-    [TdtMapType type = TdtMapType.satellite, String? key]) {
+    [TdtMapType type = TdtMapType.vector, String? key]) {
   key ??= MapConfig.mapApiKey;
   if (key.isEmpty) return const [];
   return [

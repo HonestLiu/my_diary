@@ -31,7 +31,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
   bool _locating = false;
   bool _geocoding = false;
   bool _searching = false;
-  TdtMapType _mapType = TdtMapType.satellite; // 当前底图类型
+  TdtMapType _mapType = TdtMapType.vector; // 当前底图类型
   final TextEditingController _nameCtl = TextEditingController();
   final TextEditingController _searchCtl = TextEditingController();
 
