@@ -129,28 +129,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ]),
           const SizedBox(height: 16),
 
-          // 卡 2 / 卡 3：本月心情 / 天气分布
-          _BarChartCard(
-              title: '本月心情',
-              icon: Icons.mood_outlined,
-              data: _distribution(
-                store.entries,
-                (e) => e.mood,
-                Mood.ordered,
-                (m) => m.emoji,
-                (m) => m.label,
-              )),
-          const SizedBox(height: 16),
-          _BarChartCard(
-              title: '本月天气',
-              icon: Icons.wb_sunny_outlined,
-              data: _distribution(
-                store.entries,
-                (e) => e.weather,
-                Weather.ordered.where((w) => w != Weather.unknown),
-                (w) => w.emoji,
-                (w) => w.label,
-              )),
+          // 卡 2：心情 / 天气分布（Tab 切换，统计全部日记）
+          _StatsChartCard(
+            moodData: _distribution(
+              store.entries,
+              (e) => e.mood,
+              Mood.ordered,
+              (m) => m.emoji,
+              (m) => m.label,
+            ),
+            weatherData: _distribution(
+              store.entries,
+              (e) => e.weather,
+              Weather.ordered.where((w) => w != Weather.unknown),
+              (w) => w.emoji,
+              (w) => w.label,
+            ),
+          ),
           const SizedBox(height: 16),
 
           // 卡 4：标签云
@@ -419,7 +414,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// 统计某维度（心情 / 天气）在本月的分布，返回降序排列、含全部类别（含 0 值）。
+  /// 统计某维度（心情 / 天气）在全部日记中的分布，返回降序排列、含全部类别（含 0 值）。
   List<_BarDatum> _distribution<T>(
     List<JournalEntry> entries,
     T Function(JournalEntry) pick,
@@ -427,10 +422,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String Function(T) emoji,
     String Function(T) label,
   ) {
-    final ym = DateFormat('yyyy-MM').format(DateTime.now());
     final counts = <T, int>{};
     for (final e in entries) {
-      if (!e.date.startsWith(ym)) continue;
       final k = pick(e);
       counts[k] = (counts[k] ?? 0) + 1;
     }
@@ -609,47 +602,80 @@ class _BarDatum {
   const _BarDatum(this.emoji, this.label, this.count);
 }
 
-/// 一道漂亮的分布柱状图卡片（竖向柱 + 计数 + emoji 轴标）。
-/// 用于「我的」页的心情 / 天气统计，跟随当前品牌强调色。
-class _BarChartCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final List<_BarDatum> data;
-  const _BarChartCard({
-    required this.title,
-    required this.icon,
-    required this.data,
+/// 心情 / 天气分布统计卡：顶部 Tab 切换（心情 | 天气），
+/// 柱状图统计全部日记的分布，跟随当前品牌强调色。
+class _StatsChartCard extends StatefulWidget {
+  final List<_BarDatum> moodData;
+  final List<_BarDatum> weatherData;
+  const _StatsChartCard({
+    required this.moodData,
+    required this.weatherData,
   });
+
+  @override
+  State<_StatsChartCard> createState() => _StatsChartCardState();
+}
+
+class _StatsChartCardState extends State<_StatsChartCard> {
+  bool _showMood = true; // true=心情，false=天气
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final primary = Theme.of(context).colorScheme.primary;
+    final data = _showMood ? widget.moodData : widget.weatherData;
     final total = data.fold<int>(0, (s, d) => s + d.count);
-    final maxCount =
-        data.isEmpty ? 1 : data.map((d) => d.count).reduce((a, b) => a > b ? a : b);
+    final maxCount = data.isEmpty
+        ? 1
+        : data.map((d) => d.count).reduce((a, b) => a > b ? a : b);
 
     return _Card(
       children: [
         Row(
           children: [
-            Icon(icon, size: 18, color: t.textSecondary),
+            Icon(
+                _showMood ? Icons.mood_outlined : Icons.wb_sunny_outlined,
+                size: 18,
+                color: t.textSecondary),
             const SizedBox(width: 8),
-            Text(title, style: context.titleMedium),
+            Text(_showMood ? '心情统计' : '天气统计', style: context.titleMedium),
             const Spacer(),
             Text(total == 0 ? '暂无记录' : '共 $total 次',
                 style: context.caption),
           ],
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment(
+              value: true,
+              label: Text('心情'),
+              icon: Icon(Icons.mood_outlined, size: 16),
+            ),
+            ButtonSegment(
+              value: false,
+              label: Text('天气'),
+              icon: Icon(Icons.wb_sunny_outlined, size: 16),
+            ),
+          ],
+          selected: {_showMood},
+          onSelectionChanged: (s) => setState(() => _showMood = s.first),
+          showSelectedIcon: false,
+          style: ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            textStyle: WidgetStatePropertyAll(
+                Theme.of(context).textTheme.labelLarge),
+          ),
+        ),
+        const SizedBox(height: 16),
         if (total == 0)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 22),
             child: Center(
-              child: Text('本月还没有记录', style: context.caption),
+              child: Text('还没有记录', style: context.caption),
             ),
           )
-        else
+        else ...[
           SizedBox(
             height: 132,
             child: Row(
@@ -700,29 +726,30 @@ class _BarChartCard extends StatelessWidget {
               }).toList(),
             ),
           ),
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: data
-              .map((d) => Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 5),
-                      child: Column(
-                        children: [
-                          Text(d.emoji, style: const TextStyle(fontSize: 17)),
-                          const SizedBox(height: 3),
-                          Text(d.label,
-                              style: TextStyle(
-                                  fontSize: 11, color: t.textTertiary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center),
-                        ],
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: data
+                .map((d) => Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        child: Column(
+                          children: [
+                            Text(d.emoji, style: const TextStyle(fontSize: 17)),
+                            const SizedBox(height: 3),
+                            Text(d.label,
+                                style: TextStyle(
+                                    fontSize: 11, color: t.textTertiary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center),
+                          ],
+                        ),
                       ),
-                    ),
-                  ))
-              .toList(),
-        ),
+                    ))
+                .toList(),
+          ),
+        ],
       ],
     );
   }
