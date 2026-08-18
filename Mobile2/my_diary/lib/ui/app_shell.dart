@@ -100,11 +100,13 @@ class _AppShellState extends State<AppShell> {
                   ? FloatingActionButton(
                       key: const ValueKey('fab-top'),
                       tooltip: '回到顶部',
+                      shape: const CircleBorder(),
                       onPressed: _scrollHomeToTop,
                       child: const Icon(Icons.vertical_align_top),
                     )
                   : FloatingActionButton.extended(
                       key: const ValueKey('fab-write'),
+                      shape: const StadiumBorder(),
                       onPressed: () => _openEditor(store),
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('写日记'),
