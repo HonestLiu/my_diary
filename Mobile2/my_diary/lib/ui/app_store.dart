@@ -24,6 +24,7 @@ class AppStore extends ChangeNotifier {
   bool _initialized = false;
   bool _busy = false;
   String _deviceId = 'mobile';
+  String? _docsPath; // 应用文档目录（头像等非 vault 文件存放处）
   SyncResult? _lastSync;
   String? _syncError;
   DateTime? _lastSyncAt;
@@ -63,6 +64,7 @@ class AppStore extends ChangeNotifier {
     await prefs.setString('local_device_id', _deviceId);
 
     final docs = await getApplicationDocumentsDirectory();
+    _docsPath = docs.path;
     final vaultRoot = '${docs.path}/my-diary';
     await repo.init(vaultRoot);
 
@@ -105,6 +107,47 @@ class AppStore extends ChangeNotifier {
     _settings = s;
     await repo.saveSettings(s);
     notifyListeners();
+  }
+
+  /// 当前头像文件（应用文档目录下；未设置或文件丢失时返回 null）。
+  File? get avatarFile {
+    final name = _settings.avatar;
+    if (name.isEmpty || _docsPath == null) return null;
+    final f = File('$_docsPath/$name');
+    return f.existsSync() ? f : null;
+  }
+
+  /// 设置头像：把所选图片拷贝到应用文档目录（替换旧文件），文件名写入 settings。
+  Future<File> setAvatar(File source) async {
+    _docsPath ??= (await getApplicationDocumentsDirectory()).path;
+    await _deleteAvatarFile();
+    final ext = _safeExtension(
+        source.path, source.uri.pathSegments.last, AssetKind.image);
+    final name = 'avatar$ext';
+    final dst = File('$_docsPath/$name');
+    await source.copy(dst.path);
+    await saveSettings(_settings.copyWith(avatar: name));
+    return dst;
+  }
+
+  /// 移除头像（删文件 + 清 settings.avatar）。
+  Future<void> clearAvatar() async {
+    await _deleteAvatarFile();
+    await saveSettings(_settings.copyWith(avatar: ''));
+  }
+
+  Future<void> _deleteAvatarFile() async {
+    final old = _settings.avatar;
+    if (old.isEmpty || _docsPath == null) return;
+    try {
+      final f = File('$_docsPath/$old');
+      if (await f.exists()) await f.delete();
+    } catch (_) {/* 文件不存在等，忽略 */}
+  }
+
+  /// 设置座右铭（个人主页展示）。
+  Future<void> setMotto(String motto) async {
+    await saveSettings(_settings.copyWith(motto: motto.trim()));
   }
 
   /// 立即同步（上传 / 下载 / 冲突检测）。
