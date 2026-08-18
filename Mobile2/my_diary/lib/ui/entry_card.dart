@@ -7,14 +7,16 @@ import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/detail_screen.dart';
 
-/// 首页 / 日历共用的日记卡片：精致卡片风 —— 柔和投影无边框圆角卡。
-/// 标题 + 两行渲染预览 + 单行 meta，仅当有条目有图片封面时在右侧显示小缩略图。
+/// 首页 / 日历共用的日记卡片：柔和投影无边框圆角卡。
+/// 布局：左列（标题 + 喜欢角标 + 两行预览 + 底部 meta 胶囊），右侧可选大封面图。
+/// 有封面时右侧 84×84 圆角图成为视觉锚点；无封面时纯文字纵向舒展。
 class EntryCard extends StatelessWidget {
   final JournalEntry entry;
   const EntryCard({super.key, required this.entry});
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     final imgs = entry.assets.where((a) => a.kind == AssetKind.image);
     final cover = imgs.isEmpty ? null : imgs.first;
     // 渲染后的预览：解码正文为文档块，再压平成带行内样式的 span（保留加粗/斜体等）。
@@ -30,8 +32,7 @@ class EntryCard extends StatelessWidget {
       elevation: 2,
       shadowColor: Colors.black.withValues(alpha: 0.08),
       shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(context.tokens.radiusCard)),
+          borderRadius: BorderRadius.circular(t.radiusCard)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => Navigator.push(
@@ -39,7 +40,7 @@ class EntryCard extends StatelessWidget {
           MaterialPageRoute(builder: (_) => DetailScreen(entry: entry)),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -47,29 +48,41 @@ class EntryCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      entry.displayTitle,
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    // 标题行：标题 + 喜欢红心角标。
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            entry.displayTitle,
+                            style: const TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w700),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (entry.favorite) ...[
+                          const SizedBox(width: 6),
+                          const Icon(Icons.favorite,
+                              size: 15, color: Colors.redAccent),
+                        ],
+                      ],
                     ),
                     if (hasPreview) ...[
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 6),
                       Text.rich(
                         TextSpan(children: previewSpans),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                    const SizedBox(height: 9),
-                    MetaLine(entry: entry),
+                    const SizedBox(height: 10),
+                    _MetaChips(entry: entry),
                   ],
                 ),
               ),
               if (cover != null) ...[
                 const SizedBox(width: 14),
-                _Thumb(asset: cover),
+                _Cover(asset: cover),
               ],
             ],
           ),
@@ -79,7 +92,81 @@ class EntryCard extends StatelessWidget {
   }
 }
 
-/// 单行 meta：`😄 开心 · ☀️ 晴 · 上海 · #日记`，超长省略。供条目卡与媒体预览条共用。
+/// 底部 meta 胶囊行：地点 / 心情 / 天气 / 标签，浅底小圆角逐个排开。
+class _MetaChips extends StatelessWidget {
+  final JournalEntry entry;
+  const _MetaChips({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final chips = <Widget>[];
+    void add(IconData? icon, String text) {
+      chips.add(Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: t.fill,
+          borderRadius: BorderRadius.circular(t.radiusChip),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 12, color: t.textTertiary),
+              const SizedBox(width: 3),
+            ],
+            Text(text,
+                style: TextStyle(fontSize: 11, color: t.textTertiary)),
+          ],
+        ),
+      ));
+    }
+
+    final loc = entry.location?.trim() ?? '';
+    if (loc.isNotEmpty) add(Icons.place_outlined, loc);
+    add(null, '${entry.mood.emoji} ${entry.mood.label}');
+    if (entry.weather != Weather.unknown) {
+      add(null, '${entry.weather.emoji} ${entry.weather.label}');
+    }
+    for (final tag in entry.tags.take(2)) {
+      add(null, '#$tag');
+    }
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return Wrap(spacing: 6, runSpacing: 6, children: chips);
+  }
+}
+
+/// 右侧封面：84×84 圆角图（图片损坏时显示占位）。
+class _Cover extends StatelessWidget {
+  final AssetRef asset;
+  const _Cover({required this.asset});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final file = context.read<AppStore>().resolveAsset(asset.path);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.file(
+        file,
+        width: 84,
+        height: 84,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 84,
+          height: 84,
+          color: t.fill,
+          alignment: Alignment.center,
+          child: Icon(Icons.broken_image_outlined,
+              size: 24, color: t.textTertiary),
+        ),
+      ),
+    );
+  }
+}
+
+/// 单行 meta：`😄 开心 · ☀️ 晴 · 上海 · #日记`，超长省略。
+/// 供媒体预览条等场景复用（日记卡片内部已改用 _MetaChips 胶囊）。
 class MetaLine extends StatelessWidget {
   final JournalEntry entry;
   const MetaLine({super.key, required this.entry});
@@ -100,20 +187,6 @@ class MetaLine extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(fontSize: 12, color: t.textTertiary),
-    );
-  }
-}
-
-class _Thumb extends StatelessWidget {
-  final AssetRef asset;
-  const _Thumb({required this.asset});
-
-  @override
-  Widget build(BuildContext context) {
-    final file = context.read<AppStore>().resolveAsset(asset.path);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Image.file(file, width: 48, height: 48, fit: BoxFit.cover),
     );
   }
 }
