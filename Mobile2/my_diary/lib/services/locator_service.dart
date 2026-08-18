@@ -35,57 +35,95 @@ class LocatorService {
     return true;
   }
 
-  /// 获取当前位置。多级回退：超时 → 最后一次已知位置 → 低精度重试 →
-  /// Android 强制系统 LocationManager（无 GMS 环境兜底）。
-  Future<void> getCurrent() async {
-    if (!await _ensurePermission()) return;
-    locatorData.updateStatus('获取当前定位中…');
+  /// 位置新鲜度阈值（秒）：小于该值视为可复用的缓存定位。
+  static const int _freshSeconds = 60;
+
+  bool _isFresh(Position p) {
+    final t = p.timestamp;
+    if (t == null) return false;
+    return DateTime.now().difference(t).inSeconds < _freshSeconds;
+  }
+
+  /// 快速获取位置：新鲜的最后已知位置秒回；否则短超时（5s）尝试新定位；
+  /// 超时依次退回已知位置、低精度、Android 强制系统 LocationManager。
+  Future<Position> _acquirePosition() async {
+    Position? last;
+    try {
+      last = await Geolocator.getLastKnownPosition();
+    } catch (_) {}
+    if (last != null && _isFresh(last)) return last; // 毫秒级秒回
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+    } on TimeoutException {
+      if (last != null) return last; // 新定位超时，退回已知位置（可能较旧）
+      try {
+        return await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.low,
+            timeLimit: Duration(seconds: 4),
+          ),
+        );
+      } catch (_) {
+        if (Platform.isAndroid) {
+          return await Geolocator.getCurrentPosition(
+            locationSettings: AndroidSettings(
+              accuracy: LocationAccuracy.low,
+              timeLimit: Duration(seconds: 4),
+              forceLocationManager: true,
+            ),
+          );
+        }
+        rethrow;
+      }
+    }
+  }
+
+  /// 后台刷新一次当前位置（不阻塞调用方，失败静默保留现有位置）。
+  Future<void> _refreshPosition() async {
     try {
       final p = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 10),
+          timeLimit: Duration(seconds: 8),
         ),
       );
       locatorData.updateCurrentPosition(p);
       locatorData.updateStatus('已获取当前定位');
-    } catch (e) {
-      if (e is TimeoutException) {
-        // Android 模拟器或室内可能拿不到首个定位，逐级回退。
-        try {
-          final last = await Geolocator.getLastKnownPosition();
-          if (last != null) {
-            locatorData.updateCurrentPosition(last);
-            locatorData.updateStatus('使用最后一次已知位置');
-            return;
-          }
-        } catch (_) {}
-        try {
-          final p2 = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.low,
-              timeLimit: Duration(seconds: 8),
-            ),
-          );
-          locatorData.updateCurrentPosition(p2);
-          locatorData.updateStatus('已获取当前定位(低精度)');
-          return;
-        } catch (_) {}
-        if (Platform.isAndroid) {
-          try {
-            final p3 = await Geolocator.getCurrentPosition(
-              locationSettings: AndroidSettings(
-                accuracy: LocationAccuracy.low,
-                timeLimit: Duration(seconds: 8),
-                forceLocationManager: true,
-              ),
-            );
-            locatorData.updateCurrentPosition(p3);
-            locatorData.updateStatus('已获取当前定位(系统定位管理器)');
-            return;
-          } catch (_) {}
-        }
+    } catch (_) {
+      // 后台刷新失败忽略。
+    }
+  }
+
+  /// 获取当前位置。优先复用 60s 内的缓存/最后已知位置（秒回），后台再刷新；
+  /// 否则按多级回退快速获取（缩短等待）。
+  Future<void> getCurrent() async {
+    if (!await _ensurePermission()) return;
+    locatorData.updateStatus('获取当前定位中…');
+    try {
+      final cached = locatorData.currentPosition;
+      if (cached != null && _isFresh(cached)) {
+        locatorData.updateStatus('使用最近定位');
+        unawaited(_refreshPosition());
+        return;
       }
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null && _isFresh(last)) {
+        locatorData.updateCurrentPosition(last);
+        locatorData.updateStatus('使用最后已知位置');
+        unawaited(_refreshPosition());
+        return;
+      }
+    } catch (_) {}
+    try {
+      final p = await _acquirePosition();
+      locatorData.updateCurrentPosition(p);
+      locatorData.updateStatus('已获取当前定位');
+    } catch (e) {
       locatorData.updateStatus('获取失败: $e');
     }
   }
@@ -104,25 +142,12 @@ class LocatorService {
     locatorData.updateStatus('请求中…');
     try {
       Position pos;
-      try {
-        pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.medium,
-            timeLimit: Duration(seconds: 10),
-          ),
-        );
-      } on TimeoutException {
-        if (Platform.isAndroid) {
-          pos = await Geolocator.getCurrentPosition(
-            locationSettings: AndroidSettings(
-              accuracy: LocationAccuracy.low,
-              timeLimit: Duration(seconds: 8),
-              forceLocationManager: true,
-            ),
-          );
-        } else {
-          rethrow;
-        }
+      final cached = locatorData.currentPosition;
+      if (cached != null && _isFresh(cached)) {
+        pos = cached; // 秒回：复用 60s 内定位，后台再刷新
+        unawaited(_refreshPosition());
+      } else {
+        pos = await _acquirePosition();
       }
       locatorData.updateCurrentPosition(pos);
 

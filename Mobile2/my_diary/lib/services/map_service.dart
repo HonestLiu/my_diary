@@ -93,6 +93,7 @@ Future<String?> reverseGeocode(double lat, double lon, [String? key]) async {
 }
 
 /// 获取当前 GPS 位置（含权限申请与 Android 兜底）。失败返回 null。
+/// 先秒回最后已知位置（缓存），再用短超时（5s）尝试新定位，超时走系统定位管理器。
 Future<Position?> getCurrentPosition() async {
   try {
     if (!await Geolocator.isLocationServiceEnabled()) return null;
@@ -103,10 +104,14 @@ Future<Position?> getCurrentPosition() async {
     }
     if (permission == LocationPermission.deniedForever) return null;
     try {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) return last; // 毫秒级秒回缓存定位
+    } catch (_) {}
+    try {
       return await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 10),
+          timeLimit: Duration(seconds: 5),
         ),
       );
     } on TimeoutException {
@@ -114,7 +119,7 @@ Future<Position?> getCurrentPosition() async {
         return await Geolocator.getCurrentPosition(
           locationSettings: AndroidSettings(
             accuracy: LocationAccuracy.low,
-            timeLimit: Duration(seconds: 8),
+            timeLimit: Duration(seconds: 5),
             forceLocationManager: true,
           ),
         );
