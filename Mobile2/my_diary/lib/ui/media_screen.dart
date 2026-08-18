@@ -532,9 +532,9 @@ class _TimelineItem extends StatelessWidget {
         children: [
           // 日期列：月-日 + 年份，右对齐。
           SizedBox(
-            width: 82,
+            width: 74,
             child: Padding(
-              padding: const EdgeInsets.only(top: 3, right: 12),
+              padding: const EdgeInsets.only(top: 3, right: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -542,8 +542,8 @@ class _TimelineItem extends StatelessWidget {
                     '${d.month.toString().padLeft(2, '0')}-'
                     '${d.day.toString().padLeft(2, '0')}',
                     style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
                       color: t.textPrimary,
                       height: 1.2,
                     ),
@@ -628,35 +628,40 @@ class _TimelineItem extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 10),
+                        // 缩略图行：横向滚动，图片再多也不溢出；最多平铺 6 张，
+                        // 超出收进末尾「+N」徽章（点击卡片可看全部）。
                         SizedBox(
                           height: 64,
-                          child: Row(
-                            children: [
-                              for (final a in media.take(4))
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 6),
-                                  child: _Thumb(
-                                    asset: a,
-                                    store: store,
-                                    size: const Size(88, 64),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                for (final a in media.take(6))
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: _Thumb(
+                                      asset: a,
+                                      store: store,
+                                      size: const Size(80, 64),
+                                    ),
                                   ),
-                                ),
-                              if (media.length > 4)
-                                Container(
-                                  width: 44,
-                                  height: 64,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: t.fill,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                        color: t.border, width: 0.5),
+                                if (media.length > 6)
+                                  Container(
+                                    width: 44,
+                                    height: 64,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: t.fill,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color: t.border, width: 0.5),
+                                    ),
+                                    child: Text('+${media.length - 6}',
+                                        style: context.caption.copyWith(
+                                            fontWeight: FontWeight.w700)),
                                   ),
-                                  child: Text('+${media.length - 4}',
-                                      style: context.caption.copyWith(
-                                          fontWeight: FontWeight.w700)),
-                                ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ],
