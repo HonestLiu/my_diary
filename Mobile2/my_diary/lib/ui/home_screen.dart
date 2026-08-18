@@ -79,51 +79,45 @@ class HomeScreenState extends State<HomeScreen> {
       ),
       body: entries.isEmpty
           ? _EmptyState(onCreate: () => _create(context))
-          : Column(
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
+                if (store.lastSync?.conflicts.isNotEmpty == true)
+                  _ConflictBanner(onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const ProfileScreen()),
+                      )),
+                if (store.syncError != null)
+                  _ErrorBanner(message: store.syncError!),
+                ..._memorySection(context, entries),
                 _buildToolbar(context, visible.length),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    children: [
-                      if (store.lastSync?.conflicts.isNotEmpty == true)
-                        _ConflictBanner(onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const ProfileScreen()),
-                            )),
-                      if (store.syncError != null)
-                        _ErrorBanner(message: store.syncError!),
-                      ..._memorySection(context, entries),
-                      if (visible.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 48),
-                          child: Center(
-                            child: Text('没有符合条件的日记',
-                                style: context.caption),
-                          ),
-                        ),
-                      for (final d in dates) ...[
-                        _DayHeader(dateKey: d),
-                        for (var i = 0; i < groups[d]!.length; i++) ...[
-                          if (i > 0) const SizedBox(height: 12),
-                          EntryCard(entry: groups[d]![i]),
-                        ],
-                      ],
-                    ],
+                if (visible.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Center(
+                      child: Text('没有符合条件的日记',
+                          style: context.caption),
+                    ),
                   ),
-                ),
+                for (final d in dates) ...[
+                  _DayHeader(dateKey: d),
+                  for (var i = 0; i < groups[d]!.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 12),
+                    EntryCard(entry: groups[d]![i]),
+                  ],
+                ],
               ],
             ),
     );
   }
 
-  /// 列表工具条：计数 + 媒体筛选 + 排序。
+  /// 列表工具条：计数 + 媒体筛选 + 排序（位于回忆区块下方）。
   Widget _buildToolbar(BuildContext context, int count) {
     final t = context.tokens;
     final primary = Theme.of(context).colorScheme.primary;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 6, 6, 2),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 2),
       child: Row(
         children: [
           Text('$count 篇日记', style: context.caption),
