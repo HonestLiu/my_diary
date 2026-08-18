@@ -1,4 +1,3 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
@@ -84,38 +83,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('备份已生成（$count 个文件）：$zipPath'),
-      ));
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('导出失败：$e')));
-      }
-    } finally {
-      if (mounted) setState(() => _exporting = false);
-    }
-  }
-
-  /// 导出全部 Markdown 日记为 zip（经系统保存对话框选择位置）。
-  Future<void> _exportMarkdownZip() async {
-    final store = context.read<AppStore>();
-    setState(() => _exporting = true);
-    try {
-      final bytes = await ExportService.buildMarkdownZip(store.repo.storage.root);
-      if (!mounted) return;
-      if (bytes == null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('还没有可导出的日记')));
-        return;
-      }
-      final stamp = DateFormat('yyyyMMdd-HHmm').format(DateTime.now());
-      final saved = await FilePicker.platform.saveFile(
-        dialogTitle: '导出 Markdown 备份',
-        fileName: 'my-diary-markdown-$stamp.zip',
-        bytes: bytes,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(saved != null ? '已导出：$saved' : '已取消导出'),
       ));
     } catch (e) {
       if (mounted) {
@@ -446,20 +413,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // 卡 7：导出与设置入口
           _Card(children: [
-            ListTile(
-              leading: const Icon(Icons.archive_outlined),
-              title: const Text('导出 Markdown 备份'),
-              subtitle: const Text('把全部日记打包为 zip（Markdown + 设置）'),
-              trailing: _exporting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.chevron_right),
-              contentPadding: EdgeInsets.zero,
-              onTap: _exporting ? null : _exportMarkdownZip,
-            ),
-            const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.backup_outlined),
               title: const Text('导出完整备份'),
