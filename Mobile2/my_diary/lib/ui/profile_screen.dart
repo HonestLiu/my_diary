@@ -111,21 +111,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   /// 编辑座右铭：弹窗输入，保存后写 settings.motto。
-  /// 注意：保存动作在「关弹窗之前」执行——若先 pop 再 setMotto，
-  /// notifyListeners 触发的 provider 重建会与弹窗退场动画同帧，
-  /// 撞上 framework 已知竞态（InheritedElement.notifyClients 断言）。
+  ///
+  /// 两个必须遵守的框架约束（均为此前真机崩溃的教训）：
+  /// 1. 保存动作在「关弹窗之前」执行——若先 pop 再 setMotto，notifyListeners
+  ///    触发的 provider 重建会与弹窗退场动画同帧，撞上 framework 已知竞态
+  ///    （InheritedElement.notifyClients 后代校验断言）。
+  /// 2. 不显式创建 TextEditingController——弹窗 pop 后路由仍在退场动画中，
+  ///    TextField 仍是依赖方，此时 dispose controller 会触发
+  ///    `_dependents.isEmpty` 断言。用 TextField 自管内部 controller +
+  ///    onChanged 收集文本，无需手动 dispose。
   Future<void> _editMotto() async {
     final store = context.read<AppStore>();
-    final ctrl = TextEditingController(text: store.settings.motto);
+    var draft = store.settings.motto;
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('座右铭'),
-        content: TextField(
-          controller: ctrl,
+        content: TextFormField(
           autofocus: true,
           maxLength: 60,
           maxLines: 2,
+          initialValue: store.settings.motto,
+          onChanged: (v) => draft = v,
           decoration: const InputDecoration(
               hintText: '写一句鼓舞自己的话…', border: InputBorder.none),
         ),
@@ -134,7 +141,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           FilledButton(
             onPressed: () async {
-              final text = ctrl.text.trim();
+              final text = draft.trim();
               try {
                 await store.setMotto(text);
               } catch (e) {
@@ -151,7 +158,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
-    ctrl.dispose();
   }
 
   /// 更换 / 移除头像：底部弹层选择，相册选图后拷贝到应用文档目录。
