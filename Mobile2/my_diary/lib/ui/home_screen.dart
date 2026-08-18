@@ -112,40 +112,79 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// 列表工具条：计数 + 媒体筛选 + 排序（位于回忆区块下方）。
+  /// 列表工具条：与日记卡片同款「柔和投影圆角卡」，内含计数 + 媒体筛选 + 排序。
+  /// 位于回忆区块下方。
   Widget _buildToolbar(BuildContext context, int count) {
     final t = context.tokens;
     final primary = Theme.of(context).colorScheme.primary;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(0, 8, 0, 2),
-      child: Row(
-        children: [
-          Text('$count 篇日记', style: context.caption),
-          const Spacer(),
-          IconButton(
-            icon: Icon(
-              _onlyMedia ? Icons.filter_alt : Icons.filter_alt_outlined,
-              size: 20,
-              color: _onlyMedia ? primary : t.textSecondary,
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.fromLTRB(0, 12, 0, 2),
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(t.radiusCard)),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
+        child: Row(
+          children: [
+            Text(
+              '$count 篇日记',
+              style: context.caption.copyWith(color: t.textSecondary),
             ),
-            tooltip: _onlyMedia ? '仅带媒体 · 点击恢复全部' : '仅看带媒体的日记',
-            onPressed: () => setState(() => _onlyMedia = !_onlyMedia),
-          ),
-          PopupMenuButton<HomeSort>(
-            tooltip: '排序',
-            icon: Icon(Icons.sort_outlined, size: 20, color: t.textSecondary),
-            initialValue: _sortBy,
-            onSelected: (v) => setState(() => _sortBy = v),
-            itemBuilder: (_) => [
-              for (final s in HomeSort.values)
-                CheckedPopupMenuItem(
-                  value: s,
-                  checked: s == _sortBy,
-                  child: Text(s.label),
-                ),
-            ],
-          ),
-        ],
+            const Spacer(),
+            // 媒体筛选 chip。
+            FilterChip(
+              label: Text('仅媒体',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight:
+                        _onlyMedia ? FontWeight.w700 : FontWeight.w500,
+                    color: _onlyMedia ? primary : t.textSecondary,
+                  )),
+              selected: _onlyMedia,
+              onSelected: (v) => setState(() => _onlyMedia = v),
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              selectedColor: primary.withValues(alpha: 0.12),
+              checkmarkColor: primary,
+              backgroundColor: t.surface,
+              side: BorderSide(
+                color: _onlyMedia
+                    ? primary.withValues(alpha: 0.45)
+                    : t.border,
+              ),
+            ),
+            const SizedBox(width: 8),
+            // 排序 chip（点击弹菜单）。
+            PopupMenuButton<HomeSort>(
+              tooltip: '排序',
+              initialValue: _sortBy,
+              onSelected: (v) => setState(() => _sortBy = v),
+              itemBuilder: (_) => [
+                for (final s in HomeSort.values)
+                  CheckedPopupMenuItem(
+                    value: s,
+                    checked: s == _sortBy,
+                    child: Text(s.label),
+                  ),
+              ],
+              child: ActionChip(
+                avatar: Icon(Icons.sort, size: 15, color: primary),
+                label: Text(_sortBy.label,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: t.textSecondary)),
+                onPressed: () {}, // 点击由 PopupMenuButton 接管
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                backgroundColor: t.surface,
+                side: BorderSide(color: t.border),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
