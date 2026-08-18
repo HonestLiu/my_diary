@@ -148,7 +148,7 @@ class HomeScreenState extends State<HomeScreen> {
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               selectedColor: primary.withValues(alpha: 0.12),
               checkmarkColor: primary,
-              backgroundColor: t.surface,
+              backgroundColor: context.cs.surface,
               side: BorderSide(
                 color: _onlyMedia
                     ? primary.withValues(alpha: 0.45)
@@ -179,7 +179,7 @@ class HomeScreenState extends State<HomeScreen> {
                 onPressed: () {}, // 点击由 PopupMenuButton 接管
                 visualDensity: VisualDensity.compact,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                backgroundColor: t.surface,
+                backgroundColor: context.cs.surface,
                 side: BorderSide(color: t.border),
               ),
             ),
