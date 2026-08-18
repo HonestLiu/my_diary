@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 12+ 启动屏 API：使用系统 splash screen，颜色与图标显式声明。
-     旧版（pre-31）仍走 values/styles.xml 的 windowBackground=@drawable/launch_background。 -->
+<!-- Android 12+ 启动屏 API：使用系统 splash screen。
+     windowBackground 改为纯色，避免与系统 splash 的图标叠加显示。
+     iconBackgroundColor 用图标背景蓝，让 240dp 圆形与图标无缝衔接。
+     pre-31 走 values/styles.xml（layer-list 图标）。 -->
 <resources>
     <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowBackground">@android:color/white</item>
         <item name="android:windowSplashScreenBackground">#FFFFFF</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#AED2EB</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/launch_image</item>
     </style>
 </resources>
