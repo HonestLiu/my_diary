@@ -336,6 +336,11 @@ class _EditorScreenState extends State<EditorScreen> {
     setState(() => _panel = _panel == panel ? _Panel.none : panel);
   }
 
+  /// 折叠当前底部面板（点击编辑区时自动调用，覆盖属性 / 段落样式 / 插入）。
+  void _collapsePanel() {
+    if (_panel != _Panel.none) setState(() => _panel = _Panel.none);
+  }
+
   void _toggleMark(MarkKind kind) {
     final b = _focusedBlock;
     if (b == null) return;
@@ -718,19 +723,25 @@ class _EditorScreenState extends State<EditorScreen> {
         body: Column(
           children: [
             Expanded(
-              child: ListView(
-                controller: _scrollCtl,
-                // 底部留出工具栏（actionRow 48 + 系统安全区），避免最底块被遮挡
-                padding: EdgeInsets.fromLTRB(
-                    16, 8, 16, 48 + MediaQuery.of(context).padding.bottom),
-                children: [
-                  _metaStrip(),
-                  const SizedBox(height: 10),
-                  _titleField(),
-                  const SizedBox(height: 6),
-                  ..._blockList(),
-                  _tailSpacer(),
-                ],
+              // 点击编辑区任意处自动折叠底部面板（属性 / 段落样式 / 插入）。
+              // 用 Listener 而非 GestureDetector：原始事件不经手势竞技场，
+              // 点进文本框放光标、点空白处、滚动都会触发折叠，不干扰输入。
+              child: Listener(
+                onPointerDown: (_) => _collapsePanel(),
+                child: ListView(
+                  controller: _scrollCtl,
+                  // 底部留出工具栏（actionRow 48 + 系统安全区），避免最底块被遮挡
+                  padding: EdgeInsets.fromLTRB(
+                      16, 8, 16, 48 + MediaQuery.of(context).padding.bottom),
+                  children: [
+                    _metaStrip(),
+                    const SizedBox(height: 10),
+                    _titleField(),
+                    const SizedBox(height: 6),
+                    ..._blockList(),
+                    _tailSpacer(),
+                  ],
+                ),
               ),
             ),
             _toolbar(),
@@ -1044,7 +1055,7 @@ class _EditorScreenState extends State<EditorScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             AnimatedSize(
-              duration: const Duration(milliseconds: 180),
+              duration: const Duration(milliseconds: 120),
               curve: Curves.easeOutCubic,
               alignment: Alignment.bottomCenter,
               child: _panelBody(),
