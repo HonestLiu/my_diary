@@ -164,35 +164,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _vDivider(t),
                 _StatTile(value: '$_streak', label: '连续'),
                 _vDivider(t),
+                _StatTile(
+                  value: '$favCount',
+                  label: '喜欢',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FavoriteScreen()),
+                  ),
+                ),
+                _vDivider(t),
                 _StatTile(value: '$total', label: '总计'),
               ],
-            ),
-            const SizedBox(height: 10),
-            const Divider(height: 1),
-            // 喜欢的日记入口：统计 + 点击进入列表页。
-            InkWell(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const FavoriteScreen()),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.favorite,
-                        size: 18, color: Colors.redAccent),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text('喜欢的日记',
-                          style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w600)),
-                    ),
-                    Text('$favCount 篇', style: context.caption),
-                    const SizedBox(width: 4),
-                    Icon(Icons.chevron_right, size: 20, color: t.textTertiary),
-                  ],
-                ),
-              ),
             ),
           ]),
           const SizedBox(height: 16),
@@ -616,22 +598,31 @@ class _TagCloudCard extends StatelessWidget {
 class _StatTile extends StatelessWidget {
   final String value;
   final String label;
-  const _StatTile({required this.value, required this.label});
+  final VoidCallback? onTap; // 非空时可点击（如「喜欢」进列表页）
+  const _StatTile({required this.value, required this.label, this.onTap});
 
   @override
-  Widget build(BuildContext context) => Expanded(
-        child: Column(
-          children: [
-            Text(value,
-                style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5)),
-            const SizedBox(height: 3),
-            Text(label, style: context.caption),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final tile = Expanded(
+      child: Column(
+        children: [
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5)),
+          const SizedBox(height: 3),
+          Text(label, style: context.caption),
+        ],
+      ),
+    );
+    if (onTap == null) return tile;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: tile,
+    );
+  }
 }
 
 /// 统计格之间的细分隔竖线。
