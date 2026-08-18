@@ -71,6 +71,37 @@ enum Mood {
         return '😠';
     }
   }
+
+  // ---- 自定义 iconfont 表情（font-family: moodfont） ---------------------
+  // 矢量、随主题色、任意大小。Mood.emoji 保留作为文本场景（如选择器、
+  // 无图标字体时的兜底），UI 展示默认走 iconData / iconChar。
+  static const _moodfontFamily = 'moodfont';
+
+  /// 用于 [Icon] widget：呈现自定义心情表情（透明矢量，色随主题）。
+  IconData get iconData => IconData(_iconCode, fontFamily: _moodfontFamily);
+
+  /// 用于 [Text] / [TextSpan]（混排场景）：在 `fontFamily: moodfont`
+  /// 样式下渲染表情字符。
+  String get iconChar => String.fromCharCode(_iconCode);
+
+  int get _iconCode {
+    switch (this) {
+      case Mood.happy:
+        return 0xe61f; // kaixin 开心
+      case Mood.excited:
+        return 0xe613; // ziyaxiao 龇牙笑（兴奋）
+      case Mood.calm:
+        return 0xe616; // huiqi 呼气（平静）
+      case Mood.neutral:
+        return 0xe621; // wubiaoqing 无表情
+      case Mood.tired:
+        return 0xe614; // liuhan 流汗（疲惫）
+      case Mood.sad:
+        return 0xe603; // nanguo 难过
+      case Mood.angry:
+        return 0xe61e; // fanu 发怒
+    }
+  }
 }
 
 enum Weather {

@@ -61,3 +61,6 @@ flutter:
     - family: iconfont
       fonts:
         - asset: assets/fonts/iconfont.ttf
+    - family: moodfont
+      fonts:
+        - asset: assets/fonts/moodfont.ttf
