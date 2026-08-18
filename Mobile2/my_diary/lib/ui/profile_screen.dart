@@ -7,6 +7,7 @@ import 'package:my_diary_mobile/repository/journal_repository.dart';
 import 'package:my_diary_mobile/services/export_service.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
+import 'package:my_diary_mobile/ui/favorite_screen.dart';
 import 'package:my_diary_mobile/ui/search_screen.dart';
 import 'package:my_diary_mobile/ui/settings_screen.dart';
 import 'package:path_provider/path_provider.dart';
@@ -114,6 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final s = store.settings;
     final sync = s.sync;
     final total = store.entries.length;
+    final favCount = store.entries.where((e) => e.favorite).length;
     final ym = DateFormat('yyyy-MM').format(DateTime.now());
     final monthCount =
         store.entries.where((e) => e.date.startsWith(ym)).length;
@@ -164,6 +166,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _vDivider(t),
                 _StatTile(value: '$total', label: '总计'),
               ],
+            ),
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            // 喜欢的日记入口：统计 + 点击进入列表页。
+            InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FavoriteScreen()),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.favorite,
+                        size: 18, color: Colors.redAccent),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text('喜欢的日记',
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w600)),
+                    ),
+                    Text('$favCount 篇', style: context.caption),
+                    const SizedBox(width: 4),
+                    Icon(Icons.chevron_right, size: 20, color: t.textTertiary),
+                  ],
+                ),
+              ),
             ),
           ]),
           const SizedBox(height: 16),

@@ -9,7 +9,6 @@ import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/detail_screen.dart';
 import 'package:my_diary_mobile/ui/editor_screen.dart';
 import 'package:my_diary_mobile/ui/entry_card.dart';
-import 'package:my_diary_mobile/ui/favorite_screen.dart';
 import 'package:my_diary_mobile/ui/profile_screen.dart';
 import 'package:my_diary_mobile/ui/search_screen.dart';
 import 'package:provider/provider.dart';
@@ -91,7 +90,6 @@ class HomeScreenState extends State<HomeScreen> {
                       )),
                 if (store.syncError != null)
                   _ErrorBanner(message: store.syncError!),
-                _StatsCard(entries: entries),
                 ..._memorySection(context, entries),
                 _buildToolbar(context, visible.length),
                 if (visible.isEmpty)
@@ -249,96 +247,6 @@ String _dayLabel(String dateKey, BuildContext context) {
   if (diff == 2) return '前天';
   final wd = DateFormat('EEEE', 'zh_CN').format(dt);
   return '${DateFormat('M 月 d 日').format(dt)} · $wd';
-}
-
-/// 首页顶部统计卡：日记总数 + 喜欢的数量，点击进入「喜欢的日记」列表。
-/// 与工具条同款「柔和投影圆角卡」。
-class _StatsCard extends StatelessWidget {
-  final List<JournalEntry> entries;
-  const _StatsCard({required this.entries});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final favCount = entries.where((e) => e.favorite).length;
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 2),
-      shadowColor: Colors.black.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(t.radiusCard)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const FavoriteScreen()),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: _StatBlock(
-                  icon: Icons.edit_note,
-                  label: '日记',
-                  value: '${entries.length} 篇',
-                  color: t.textPrimary,
-                ),
-              ),
-              Container(width: 1, height: 32, color: t.border),
-              Expanded(
-                child: _StatBlock(
-                  icon: Icons.favorite,
-                  label: '喜欢',
-                  value: '$favCount 篇',
-                  color: Colors.redAccent,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(Icons.chevron_right, size: 20, color: t.textTertiary),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 统计卡里的单块数据（图标 + 数值 + 标签）。
-class _StatBlock extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-  const _StatBlock({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: context.caption),
-            Text(value,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: t.textPrimary)),
-          ],
-        ),
-      ],
-    );
-  }
 }
 
 class _DayHeader extends StatelessWidget {
