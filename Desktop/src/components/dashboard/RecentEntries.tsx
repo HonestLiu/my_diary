@@ -44,6 +44,7 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
               preview={e.body || "（空白日记）"}
               location={e.location}
               tags={e.tags}
+              coverPath={e.assets.find((a) => a.kind === "image")?.path}
               onClick={() => open(e)}
             />
           </motion.div>

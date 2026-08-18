@@ -79,6 +79,7 @@ export default function OnThisDay() {
                   preview={e.body ? snippet(e.body) : undefined}
                   location={e.location}
                   tags={e.tags}
+                  coverPath={e.assets.find((a) => a.kind === "image")?.path}
                   onClick={() => open(e)}
                 />
               </li>

@@ -2,12 +2,14 @@ import { MapPin } from "lucide-react";
 import type { ReactNode } from "react";
 import { MoodGlyph } from "@/components/MoodGlyph";
 import { WeatherGlyph } from "@/components/WeatherGlyph";
+import { EntryCover } from "@/components/EntryCover";
 import { cn } from "@/lib/utils";
 import type { Mood, Weather } from "@/types/journal";
 
 /**
  * 与移动端 EntryCard 同构的日记列表卡片：柔和投影无边框圆角卡。
- * 布局：标题行（标题 + 心情/天气 + 右侧 meta）→ 两行预览 → 底部 meta 胶囊。
+ * 布局：标题行（标题 + 心情/天气 + 右侧 meta）→ 两行预览 → 底部 meta 胶囊，
+ * 右侧可选 84×84 封面图。
  */
 interface EntryCardProps {
   title: string;
@@ -19,6 +21,8 @@ interface EntryCardProps {
   preview?: ReactNode;
   location?: string;
   tags?: string[];
+  /** 封面图（vault 相对路径，如 assets/images/xxx.webp）；缺省不显示。 */
+  coverPath?: string;
   onClick?: () => void;
   className?: string;
 }
@@ -31,6 +35,7 @@ export function EntryCard({
   preview,
   location,
   tags,
+  coverPath,
   onClick,
   className,
 }: EntryCardProps) {
@@ -52,13 +57,13 @@ export function EntryCard({
           : undefined
       }
       className={cn(
-        "rounded-xl bg-card px-4 py-3.5 shadow-soft transition-shadow",
+        "flex items-start gap-3.5 rounded-xl bg-card px-4 py-3.5 shadow-soft transition-shadow",
         onClick &&
           "cursor-pointer hover:shadow-soft-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         {/* 标题行：标题 + 心情/天气 矢量图标 + 右侧 meta */}
         <div className="flex items-center gap-2">
           <span className="min-w-0 truncate text-[15px] font-bold text-foreground">
@@ -107,6 +112,9 @@ export function EntryCard({
           </div>
         )}
       </div>
+
+      {/* 右侧封面 84×84（与移动端一致） */}
+      {coverPath && <EntryCover path={coverPath} />}
     </div>
   );
 }
