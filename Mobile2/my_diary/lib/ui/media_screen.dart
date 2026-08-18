@@ -363,13 +363,8 @@ class _PreviewSheet extends StatelessWidget {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                InAppAudioPlayer(file: file),
-                                const SizedBox(height: 12),
-                                Text(a.name ?? '',
-                                    style: const TextStyle(
-                                        color: Colors.white70, fontSize: 12),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
+                                InAppAudioPlayer(
+                                    file: file, title: a.name ?? ''),
                               ],
                             ),
                           ),

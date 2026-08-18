@@ -406,6 +406,16 @@ class _EditorScreenState extends State<EditorScreen> {
     });
   }
 
+  /// 设置视频块的显示模式（卡片占位 / 内嵌播放器），随块就地更新。
+  void _setVideoMode(DocBlock b, VideoDisplayMode mode) {
+    final m = b.media;
+    if (m == null || m.kind != AssetKind.video) return;
+    setState(() {
+      b.media = m.copyWith(videoMode: mode);
+      _dirty = true;
+    });
+  }
+
   /// 在光标所在块之后插入一个非文本块（媒体 / 分割线），并保证其后有可继续输入的段落。
   void _insertBlockAfterCursor(DocBlock block) {
     final anchor = _focusedBlock;
@@ -900,7 +910,11 @@ class _EditorScreenState extends State<EditorScreen> {
       case BlockKind.media:
         final media = b.media;
         if (media == null) return const SizedBox.shrink();
-        return MediaBlockCard(media: media, onRemove: () => _removeBlock(b));
+        return MediaBlockCard(
+          media: media,
+          onRemove: () => _removeBlock(b),
+          onVideoModeChanged: (mode) => _setVideoMode(b, mode),
+        );
 
       default:
         return _textBlock(b, ordinal);

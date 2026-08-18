@@ -48,14 +48,31 @@ String labelForKind(AssetKind kind) {
   }
 }
 
-/// 正文里的媒体块：图片直接预览，音视频软件内播放（弹层），附件交系统打开。
+/// 正文里的媒体块：图片直接预览；音频渲染为 HTML5 风格内嵌播放条（点击即播）；
+/// 视频按 `videoMode` 分「占位卡片（点击弹播放）」与「内嵌小播放器（点击直接播）」；
+/// 附件交系统打开。编辑态额外提供视频显示模式切换。
 ///
 /// 编辑态与只读态共用同一组件，只在编辑态显示删除按钮 —— 保证「所见即所得」。
 class MediaBlockCard extends StatelessWidget {
   final MediaPayload media;
   final VoidCallback? onRemove;
 
-  const MediaBlockCard({super.key, required this.media, this.onRemove});
+  /// 编辑态：视频显示模式变更回调（card / inline）。
+  final ValueChanged<VideoDisplayMode>? onVideoModeChanged;
+
+  const MediaBlockCard({
+    super.key,
+    required this.media,
+    this.onRemove,
+    this.onVideoModeChanged,
+  });
+
+  bool get _isEditing => onRemove != null;
+
+  String get _displayName {
+    final n = media.name.trim();
+    return n.isEmpty ? media.src.split('/').last : n;
+  }
 
   Future<void> _open(BuildContext context) async {
     final file = context.read<AppStore>().resolveAsset(media.src);
@@ -80,19 +97,17 @@ class MediaBlockCard extends StatelessWidget {
       );
       return;
     }
-    // 音视频：软件内播放（弹层），不再跳三方应用；附件仍交系统打开。
-    if (media.kind == AssetKind.video || media.kind == AssetKind.audio) {
+    if (media.kind == AssetKind.video) {
       if (!context.mounted) return;
       await showInAppMediaPlayer(
         context,
         kind: media.kind,
         file: file,
-        title: media.name.isEmpty
-            ? file.path.split(RegExp(r'[/\\]')).last
-            : media.name,
+        title: _displayName,
       );
       return;
     }
+    // 附件：交系统打开。
     final result = await OpenFilex.open(file.path);
     if (result.type != ResultType.done && context.mounted) {
       ScaffoldMessenger.of(context)
@@ -100,11 +115,57 @@ class MediaBlockCard extends StatelessWidget {
     }
   }
 
+  /// 编辑态：选择视频显示模式。
+  Future<void> _pickVideoMode(BuildContext context) async {
+    final mode = await showModalBottomSheet<VideoDisplayMode>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              dense: true,
+              title: Text('视频显示模式',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+            ListTile(
+              leading: Icon(
+                media.videoMode == VideoDisplayMode.card
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_off,
+                color: Theme.of(ctx).colorScheme.primary,
+              ),
+              title: const Text('占位卡片（点击弹出播放）'),
+              onTap: () => Navigator.pop(ctx, VideoDisplayMode.card),
+            ),
+            ListTile(
+              leading: Icon(
+                media.videoMode == VideoDisplayMode.inline
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_off,
+                color: Theme.of(ctx).colorScheme.primary,
+              ),
+              title: const Text('内嵌小播放器（点击直接播放）'),
+              onTap: () => Navigator.pop(ctx, VideoDisplayMode.inline),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (mode != null && mode != media.videoMode) {
+      onVideoModeChanged?.call(mode);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final store = context.read<AppStore>();
-    final file = store.resolveAsset(media.src);
+    final file = context.read<AppStore>().resolveAsset(media.src);
+
+    // 内嵌即播：音频恒内嵌；视频 inline 模式内嵌。二者不包外层点击（自管播放）。
+    final inlinePlay = media.kind == AssetKind.audio ||
+        (media.kind == AssetKind.video &&
+            media.videoMode == VideoDisplayMode.inline);
 
     Widget content;
     if (media.kind == AssetKind.image) {
@@ -123,7 +184,13 @@ class MediaBlockCard extends StatelessWidget {
           ),
         ),
       );
+    } else if (media.kind == AssetKind.audio) {
+      content = InAppAudioPlayer(file: file, title: _displayName);
+    } else if (media.kind == AssetKind.video &&
+        media.videoMode == VideoDisplayMode.inline) {
+      content = InAppVideoPlayer(file: file);
     } else {
+      // 视频卡片模式 / 附件：占位卡，点击触发 _open。
       final subtitle = [
         labelForKind(media.kind),
         if (formatBytes(media.size).isNotEmpty) formatBytes(media.size),
@@ -141,7 +208,10 @@ class MediaBlockCard extends StatelessWidget {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(iconForKind(media.kind),
@@ -153,7 +223,7 @@ class MediaBlockCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    media.name.isEmpty ? media.src.split('/').last : media.name,
+                    _displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -173,19 +243,28 @@ class MediaBlockCard extends StatelessWidget {
       );
     }
 
-    return GestureDetector(
-      onTap: () => _open(context),
-      child: Stack(
-        children: [
-          content,
-          if (onRemove != null)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: _RemoveButton(onTap: onRemove!),
-            ),
-        ],
-      ),
+    Widget body = content;
+    if (!inlinePlay) {
+      body = GestureDetector(onTap: () => _open(context), child: body);
+    }
+
+    return Stack(
+      children: [
+        body,
+        // 编辑态：视频显示模式切换（左上）。
+        if (_isEditing && media.kind == AssetKind.video)
+          Positioned(
+            top: 4,
+            left: 4,
+            child: _ModeButton(onTap: () => _pickVideoMode(context)),
+          ),
+        if (onRemove != null)
+          Positioned(
+            top: 4,
+            right: 4,
+            child: _RemoveButton(onTap: onRemove!),
+          ),
+      ],
     );
   }
 
@@ -195,6 +274,25 @@ class MediaBlockCard extends StatelessWidget {
         color: context.tokens.fill,
         child: Text('图片缺失',
             style: TextStyle(color: context.tokens.textSecondary)),
+      );
+}
+
+class _ModeButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ModeButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.black.withValues(alpha: 0.55),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: const Padding(
+            padding: EdgeInsets.all(5),
+            child: Icon(Icons.aspect_ratio, size: 16, color: Colors.white),
+          ),
+        ),
       );
 }
 

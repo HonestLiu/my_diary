@@ -4,12 +4,14 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
+import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
 /// 软件内媒体播放：视频走 `video_player`，音频走 `audioplayers`，
 /// 均支持播放/暂停与进度拖动，自管生命周期（随路由/页面销毁释放）。
 ///
-/// 用途：正文媒体卡、媒体页预览等处的音视频不再跳三方应用。
+/// 音频为 HTML5 风格内嵌播放条（直接内联展示、点击即播，不弹抽屉）；
+/// 视频为黑底圆角卡（内嵌模式点击直接播，卡片模式走弹层）。
 
 String _fmt(Duration d) {
   final h = d.inHours;
@@ -19,7 +21,7 @@ String _fmt(Duration d) {
   return h > 0 ? '$h:${two(m)}:${two(s)}' : '$m:${two(s)}';
 }
 
-/// 弹层打开软件内播放器（视频全宽 16:9 左右，音频紧凑卡）。
+/// 弹层打开软件内播放器（视频卡片模式 / 附件外场景）。
 Future<void> showInAppMediaPlayer(
   BuildContext context, {
   required AssetKind kind,
@@ -77,7 +79,7 @@ Future<void> showInAppMediaPlayer(
   );
 }
 
-/// 软件内视频播放器：本地文件，播放/暂停 + 进度条拖动。
+/// 软件内视频播放器：黑底圆角卡，播放/暂停 + 进度条拖动。
 class InAppVideoPlayer extends StatefulWidget {
   final File file;
   const InAppVideoPlayer({super.key, required this.file});
@@ -125,34 +127,48 @@ class _InAppVideoPlayerState extends State<InAppVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     final ctrl = _ctrl;
-    if (_failed) return const _PlayerErrorCard(label: '视频加载失败');
-    if (!_ready || ctrl == null) {
-      return const AspectRatio(
+    Widget inner;
+    if (_failed) {
+      inner = const SizedBox(
+        height: 140,
+        child: Center(
+            child: Text('视频加载失败',
+                style: TextStyle(color: Colors.white70, fontSize: 13))),
+      );
+    } else if (!_ready || ctrl == null) {
+      inner = const AspectRatio(
         aspectRatio: 16 / 9,
         child: Center(
             child: CircularProgressIndicator(color: Colors.white70)),
       );
+    } else {
+      final ratio =
+          ctrl.value.aspectRatio == 0 ? 16 / 9 : ctrl.value.aspectRatio;
+      inner = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AspectRatio(aspectRatio: ratio, child: VideoPlayer(ctrl)),
+          _VideoControls(
+            playing: ctrl.value.isPlaying,
+            position: ctrl.value.position,
+            duration: ctrl.value.duration,
+            onToggle: () {
+              if (ctrl.value.isPlaying) {
+                ctrl.pause();
+              } else {
+                ctrl.play();
+              }
+            },
+            onSeek: (d) => ctrl.seekTo(d),
+          ),
+        ],
+      );
     }
-    final ratio = ctrl.value.aspectRatio == 0 ? 16 / 9 : ctrl.value.aspectRatio;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AspectRatio(aspectRatio: ratio, child: VideoPlayer(ctrl)),
-        _VideoControls(
-          playing: ctrl.value.isPlaying,
-          position: ctrl.value.position,
-          duration: ctrl.value.duration,
-          onToggle: () {
-            if (ctrl.value.isPlaying) {
-              ctrl.pause();
-            } else {
-              ctrl.play();
-            }
-          },
-          onSeek: (d) => ctrl.seekTo(d),
-        ),
-      ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(t.radiusCard),
+      child: Container(color: Colors.black, child: inner),
     );
   }
 }
@@ -174,7 +190,7 @@ class _VideoControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
           IconButton(
@@ -196,7 +212,9 @@ class _VideoControls extends StatelessWidget {
                 thumbColor: Colors.white,
               ),
               child: Slider(
-                max: duration.inMilliseconds.toDouble().clamp(1, double.infinity),
+                max: duration.inMilliseconds
+                    .toDouble()
+                    .clamp(1, double.infinity),
                 value: position.inMilliseconds
                     .toDouble()
                     .clamp(0, duration.inMilliseconds.toDouble().clamp(1, double.infinity)),
@@ -214,10 +232,12 @@ class _VideoControls extends StatelessWidget {
   }
 }
 
-/// 软件内音频播放器：紧凑卡，大播放/暂停键 + 进度条拖动。
+/// HTML5 风格内嵌音频播放条：♪ 标题 + 播放/暂停 + 进度 + 时间。
+/// 主题自适应（亮/暗均可用），不自动播放——用户点击播放键才开始。
 class InAppAudioPlayer extends StatefulWidget {
   final File file;
-  const InAppAudioPlayer({super.key, required this.file});
+  final String? title;
+  const InAppAudioPlayer({super.key, required this.file, this.title});
 
   @override
   State<InAppAudioPlayer> createState() => _InAppAudioPlayerState();
@@ -227,6 +247,7 @@ class _InAppAudioPlayerState extends State<InAppAudioPlayer> {
   final AudioPlayer _player = AudioPlayer();
   final List<StreamSubscription<dynamic>> _subs = [];
   bool _playing = false;
+  bool _started = false;
   bool _failed = false;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -249,15 +270,10 @@ class _InAppAudioPlayerState extends State<InAppAudioPlayer> {
     _subs.add(_player.onPlayerStateChanged.listen((s) {
       if (mounted) setState(() => _playing = s == PlayerState.playing);
     }));
-    _play();
-  }
-
-  Future<void> _play() async {
-    try {
-      await _player.play(DeviceFileSource(widget.file.path));
-    } catch (_) {
+    // 只加载元数据（时长），不自动播放。
+    _player.setSource(DeviceFileSource(widget.file.path)).catchError((_) {
       if (mounted) setState(() => _failed = true);
-    }
+    });
   }
 
   @override
@@ -270,84 +286,101 @@ class _InAppAudioPlayerState extends State<InAppAudioPlayer> {
   }
 
   Future<void> _toggle() async {
+    if (_failed) return;
     if (_playing) {
       await _player.pause();
-    } else {
+      return;
+    }
+    if (_started) {
       await _player.resume();
+    } else {
+      try {
+        await _player.play(DeviceFileSource(widget.file.path));
+        _started = true;
+      } catch (_) {
+        if (mounted) setState(() => _failed = true);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_failed) return const _PlayerErrorCard(label: '音频加载失败');
+    final t = context.tokens;
+    final cs = context.cs;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white12),
+        color: t.fill,
+        borderRadius: BorderRadius.circular(t.radiusCard),
+        border: Border.all(color: t.border),
       ),
-      child: Row(
-        children: [
-          IconButton(
-            iconSize: 38,
-            color: Colors.white,
-            icon: Icon(
-              _playing
-                  ? Icons.pause_circle_filled
-                  : Icons.play_circle_filled,
-            ),
-            onPressed: _toggle,
-          ),
-          Expanded(
-            child: SliderTheme(
-              data: SliderThemeData(
-                trackHeight: 2,
-                thumbShape:
-                    const RoundSliderThumbShape(enabledThumbRadius: 5),
-                activeTrackColor: Colors.white,
-                inactiveTrackColor: Colors.white24,
-                thumbColor: Colors.white,
-              ),
-              child: Slider(
-                max: _duration.inMilliseconds
-                    .toDouble()
-                    .clamp(1, double.infinity),
-                value: _position.inMilliseconds
-                    .toDouble()
-                    .clamp(0, _duration.inMilliseconds.toDouble().clamp(1, double.infinity)),
-                onChanged: (v) => _player.seek(Duration(milliseconds: v.round())),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${_fmt(_position)} / ${_fmt(_duration)}',
-            style: const TextStyle(color: Colors.white70, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PlayerErrorCard extends StatelessWidget {
-  final String label;
-  const _PlayerErrorCard({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 28),
-      alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.error_outline, color: Colors.white54, size: 30),
-          const SizedBox(height: 8),
-          Text(label,
-              style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          if (widget.title != null && widget.title!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 2),
+              child: Row(
+                children: [
+                  Icon(Icons.music_note, size: 14, color: cs.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.title!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: t.textSecondary),
+                    ),
+                  ),
+                  if (_failed)
+                    Text('无法播放', style: TextStyle(fontSize: 11, color: t.textTertiary)),
+                ],
+              ),
+            ),
+          Row(
+            children: [
+              IconButton(
+                iconSize: 34,
+                color: cs.primary,
+                icon: Icon(
+                  _playing
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_filled,
+                ),
+                onPressed: _toggle,
+              ),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderThemeData(
+                    trackHeight: 2,
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 5),
+                    activeTrackColor: cs.primary,
+                    inactiveTrackColor: t.border,
+                    thumbColor: cs.primary,
+                  ),
+                  child: Slider(
+                    max: _duration.inMilliseconds
+                        .toDouble()
+                        .clamp(1, double.infinity),
+                    value: _position.inMilliseconds
+                        .toDouble()
+                        .clamp(0, _duration.inMilliseconds.toDouble().clamp(1, double.infinity)),
+                    onChanged: (v) =>
+                        _player.seek(Duration(milliseconds: v.round())),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${_fmt(_position)} / ${_fmt(_duration)}',
+                style: TextStyle(fontSize: 11, color: t.textTertiary),
+              ),
+            ],
+          ),
         ],
       ),
     );
