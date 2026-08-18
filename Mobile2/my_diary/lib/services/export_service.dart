@@ -8,24 +8,24 @@ import 'package:archive/archive_io.dart'; // Archive / ZipEncoder / ZipFileEncod
 /// 导出工具。
 ///
 /// 所有导出都在**后台 isolate**（[Isolate.run]）中执行：压缩是 CPU 密集
-/// 操作，若在主 isolate 同步跑会把 UI 线程卡死（用户体感：手机瞬间卡死）。
-/// 丢到后台 isolate 后 UI 保持流畅，导出只是"慢一点"。
+/// 操作，若在主 isolate 同步跑会把 UI 线程卡死。丢到后台 isolate 后
+/// UI 保持流畅，导出只是"慢一点"。
 class ExportService {
   /// 构建「Markdown 备份」zip：`entries/**/*.md` + `settings.json`
-  /// + **正文引用到的资产文件**（保持 vault 根相对路径）。
+  /// + 正文引用到的资产文件。
   ///
-  /// 图片/附件在 Markdown 里以 `assets/...` 相对 vault 根引用，若 zip 里
-  /// 只有 .md，引用必然悬空。这里把被引用的 assets 一并打包，解压整个
-  /// 目录后在 Obsidian 等按库根解析的编辑器中即可正常显示。
+  /// 资产引用会**改写为相对 .md 文件所在目录**的路径
+  /// （如 `../../../assets/images/x.webp`），解压后在 Typora/Obsidian 等
+  /// 编辑器中直接打开 .md 即可正常显示图片；zip 内资产仍按 vault 根
+  /// 相对位置存放（`assets/...`），与改写后的引用路径对应。
   /// 返回 zip 字节；vault 中没有 .md 时返回 null。
   static Future<Uint8List?> buildMarkdownZip(String vaultRoot) async {
     return Isolate.run(() => _buildMarkdownZipSync(vaultRoot));
   }
 
-  /// 完整备份（流式）：把 entries / assets / versions / conflicts /
-  /// settings.json / metadata/index.json 打包为 zip，逐文件流式压缩
-  /// （InputFileStream 分块读 → ZipEncoder → 输出文件流），数据不整体载入内存。
-  /// 排除 `metadata/sync.json`。压缩级别 1（最快档）以降低 CPU 占用。
+  /// 完整备份（流式）：entries / assets / versions / conflicts /
+  /// settings.json / metadata/index.json 打包为 zip，逐文件流式压缩，
+  /// 数据不整体载入内存；排除 `metadata/sync.json`；压缩级别 1（最快档）。
   /// 返回写入的文件数。
   static Future<int> buildFullZip(String vaultRoot, String zipPath) async {
     return Isolate.run(() => _buildFullZipSync(vaultRoot, zipPath));
@@ -46,10 +46,13 @@ class ExportService {
         if (!e.path.toLowerCase().endsWith('.md')) continue;
         final rel = _rel(vaultRoot, e.path);
         final bytes = e.readAsBytesSync();
-        zip.addFile(ArchiveFile(rel, bytes.length, bytes));
-        // 收集该篇引用的资产（正文图片/附件 + frontmatter path 字段）。
-        referenced.addAll(
-            _collectAssetRefs(utf8.decode(bytes, allowMalformed: true)));
+        final text = utf8.decode(bytes, allowMalformed: true);
+        // 先按原始 vault 相对路径收集引用，再把文本中的引用
+        // 改写为相对 .md 所在目录的路径，最后写入 zip。
+        referenced.addAll(_collectAssetRefs(text));
+        final rewritten = _prefixAssetRefs(text, _relativePrefix(rel));
+        final out = utf8.encode(rewritten);
+        zip.addFile(ArchiveFile(rel, out.length, out));
       }
     }
     final settingsFile = File('$vaultRoot/settings.json');
@@ -57,7 +60,7 @@ class ExportService {
       final bytes = settingsFile.readAsBytesSync();
       zip.addFile(ArchiveFile('settings.json', bytes.length, bytes));
     }
-    // 被引用的资产一并打入 zip（保持 vault 根相对路径，文件存在才打包）。
+    // 被引用的资产一并打入 zip（保持 vault 根相对位置，文件存在才打包）。
     for (final rel in referenced) {
       final f = File('$vaultRoot/$rel');
       if (!f.existsSync()) continue;
@@ -80,15 +83,33 @@ class ExportService {
       if (rel.startsWith('metadata/') && rel != 'metadata/index.json') {
         continue; // metadata 只带 index.json
       }
-      encoder.addFile(e, rel);
+      // 必须用同步 addFileSync：addFile 是 async（内部 await 文件流关闭），
+      // 在同步函数里不 await 会 fire-and-forget，close 时数据未写完 → 1kb 空包。
+      encoder.addFileSync(e, rel);
       count++;
     }
-    encoder.close();
+    encoder.closeSync(); // 同步 close，确保数据全部落盘
     return count;
   }
 
   static String _rel(String vaultRoot, String p) =>
       p.substring(vaultRoot.length + 1).replaceAll('\\', '/');
+
+  /// md 相对 vault 根的目录层级数，生成对应数量的 `../`（资产在 vault 根）。
+  /// `entries/2026/08/xxx.md` → 3 层 → `../../../`。
+  static String _relativePrefix(String mdRel) {
+    final dirs = mdRel.split('/').length - 1;
+    return '../' * dirs;
+  }
+
+  /// 把文本中的 vault 相对资产引用改写为相对 .md 所在目录的路径：
+  /// - 图片：`![alt](assets/...` → `![alt](../../../assets/...`
+  /// - 附件 / frontmatter：`"assets/...` → `"../../../assets/...`
+  ///   （`data-src="assets/` 与 `path: "assets/` 里的 `"assets/` 一并命中）
+  static String _prefixAssetRefs(String text, String prefix) {
+    var out = text.replaceAll('](assets/', '](${prefix}assets/');
+    return out.replaceAll('"assets/', '"${prefix}assets/');
+  }
 
   // 图片：![alt](assets/... "width=600")（路径可含转义括号）
   static final RegExp _imgRefRe =
