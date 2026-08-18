@@ -160,20 +160,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 14),
             Row(
               children: [
-                _StatTile(value: '$monthCount', label: '本月'),
-                _vDivider(t),
-                _StatTile(value: '$_streak', label: '连续'),
+                _StatTile(
+                    icon: Icons.calendar_today_outlined,
+                    value: '$monthCount',
+                    label: '本月'),
                 _vDivider(t),
                 _StatTile(
+                    icon: Icons.local_fire_department_outlined,
+                    value: '$_streak',
+                    label: '连续'),
+                _vDivider(t),
+                _StatTile(
+                  icon: Icons.favorite,
                   value: '$favCount',
                   label: '喜欢',
+                  iconColor: Colors.redAccent,
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const FavoriteScreen()),
                   ),
                 ),
                 _vDivider(t),
-                _StatTile(value: '$total', label: '总计'),
+                _StatTile(
+                    icon: Icons.article_outlined,
+                    value: '$total',
+                    label: '总计'),
               ],
             ),
           ]),
@@ -594,23 +605,36 @@ class _TagCloudCard extends StatelessWidget {
   }
 }
 
-/// 三格统计的单格：大数字 + 小标签（无底色，靠竖线分隔）。
+/// 统计格：图标 + 大数字 + 小标签（纵排，靠竖线分隔）。
+/// 可选 [onTap] 变为可点击（如「喜欢」进列表页）。
 class _StatTile extends StatelessWidget {
+  final IconData icon;
   final String value;
   final String label;
-  final VoidCallback? onTap; // 非空时可点击（如「喜欢」进列表页）
-  const _StatTile({required this.value, required this.label, this.onTap});
+  final Color? iconColor; // 缺省用次级文字色
+  final VoidCallback? onTap;
+  const _StatTile({
+    required this.icon,
+    required this.value,
+    required this.label,
+    this.iconColor,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tokens;
     final tile = Expanded(
       child: Column(
         children: [
+          Icon(icon, size: 19, color: iconColor ?? t.textSecondary),
+          const SizedBox(height: 6),
           Text(value,
               style: const TextStyle(
-                  fontSize: 22,
+                  fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5)),
+                  letterSpacing: -0.5,
+                  height: 1.1)),
           const SizedBox(height: 3),
           Text(label, style: context.caption),
         ],
@@ -628,7 +652,7 @@ class _StatTile extends StatelessWidget {
 /// 统计格之间的细分隔竖线。
 Widget _vDivider(AppTokens t) => Container(
       width: 1,
-      height: 34,
+      height: 46,
       color: t.border,
     );
 
