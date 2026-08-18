@@ -651,14 +651,6 @@ class _StatsChartCardState extends State<_StatsChartCard> {
                     ))
                 .toList(),
           ),
-          // 心情模式：提示柱子可点进条件搜索。
-          if (_showMood && widget.moodData.any((d) => d.onTap != null)) ...[
-            const SizedBox(height: 10),
-            Center(
-              child: Text('点击柱子可筛选该心情的日记',
-                  style: context.caption),
-            ),
-          ],
         ],
       ],
     );

@@ -1403,7 +1403,8 @@ class _EditorScreenState extends State<EditorScreen> {
               _chipRow<Mood>(
                 values: Mood.ordered,
                 selected: _mood,
-                labelOf: (m) => '${m.emoji} ${m.label}',
+                labelOf: (m) => '${m.iconChar} ${m.label}',
+                labelFontFamily: 'moodfont',
                 onSelect: (m) => setState(() {
                   _mood = m;
                   _dirty = true;
@@ -1414,7 +1415,8 @@ class _EditorScreenState extends State<EditorScreen> {
               _chipRow<Weather>(
                 values: Weather.ordered,
                 selected: _weather,
-                labelOf: (w) => '${w.emoji} ${w.label}',
+                labelOf: (w) => '${w.iconChar} ${w.label}',
+                labelFontFamily: 'iconfont',
                 onSelect: (w) => setState(() {
                   _weather = w;
                   _dirty = true;
@@ -1463,6 +1465,7 @@ class _EditorScreenState extends State<EditorScreen> {
     required List<T> values,
     required T selected,
     required String Function(T) labelOf,
+    String? labelFontFamily,
     required void Function(T) onSelect,
   }) =>
       SingleChildScrollView(
@@ -1473,6 +1476,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     padding: const EdgeInsets.only(right: 6),
                     child: _PillButton(
                       label: labelOf(v),
+                      labelFontFamily: labelFontFamily,
                       active: v == selected,
                       onTap: () => onSelect(v),
                     ),
@@ -1529,11 +1533,13 @@ class _ToolButton extends StatelessWidget {
 
 class _PillButton extends StatelessWidget {
   final String label;
+  final String? labelFontFamily;
   final bool active;
   final VoidCallback onTap;
 
   const _PillButton({
     required this.label,
+    this.labelFontFamily,
     required this.onTap,
     this.active = false,
   });
@@ -1558,6 +1564,7 @@ class _PillButton extends StatelessWidget {
             fontSize: 13,
             fontWeight: active ? FontWeight.w600 : FontWeight.w400,
             color: active ? primary : t.textPrimary,
+            fontFamily: labelFontFamily,
           ),
         ),
       ),

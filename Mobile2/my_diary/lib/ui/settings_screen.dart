@@ -261,7 +261,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 spacing: 6,
                 children: Mood.ordered
                     .map((m) => ChoiceChip(
-                          label: Text('${m.emoji} ${m.label}'),
+                          label: Text('${m.iconChar} ${m.label}',
+                              style: const TextStyle(
+                                  fontFamily: 'moodfont')),
                           selected: _defaultMood == m,
                           onSelected: (_) =>
                               setState(() => _defaultMood = m),

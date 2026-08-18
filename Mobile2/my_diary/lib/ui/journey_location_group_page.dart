@@ -21,12 +21,12 @@ class _JourneyLocationGroupPageState extends State<JourneyLocationGroupPage> {
       appBar: AppBar(title: Text('此位置日记 (${journeys.length})')),
       body: ListView.separated(
         itemCount: journeys.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final e = journeys[index];
           return ListTile(
             title: Text(e.displayTitle),
-            subtitle: Text(
+            subtitle: Text.rich(
               _formatSubtitle(e),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -43,13 +43,30 @@ class _JourneyLocationGroupPageState extends State<JourneyLocationGroupPage> {
   }
 
   /// 副标题：地点 · 心情 · 天气（空项跳过）。
-  String _formatSubtitle(JournalEntry e) {
-    final parts = <String>[];
-    if (e.location != null && e.location!.isNotEmpty) parts.add(e.location!);
-    if (e.mood != Mood.neutral) parts.add('${e.mood.emoji} ${e.mood.label}');
-    if (e.weather != Weather.unknown) {
-      parts.add('${e.weather.emoji} ${e.weather.label}');
+  /// 心情 / 天气用 iconfont 字形渲染（moodfont / iconfont family）。
+  InlineSpan _formatSubtitle(JournalEntry e) {
+    final parts = <InlineSpan>[];
+    if (e.location != null && e.location!.isNotEmpty) {
+      parts.add(TextSpan(text: e.location));
     }
-    return parts.join(' · ');
+    if (e.mood != Mood.neutral) {
+      parts.add(TextSpan(
+        text: '${e.mood.iconChar} ${e.mood.label}',
+        style: const TextStyle(fontFamily: 'moodfont'),
+      ));
+    }
+    if (e.weather != Weather.unknown) {
+      parts.add(TextSpan(
+        text: '${e.weather.iconChar} ${e.weather.label}',
+        style: const TextStyle(fontFamily: 'iconfont'),
+      ));
+    }
+    if (parts.isEmpty) return const TextSpan(text: '');
+    return TextSpan(children: [
+      for (var i = 0; i < parts.length; i++) ...[
+        if (i > 0) const TextSpan(text: ' · '),
+        parts[i],
+      ],
+    ]);
   }
 }

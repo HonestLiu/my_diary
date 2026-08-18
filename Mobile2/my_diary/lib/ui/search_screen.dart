@@ -33,6 +33,7 @@ class _SearchScreenState extends State<SearchScreen> {
   List<JournalEntry> _results = [];
   late final Set<SearchScope> _filters;
   Mood? _mood;
+  bool _moodExpanded = false; // 「心情」胶囊是否展开
 
   // 每个范围对应的图标，供 FilterChip 展示。
   static const Map<SearchScope, IconData> _icons = {
@@ -75,7 +76,6 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final moodHint = _mood == null ? '' : '${_mood!.emoji} ${_mood!.label} · ';
     return Scaffold(
       appBar: AppBar(
         title: TextField(
@@ -84,12 +84,28 @@ class _SearchScreenState extends State<SearchScreen> {
           autofocus: widget.initialQuery.trim().isNotEmpty ||
               widget.initialMood == null,
           decoration: InputDecoration(
-            hintText: moodHint +
-                (_filters.isEmpty
-                    ? '搜索标题、正文、标签、地点…'
-                    : '搜索${_filters.map((f) => f.label).join('、')}…'),
+            // 心情前缀用 moodfont 字形渲染，与主搜索提示混排。
+            // 注意：hint 传 Widget 时 InputDecorator 不会套用 hintStyle
+            //（仅对 hintText 生效），需在 Text.rich 上显式指定与输入框
+            // 一致的 16px 与三级文字色，否则会继承 AppBar 的大号标题字号。
+            hint: Text.rich(
+              TextSpan(children: [
+                if (_mood != null) ...[
+                  TextSpan(
+                    text: '${_mood!.iconChar} ',
+                    style: const TextStyle(fontFamily: 'moodfont'),
+                  ),
+                  TextSpan(text: '${_mood!.label} · '),
+                ],
+                TextSpan(
+                  text: _filters.isEmpty
+                      ? '搜索标题、正文、标签、地点…'
+                      : '搜索${_filters.map((f) => f.label).join('、')}…',
+                ),
+              ]),
+              style: TextStyle(fontSize: 16, color: t.textTertiary),
+            ),
             border: InputBorder.none,
-            hintStyle: TextStyle(color: t.textTertiary),
           ),
           style: TextStyle(color: t.textPrimary, fontSize: 16),
         ),
@@ -122,23 +138,53 @@ class _SearchScreenState extends State<SearchScreen> {
               }).toList(),
             ),
           ),
-          // 心情筛选：与字段范围正交，限定 mood；再点一次选中的心情取消筛选。
+          // 心情筛选：收进「心情」胶囊，点击展开选择；与字段范围正交。
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-            child: Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: Mood.ordered.map((m) {
-                final selected = _mood == m;
-                return FilterChip(
-                  label: Text('${m.emoji} ${m.label}'),
-                  selected: selected,
-                  onSelected: (sel) {
-                    setState(() => _mood = sel ? m : null);
-                    _onChanged();
-                  },
-                );
-              }).toList(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _MoodFilterPill(
+                  mood: _mood,
+                  expanded: _moodExpanded,
+                  onTap: () =>
+                      setState(() => _moodExpanded = !_moodExpanded),
+                ),
+                if (_moodExpanded) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      FilterChip(
+                        label: const Text('全部'),
+                        selected: _mood == null,
+                        onSelected: (_) {
+                          setState(() {
+                            _mood = null;
+                            _moodExpanded = false;
+                          });
+                          _onChanged();
+                        },
+                      ),
+                      for (final m in Mood.ordered)
+                        FilterChip(
+                          label: Text('${m.iconChar} ${m.label}',
+                              style: const TextStyle(
+                                  fontFamily: 'moodfont')),
+                          selected: _mood == m,
+                          onSelected: (sel) {
+                            setState(() {
+                              _mood = sel ? m : null;
+                              _moodExpanded = false;
+                            });
+                            _onChanged();
+                          },
+                        ),
+                    ],
+                  ),
+                ],
+              ],
             ),
           ),
           const Divider(height: 1),
@@ -156,13 +202,65 @@ class _SearchScreenState extends State<SearchScreen> {
                     : ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemCount: _results.length,
-                        separatorBuilder: (_, __) =>
+                        separatorBuilder: (_, _) =>
                             const SizedBox(height: 12),
                         itemBuilder: (_, i) =>
                             EntryCard(entry: _results[i]),
                       ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 「心情」筛选胶囊：未选时显示「心情」，已选时显示当前心情（如「😊 开心」），
+/// 点击展开/收起下方的心情选项；展开中高亮显示。
+class _MoodFilterPill extends StatelessWidget {
+  final Mood? mood;
+  final bool expanded;
+  final VoidCallback onTap;
+  const _MoodFilterPill({
+    required this.mood,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final scheme = Theme.of(context).colorScheme;
+    final active = mood != null || expanded;
+    final fg = active ? scheme.onSecondaryContainer : t.textPrimary;
+    return Material(
+      color: active ? scheme.secondaryContainer : t.fill,
+      shape: StadiumBorder(side: BorderSide(color: t.border)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.mood_outlined,
+                  size: 16,
+                  color: mood != null ? scheme.primary : t.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                mood == null ? '心情' : '${mood!.iconChar} ${mood!.label}',
+                style: TextStyle(
+                    fontSize: 13,
+                    color: fg,
+                    fontWeight: mood != null ? FontWeight.w600 : null,
+                    fontFamily: mood != null ? 'moodfont' : null),
+              ),
+              const SizedBox(width: 4),
+              Icon(expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 18, color: t.textSecondary),
+            ],
+          ),
+        ),
       ),
     );
   }

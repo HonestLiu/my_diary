@@ -10,7 +10,7 @@ class WeatherConfig {
 
   /// 源码内配置的心知天气 Key（不在设置页）。留空则不请求网络。
   /// 申请：https://www.seniverse.com 注册后获取私钥。
-  static const String sourceWeatherApiKey = ''; // TODO: 填入你的心知天气 Key
+  static const String sourceWeatherApiKey = 'ShO8h-8U9cfzNF7Th'; // TODO: 填入你的心知天气 Key
 
   /// 是否已配置可用密钥。
   static bool get isConfigured => weatherApiKey.isNotEmpty;
