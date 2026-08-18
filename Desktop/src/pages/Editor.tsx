@@ -146,7 +146,7 @@ export default function Editor() {
   return (
     <div className="flex h-full min-h-0">
       {/* Left: entry navigator */}
-      <aside className="w-64 shrink-0 border-r border-border/70 bg-muted/50">
+      <aside className="w-80 shrink-0 border-r border-border/70 bg-muted/50">
         <div className="flex items-center justify-between px-3 pb-1 pt-3">
           <span className="text-sm font-semibold text-foreground">日记</span>
           <button

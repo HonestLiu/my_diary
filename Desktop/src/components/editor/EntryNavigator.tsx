@@ -1,9 +1,7 @@
 import { useMemo } from "react";
-import { motion } from "framer-motion";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MoodGlyph } from "@/components/MoodGlyph";
-import { WeatherGlyph } from "@/components/WeatherGlyph";
+import { EntryCard } from "@/components/EntryCard";
 import type { JournalEntry } from "@/types/journal";
 
 interface Props {
@@ -21,7 +19,8 @@ const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
  * Left rail: every entry, grouped by day, newest first.
  *
  * A day is a heading, not a slot — it can hold any number of entries, and each
- * day header carries a "+" to add one more to that same day.
+ * day header carries a "+" to add one more to that same day. 条目用与移动端
+ * 首页同款的 EntryCard（含封面 / 心情天气图标 / meta 胶囊）。
  */
 export function EntryNavigator({
   entries,
@@ -34,10 +33,10 @@ export function EntryNavigator({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-3">
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         {groups.map((g) => (
           <div key={g.date}>
-            <div className="group/day mb-1 flex items-center gap-2 px-2">
+            <div className="group/day mb-2 flex items-center gap-2 px-1">
               <span className="text-xs font-semibold text-foreground">
                 {g.label}
               </span>
@@ -55,54 +54,35 @@ export function EntryNavigator({
               </button>
             </div>
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2.5">
               {g.entries.map((e) => {
                 const active = e.id === activeId;
                 return (
                   <div
                     key={e.id}
                     className={cn(
-                      "group/item relative flex items-center rounded-xl bg-card px-1.5 py-1.5 shadow-soft transition-shadow",
-                      active ? "ring-1 ring-primary" : "hover:shadow-soft-lg",
+                      "group/item relative",
+                      active && "rounded-xl ring-2 ring-primary",
                     )}
                   >
-                    <button
-                      type="button"
+                    <EntryCard
+                      title={e.title}
+                      mood={e.mood}
+                      weather={e.weather}
+                      preview={preview(e)}
+                      location={e.location}
+                      tags={e.tags}
+                      coverPath={e.assets.find((a) => a.kind === "image")?.path}
                       onClick={() => onSelect(e)}
-                      className="flex min-w-0 flex-1 items-center gap-2 px-1 text-left"
-                    >
-                      <span className="flex shrink-0 items-center gap-1">
-                        <MoodGlyph mood={e.mood} className="text-base" />
-                        {e.weather !== "unknown" && (
-                          <WeatherGlyph
-                            weather={e.weather}
-                            className="text-sm text-muted-foreground"
-                          />
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-foreground">
-                          {e.title || "未命名"}
-                        </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {preview(e)}
-                        </span>
-                      </span>
-                    </button>
+                    />
                     <button
                       type="button"
                       title="删除这篇日记"
                       onClick={() => onDelete(e)}
-                      className="mr-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition hover:bg-muted hover:text-red-500 focus:opacity-100 group-hover/item:opacity-100"
+                      className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-muted text-muted-foreground opacity-0 transition hover:text-red-500 focus:opacity-100 group-hover/item:opacity-100"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
-                    {active && (
-                      <motion.span
-                        layoutId="nav-active"
-                        className="absolute -left-1 h-6 w-1 rounded-full bg-primary"
-                      />
-                    )}
                   </div>
                 );
               })}
