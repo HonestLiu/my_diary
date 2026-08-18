@@ -16,8 +16,8 @@ class ExportService {
   ///
   /// 其中 `.md` 的正文资产引用会改写为相对文件所在目录的路径
   /// （如 `../../../assets/images/x.webp`），解压后在 Typora 等编辑器中
-  /// 直接打开单个 .md 即可正常显示图片；frontmatter 保持 vault 根相对
-  /// 原样（App 还原时按原路径解析）。
+  /// 直接打开单个 .md 即可正常显示图片、播放音视频；frontmatter 保持
+  /// vault 根相对原样（App 还原时按原路径解析）。
   /// 返回写入的文件数。
   static Future<int> buildFullZip(String vaultRoot, String zipPath) async {
     return Isolate.run(() => _buildFullZipSync(vaultRoot, zipPath));
@@ -46,7 +46,7 @@ class ExportService {
         // frontmatter 保持 vault 根相对原样（App 还原时按原路径解析）。
         final bytes = e.readAsBytesSync();
         final text = utf8.decode(bytes, allowMalformed: true);
-        final rewritten = _rewriteBodyAssetRefs(text, _relativePrefix(rel));
+        final rewritten = rewriteBodyForExport(text, _relativePrefix(rel));
         final out = utf8.encode(rewritten);
         encoder.addArchiveFile(ArchiveFile(rel, out.length, out));
       } else {
@@ -71,7 +71,7 @@ class ExportService {
   /// 只改写**正文**（frontmatter 结束标记 `---` 之后）中的资产引用；
   /// frontmatter（`assets`/`path` 元数据）保持 vault 根相对原样，
   /// 供 App 按原路径解析（还原/导入不破坏）。
-  static String _rewriteBodyAssetRefs(String text, String prefix) {
+  static String rewriteBodyForExport(String text, String prefix) {
     if (!text.startsWith('---')) return _prefixAssetRefs(text, prefix);
     final end = text.indexOf('\n---', 3); // frontmatter 的结束 `---` 行
     if (end < 0) return _prefixAssetRefs(text, prefix);
@@ -80,12 +80,63 @@ class ExportService {
     return head + _prefixAssetRefs(body, prefix);
   }
 
-  /// 把文本中的 vault 相对资产引用改写为相对 .md 所在目录的路径：
+  /// 把正文中的 vault 相对资产引用改写为相对 .md 所在目录的路径，
+  /// 并将音视频/附件的 `<attachment>` 自定义标签转成标准 HTML
+  /// （Typora / 通用 Markdown 查看器可直接播放、下载）：
+  /// - 音频：`<audio src controls preload="metadata">`（内含下载兜底链接）
+  /// - 视频：`<video src controls>`（`data-width` → 内联宽度；下载兜底）
+  /// - 附件：`<a href download>名称</a>`
   /// - 图片：`![alt](assets/...` → `![alt](../../../assets/...`
-  /// - 附件：`"assets/...` → `"../../../assets/...`
-  ///   （`data-src="assets/` 里的 `"assets/` 一并命中）
   static String _prefixAssetRefs(String text, String prefix) {
-    var out = text.replaceAll('](assets/', '](${prefix}assets/');
+    final withHtml = _convertMediaTags(text, prefix);
+    var out = withHtml.replaceAll('](assets/', '](${prefix}assets/');
     return out.replaceAll('"assets/', '"${prefix}assets/');
+  }
+
+  static final RegExp _attachmentTagRe =
+      RegExp(r'<attachment\b([^>]*?)/?>(\s*</attachment>)?');
+  static final RegExp _attrRe = RegExp(r'([a-zA-Z-]+)="([^"]*)"');
+
+  static String _unescapeAttr(String s) => s
+      .replaceAll('&quot;', '"')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&amp;', '&');
+
+  static String _escapeHtml(String s) => s
+      .replaceAll('&', '&amp;')
+      .replaceAll('"', '&quot;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
+
+  /// 把 `<attachment data-…>` 标签替换为对应类型的标准 HTML。
+  static String _convertMediaTags(String text, String prefix) {
+    return text.replaceAllMapped(_attachmentTagRe, (m) {
+      final attrs = <String, String>{};
+      for (final a in _attrRe.allMatches(m.group(1) ?? '')) {
+        attrs[a.group(1)!.toLowerCase()] = _unescapeAttr(a.group(2) ?? '');
+      }
+      final raw = attrs['data-src'] ?? attrs['src'] ?? '';
+      if (raw.isEmpty) return m.group(0)!;
+      final src = _escapeHtml(prefix + raw);
+      final kind = attrs['data-kind'] ?? attrs['kind'] ?? 'attachment';
+      final nameRaw = (attrs['data-name'] ?? '').trim();
+      final name =
+          _escapeHtml(nameRaw.isNotEmpty ? nameRaw : raw.split('/').last);
+      if (kind == 'audio') {
+        return '<audio src="$src" controls preload="metadata">'
+            '您的浏览器不支持音频播放，'
+            '<a href="$src" download="$name">点击下载</a></audio>';
+      }
+      if (kind == 'video') {
+        final w = int.tryParse(attrs['data-width'] ?? '');
+        final style = w != null && w > 0 ? ' style="max-width:100%;width:${w}px"' : '';
+        return '<video src="$src" controls preload="metadata"$style>'
+            '您的浏览器不支持视频播放，'
+            '<a href="$src" download="$name">点击下载</a></video>';
+      }
+      // 附件：下载链接。
+      return '<a href="$src" download="$name">$name</a>';
+    });
   }
 }
