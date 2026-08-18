@@ -349,7 +349,8 @@ List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
   final items = _buildMemories(entries);
   final t = context.tokens;
   final header = Padding(
-    padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+    // 水平缩进由外层列表（padding 16）统一提供，这里只留纵向，与下方内容左对齐。
+    padding: const EdgeInsets.fromLTRB(0, 18, 0, 0),
     child: Row(
       children: [
         Icon(Icons.auto_awesome_outlined, size: 18, color: t.textSecondary),
@@ -370,7 +371,7 @@ List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
         height: 145,
         child: ListView(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.zero,
           children: const [_MemoryEmptyCard()],
         ),
       ),
@@ -385,7 +386,7 @@ List<Widget> _memorySection(BuildContext context, List<JournalEntry> entries) {
       height: 145,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.zero,
         itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (c, i) => _MemoryCard(item: items[i]),
