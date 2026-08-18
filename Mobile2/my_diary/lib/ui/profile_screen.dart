@@ -111,10 +111,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   /// 编辑座右铭：弹窗输入，保存后写 settings.motto。
+  /// 注意：保存动作在「关弹窗之前」执行——若先 pop 再 setMotto，
+  /// notifyListeners 触发的 provider 重建会与弹窗退场动画同帧，
+  /// 撞上 framework 已知竞态（InheritedElement.notifyClients 断言）。
   Future<void> _editMotto() async {
     final store = context.read<AppStore>();
     final ctrl = TextEditingController(text: store.settings.motto);
-    final v = await showDialog<String>(
+    await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('座右铭'),
@@ -130,13 +133,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('保存')),
+            onPressed: () async {
+              final text = ctrl.text.trim();
+              try {
+                await store.setMotto(text);
+              } catch (e) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx)
+                      .showSnackBar(SnackBar(content: Text('保存失败：$e')));
+                }
+                return;
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('保存'),
+          ),
         ],
       ),
     );
     ctrl.dispose();
-    if (v != null) await store.setMotto(v);
   }
 
   /// 更换 / 移除头像：底部弹层选择，相册选图后拷贝到应用文档目录。
@@ -167,6 +182,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (!mounted) return;
     if (action == 'remove') {
+      // 等底部弹层退场动画结束再改设置：避免路由过渡与
+      // InheritedNotifier 通知同帧触发 framework 断言（同座右铭问题）。
+      await Future<void>.delayed(const Duration(milliseconds: 300));
       await store.clearAvatar();
       return;
     }
