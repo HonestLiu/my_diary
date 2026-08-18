@@ -77,7 +77,8 @@ class _EditorScreenState extends State<EditorScreen> {
     final e = widget.entry;
     _titleCtl = TextEditingController(text: e.title);
     _locationCtl = TextEditingController(text: e.location ?? '');
-    _mood = e.mood;
+    // 新建日记采用设置里的「默认心情」；既有日记保留原值。
+    _mood = _isNew ? context.read<AppStore>().settings.defaultMood : e.mood;
     _weather = e.weather;
     _date = e.date;
     _tags = List.of(e.tags);
