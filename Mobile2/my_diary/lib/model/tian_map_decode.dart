@@ -93,3 +93,24 @@ int? _toIntNullable(dynamic v) {
   if (v is double) return v.toInt();
   return int.tryParse(v.toString());
 }
+
+// ==== 天地图 Geocoder(正地理编码/地址搜索) 数据模型 ====
+/// 地址搜索（ds 接口）返回的匹配点：`location` 是扁平对象。
+class TdtPlace {
+  final String name; // keyWord
+  final String? level; // 匹配级别（行政区划 / 兴趣点等）
+  final double lat;
+  final double lon;
+  TdtPlace({
+    required this.name,
+    this.level,
+    required this.lat,
+    required this.lon,
+  });
+  factory TdtPlace.fromJson(Map<String, dynamic> json) => TdtPlace(
+        name: json['keyWord']?.toString() ?? '',
+        level: json['level']?.toString(),
+        lat: double.tryParse('${json['lat']}') ?? 0,
+        lon: double.tryParse('${json['lon']}') ?? 0,
+      );
+}

@@ -29,7 +29,9 @@ class _MapPickerPageState extends State<MapPickerPage> {
   bool _mapReady = false;
   bool _locating = false;
   bool _geocoding = false;
+  bool _searching = false;
   final TextEditingController _nameCtl = TextEditingController();
+  final TextEditingController _searchCtl = TextEditingController();
 
   @override
   void initState() {
@@ -46,6 +48,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
   @override
   void dispose() {
     _nameCtl.dispose();
+    _searchCtl.dispose();
     super.dispose();
   }
 
@@ -82,6 +85,30 @@ class _MapPickerPageState extends State<MapPickerPage> {
     final p = LatLng(pos.latitude, pos.longitude);
     _mapController.move(p, 15);
     await _onTap(p);
+  }
+
+  /// 地址搜索：天地图正地理编码 → 地图飞到结果位置并作为落点。
+  Future<void> _searchAddress() async {
+    final kw = _searchCtl.text.trim();
+    if (kw.isEmpty) return;
+    setState(() => _searching = true);
+    final place = await geocodePlace(kw);
+    if (!mounted) return;
+    setState(() => _searching = false);
+    if (place == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('未找到匹配地址，请尝试更具体的名称')),
+      );
+      return;
+    }
+    final p = LatLng(place.lat, place.lon);
+    setState(() {
+      _picked = p;
+      _nameCtl.text = place.name;
+      _nameCtl.selection = TextSelection.fromPosition(
+          TextPosition(offset: place.name.length));
+    });
+    if (_mapReady) _mapController.move(p, 14);
   }
 
   void _confirm() {
@@ -168,6 +195,43 @@ class _MapPickerPageState extends State<MapPickerPage> {
                   style: TextStyle(color: Colors.white, fontSize: 11)),
             ),
           ),
+          // 地址搜索栏（天地图正地理编码）
+          if (MapConfig.isConfigured)
+            Positioned(
+              left: 8,
+              right: 76, // 右侧留出缩放/定位按钮
+              top: 8,
+              child: Material(
+                elevation: 3,
+                borderRadius: BorderRadius.circular(24),
+                child: TextField(
+                  controller: _searchCtl,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _searchAddress(),
+                  decoration: InputDecoration(
+                    hintText: '搜索地址 / 地点',
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    suffixIcon: _searching
+                        ? const Padding(
+                            padding: EdgeInsets.all(10),
+                            child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2)))
+                        : IconButton(
+                            icon: const Icon(Icons.arrow_forward, size: 18),
+                            tooltip: '搜索',
+                            onPressed: _searchAddress,
+                          ),
+                    border: InputBorder.none,
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ),
           // 缩放 / 定位控件
           Positioned(
             right: 8,

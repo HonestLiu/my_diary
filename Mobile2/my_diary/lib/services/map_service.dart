@@ -92,6 +92,34 @@ Future<String?> reverseGeocode(double lat, double lon, [String? key]) async {
   }
 }
 
+/// 正地理编码（地址搜索）：关键词 → 坐标（天地图 geocoder ds 接口）。
+/// 成功返回首个匹配点，失败 / 未配置 key / 无结果返回 null。
+/// [key] 缺省取 [MapConfig.mapApiKey]。
+Future<TdtPlace?> geocodePlace(String keyword, [String? key]) async {
+  key ??= MapConfig.mapApiKey;
+  final kw = keyword.trim();
+  if (key.isEmpty || kw.isEmpty) return null;
+  try {
+    final ds = jsonEncode({'keyWord': kw});
+    final uri = Uri.https('api.tianditu.gov.cn', '/geocoder', {
+      'ds': ds,
+      'type': 'geocode',
+      'tk': key,
+    });
+    final resp = await http.get(uri);
+    if (resp.statusCode != 200) return null;
+    final json = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (json['status']?.toString() != '0') return null;
+    final loc = json['location'] as Map<String, dynamic>?;
+    if (loc == null) return null;
+    final place = TdtPlace.fromJson(loc);
+    if (place.lat == 0 && place.lon == 0) return null;
+    return place;
+  } catch (_) {
+    return null;
+  }
+}
+
 /// 获取当前 GPS 位置（含权限申请与 Android 兜底）。失败返回 null。
 /// 先秒回最后已知位置（缓存），再用短超时（5s）尝试新定位，超时走系统定位管理器。
 Future<Position?> getCurrentPosition() async {
