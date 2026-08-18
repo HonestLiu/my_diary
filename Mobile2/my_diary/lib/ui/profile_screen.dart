@@ -196,14 +196,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               store.entries,
               (e) => e.mood,
               Mood.ordered,
-              (m) => m.emoji,
+              (m) => Text(m.emoji,
+                  style: const TextStyle(fontSize: 17)),
               (m) => m.label,
             ),
             weatherData: _distribution(
               store.entries,
               (e) => e.weather,
               Weather.ordered.where((w) => w != Weather.unknown),
-              (w) => w.emoji,
+              (w) => Icon(w.iconData,
+                  size: 17, color: t.textSecondary),
               (w) => w.label,
             ),
           ),
@@ -494,7 +496,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     List<JournalEntry> entries,
     T Function(JournalEntry) pick,
     Iterable<T> ordered,
-    String Function(T) emoji,
+    Widget Function(T) iconBuilder,
     String Function(T) label,
   ) {
     final counts = <T, int>{};
@@ -503,7 +505,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       counts[k] = (counts[k] ?? 0) + 1;
     }
     final list = ordered
-        .map((k) => _BarDatum(emoji(k), label(k), counts[k] ?? 0))
+        .map((k) => _BarDatum(iconBuilder(k), label(k), counts[k] ?? 0))
         .toList()
       ..sort((a, b) => b.count.compareTo(a.count));
     return list;
@@ -693,12 +695,12 @@ class _Stat extends StatelessWidget {
       );
 }
 
-/// 柱状图单条数据：emoji 图标 + 中文标签 + 计数。
+/// 柱状图单条数据：图标 widget（emoji 文本 / iconfont 图标）+ 中文标签 + 计数。
 class _BarDatum {
-  final String emoji;
+  final Widget icon;
   final String label;
   final int count;
-  const _BarDatum(this.emoji, this.label, this.count);
+  const _BarDatum(this.icon, this.label, this.count);
 }
 
 /// 心情 / 天气分布统计卡：顶部 Tab 切换（心情 | 天气），
@@ -834,7 +836,11 @@ class _StatsChartCardState extends State<_StatsChartCard> {
                         padding: const EdgeInsets.symmetric(horizontal: 5),
                         child: Column(
                           children: [
-                            Text(d.emoji, style: const TextStyle(fontSize: 17)),
+                            SizedBox(
+                              width: 17,
+                              height: 17,
+                              child: Center(child: d.icon),
+                            ),
                             const SizedBox(height: 3),
                             Text(d.label,
                                 style: TextStyle(

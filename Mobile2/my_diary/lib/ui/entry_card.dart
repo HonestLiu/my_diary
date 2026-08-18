@@ -65,8 +65,9 @@ class EntryCard extends StatelessWidget {
                             style: const TextStyle(fontSize: 14)),
                         if (entry.weather != Weather.unknown) ...[
                           const SizedBox(width: 3),
-                          Text(entry.weather.emoji,
-                              style: const TextStyle(fontSize: 14)),
+                          Icon(entry.weather.iconData,
+                              size: 16,
+                              color: t.textSecondary),
                         ],
                         if (entry.favorite) ...[
                           const SizedBox(width: 5),

@@ -153,7 +153,7 @@ class _DetailScreenState extends State<DetailScreen> {
               runSpacing: 8,
               children: [
                 _metaChip('${e.mood.emoji} ${e.mood.label}'),
-                _metaChip('${e.weather.emoji} ${e.weather.label}'),
+                _WeatherChip(weather: e.weather),
                 if (e.location != null && e.location!.isNotEmpty)
                   _metaChip('📍 ${e.location}'),
               ],
@@ -212,6 +212,33 @@ class _DetailScreenState extends State<DetailScreen> {
             style:
                 TextStyle(fontSize: 13, color: context.tokens.textSecondary)),
       );
+}
+
+/// 详情页天气 chip：与 _metaChip 同款浅底圆角，内嵌 iconfont 图标。
+class _WeatherChip extends StatelessWidget {
+  final Weather weather;
+  const _WeatherChip({required this.weather});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: t.fill,
+        borderRadius: BorderRadius.circular(t.radiusChip),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(weather.iconData, size: 14, color: t.textSecondary),
+          const SizedBox(width: 4),
+          Text(weather.label,
+              style: TextStyle(fontSize: 13, color: t.textSecondary)),
+        ],
+      ),
+    );
+  }
 }
 
 /// 详情页迷你地图：单点静态展示（不可拖动），无密钥时退化为坐标文字。
