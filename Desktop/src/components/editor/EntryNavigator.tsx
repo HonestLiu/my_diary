@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MoodGlyph } from "@/components/MoodGlyph";
+import { WeatherGlyph } from "@/components/WeatherGlyph";
 import type { JournalEntry } from "@/types/journal";
 
 interface Props {
@@ -54,25 +55,33 @@ export function EntryNavigator({
               </button>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
               {g.entries.map((e) => {
                 const active = e.id === activeId;
                 return (
                   <div
                     key={e.id}
                     className={cn(
-                      "group/item relative flex items-center rounded-xl transition",
-                      active ? "bg-card shadow-soft" : "hover:bg-card/60",
+                      "group/item relative flex items-center rounded-xl bg-card px-1.5 py-1.5 shadow-soft transition-shadow",
+                      active ? "ring-1 ring-primary" : "hover:shadow-soft-lg",
                     )}
                   >
                     <button
                       type="button"
                       onClick={() => onSelect(e)}
-                      className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left"
+                      className="flex min-w-0 flex-1 items-center gap-2 px-1 text-left"
                     >
-                      <MoodGlyph mood={e.mood} className="text-base" />
+                      <span className="flex shrink-0 items-center gap-1">
+                        <MoodGlyph mood={e.mood} className="text-base" />
+                        {e.weather !== "unknown" && (
+                          <WeatherGlyph
+                            weather={e.weather}
+                            className="text-sm text-muted-foreground"
+                          />
+                        )}
+                      </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-foreground">
+                        <span className="block truncate text-sm font-semibold text-foreground">
                           {e.title || "未命名"}
                         </span>
                         <span className="block truncate text-xs text-muted-foreground">
@@ -84,7 +93,7 @@ export function EntryNavigator({
                       type="button"
                       title="删除这篇日记"
                       onClick={() => onDelete(e)}
-                      className="mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition hover:bg-muted hover:text-red-500 focus:opacity-100 group-hover/item:opacity-100"
+                      className="mr-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition hover:bg-muted hover:text-red-500 focus:opacity-100 group-hover/item:opacity-100"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
