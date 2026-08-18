@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Search as SearchIcon } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
@@ -17,8 +17,12 @@ export default function Search() {
   const repo = useAppStore((s) => s.repo);
   const openEntry = useAppStore((s) => s.openEntry);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [query, setQuery] = useState("");
+  // 支持从外部带预填关键词进入（如点击标签云）。
+  const [query, setQuery] = useState(
+    (location.state as { q?: string } | null)?.q ?? "",
+  );
   const [results, setResults] = useState<IndexedEntry[]>([]);
   const timer = useRef<number | null>(null);
 

@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { MoodSelector } from "@/components/dashboard/MoodSelector";
 import { RecentEntries } from "@/components/dashboard/RecentEntries";
-import { MoodTrend } from "@/components/dashboard/MoodTrend";
+import { DistributionCard } from "@/components/dashboard/DistributionCard";
+import { TagCloud } from "@/components/dashboard/TagCloud";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export default function Dashboard() {
   const stats = useAppStore((s) => s.stats);
   const streak = useAppStore((s) => s.streak);
   const recentEntries = useAppStore((s) => s.recentEntries);
+  const entries = useAppStore((s) => s.entries);
   const startNewEntry = useAppStore((s) => s.startNewEntry);
 
   // Always a brand-new entry, even if today already has some.
@@ -97,13 +99,14 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Body: recent entries (wide) + mood trend (narrow) */}
+        {/* Body: recent entries (wide) + 心情/天气统计 + 标签云 (narrow) */}
         <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
           <div className="xl:col-span-2">
             <RecentEntries entries={recentEntries} />
           </div>
-          <div className="xl:col-span-1">
-            <MoodTrend />
+          <div className="flex flex-col gap-6 xl:col-span-1">
+            <DistributionCard entries={entries} />
+            <TagCloud />
           </div>
         </div>
       </div>
