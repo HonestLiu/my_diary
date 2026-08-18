@@ -24,7 +24,9 @@ enum HomeSort {
 }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  /// 主列表滚动控制器（由外壳注入，用于 FAB 感知滚动位置切换形态）。
+  final ScrollController? controller;
+  const HomeScreen({super.key, this.controller});
 
   @override
   State<HomeScreen> createState() => HomeScreenState();
@@ -80,6 +82,7 @@ class HomeScreenState extends State<HomeScreen> {
       body: entries.isEmpty
           ? _EmptyState(onCreate: () => _create(context))
           : ListView(
+              controller: widget.controller,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
                 if (store.lastSync?.conflicts.isNotEmpty == true)

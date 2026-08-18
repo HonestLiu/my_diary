@@ -21,6 +21,47 @@ class _AppShellState extends State<AppShell> {
   int _index = 0;
   final _homeKey = GlobalKey<HomeScreenState>();
 
+  /// 首页主列表滚动控制器：驱动 FAB 在「写日记」与「回到顶部」间切换。
+  final _homeScroll = ScrollController();
+  static const double _fabScrollThreshold = 160; // 滚动超过此像素切换形态
+  bool _homeScrolled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _homeScroll.addListener(_onHomeScroll);
+  }
+
+  @override
+  void dispose() {
+    _homeScroll.dispose();
+    super.dispose();
+  }
+
+  void _onHomeScroll() {
+    final offset = _homeScroll.hasClients ? _homeScroll.offset : 0.0;
+    final scrolled = offset > _fabScrollThreshold;
+    if (scrolled != _homeScrolled) {
+      setState(() => _homeScrolled = scrolled);
+    }
+  }
+
+  void _scrollHomeToTop() {
+    if (_homeScroll.hasClients) {
+      _homeScroll.animateTo(0,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic);
+    }
+  }
+
+  void _openEditor(AppStore store) {
+    final entry = store.repo.newEntry();
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => EditorScreen(entry: entry)),
+    ).then((_) => _homeKey.currentState?.refresh());
+  }
+
   static const _tabs = [
     _TabInfo(icon: Icons.book_outlined, active: Icons.book, label: '首页'),
     _TabInfo(
@@ -43,7 +84,7 @@ class _AppShellState extends State<AppShell> {
       body: IndexedStack(
         index: _index,
         children: [
-          HomeScreen(key: _homeKey),
+          HomeScreen(key: _homeKey, controller: _homeScroll),
           const CalendarScreen(),
           const MediaScreen(),
           const MapScreen(),
@@ -51,17 +92,23 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
       floatingActionButton: _index == 0
-          ? FloatingActionButton.extended(
-              onPressed: () {
-                final entry = store.repo.newEntry();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => EditorScreen(entry: entry)),
-                ).then((_) => _homeKey.currentState?.refresh());
-              },
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('写日记'),
+          ? AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, anim) => ScaleTransition(
+                  scale: anim, child: FadeTransition(opacity: anim, child: child)),
+              child: _homeScrolled
+                  ? FloatingActionButton(
+                      key: const ValueKey('fab-top'),
+                      tooltip: '回到顶部',
+                      onPressed: _scrollHomeToTop,
+                      child: const Icon(Icons.vertical_align_top),
+                    )
+                  : FloatingActionButton.extended(
+                      key: const ValueKey('fab-write'),
+                      onPressed: () => _openEditor(store),
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('写日记'),
+                    ),
             )
           : null,
       bottomNavigationBar: NavigationBar(
