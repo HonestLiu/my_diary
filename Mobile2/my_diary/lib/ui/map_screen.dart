@@ -89,7 +89,12 @@ class _MapScreenState extends State<MapScreen> {
     final pixelsPerWorld = 256.0 * math.pow(2.0, z);
     final degPerPixelLon = 360.0 / pixelsPerWorld;
     const gridPx = 80.0;
-    final bucketDegLon = degPerPixelLon * gridPx;
+    // 聚簇网格的最大地理跨度（约 0.5° ≈ 55km，城市级）。低缩放级别下
+    // 80px 会覆盖整片区域（如整个珠三角），把远处日记并进一个块、位置落在
+    // 中点附近"莫名其妙"的地方；封顶后只在真正邻近的日记之间聚簇，
+    // 聚合块也贴近它们。高缩放时仍按 80px（更精细）。
+    const maxBucketDeg = 0.5;
+    final bucketDegLon = math.min(degPerPixelLon * gridPx, maxBucketDeg);
     final bucketDegLat = bucketDegLon;
 
     String bucketKey(double lat, double lon) {
