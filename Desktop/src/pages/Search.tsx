@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Search as SearchIcon, Tag } from "lucide-react";
+import { Search as SearchIcon } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
-import { MoodGlyph } from "@/components/MoodGlyph";
+import { EntryCard } from "@/components/EntryCard";
 import { formatHumanDate } from "@/lib/utils";
 import type { IndexedEntry } from "@/lib/db/schema";
-import type { Mood } from "@/types/journal";
+import type { Mood, Weather } from "@/types/journal";
 
 /**
  * Search — full-text lookup across indexed title / body / tags / location.
@@ -64,48 +64,25 @@ export default function Search() {
         </p>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {results.map((r, i) => {
-            return (
-              <motion.button
-                key={r.id}
-                type="button"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.02 }}
+          {results.map((r, i) => (
+            <motion.div
+              key={r.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.02 }}
+            >
+              <EntryCard
+                title={r.title}
+                meta={formatHumanDate(new Date(r.date + "T00:00:00"))}
+                mood={r.mood as Mood}
+                weather={r.weather as Weather}
+                preview={makeExcerpt(r.body, query)}
+                location={r.location || undefined}
+                tags={r.tags ? r.tags.split(/\s+/).filter(Boolean) : undefined}
                 onClick={() => open(r)}
-                className="rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:border-primary"
-              >
-                <div className="mb-1 flex items-center gap-2">
-                  <MoodGlyph mood={r.mood as Mood} className="text-base" />
-                  <span className="font-medium text-foreground">
-                    {r.title || "未命名"}
-                  </span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {formatHumanDate(new Date(r.date + "T00:00:00"))}
-                  </span>
-                </div>
-                <p className="line-clamp-2 text-sm text-muted-foreground">
-                  {makeExcerpt(r.body, query)}
-                </p>
-                {r.tags && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {r.tags
-                      .split(/\s+/)
-                      .filter(Boolean)
-                      .map((t) => (
-                        <span
-                          key={t}
-                          className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                        >
-                          <Tag className="h-3 w-3" />
-                          {t}
-                        </span>
-                      ))}
-                  </div>
-                )}
-              </motion.button>
-            );
-          })}
+              />
+            </motion.div>
+          ))}
         </div>
       </div>
     </div>

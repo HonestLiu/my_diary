@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAppStore } from "@/store/appStore";
 import { byRecency } from "@/lib/journal";
-import { MoodGlyph } from "@/components/MoodGlyph";
+import { EntryCard } from "@/components/EntryCard";
 import { formatHumanDate } from "@/lib/utils";
 import type { JournalEntry } from "@/types/journal";
 
@@ -52,37 +52,32 @@ export default function Timeline() {
             <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
               {year.months.map((month) => (
                 <div key={month.key} className="border-l-2 border-border pl-4">
-                  <p className="mb-2 text-sm font-medium text-muted-foreground">
+                  <p className="mb-2.5 text-sm font-medium text-muted-foreground">
                     {month.label}
                   </p>
-                  <div className="flex flex-col gap-1.5">
-                    {month.entries.map((e, i) => {
-                      return (
-                        <motion.button
-                          key={e.id}
-                          type="button"
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.015 }}
+                  <div className="flex flex-col gap-3">
+                    {month.entries.map((e, i) => (
+                      <motion.div
+                        key={e.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.015 }}
+                      >
+                        <EntryCard
+                          title={e.title}
+                          meta={e.date.slice(8)}
+                          mood={e.mood}
+                          weather={e.weather}
+                          preview={
+                            e.body.replace(/[#>*_`~]/g, "").slice(0, 48) ||
+                            formatHumanDate(new Date(e.date + "T00:00:00"))
+                          }
+                          location={e.location}
+                          tags={e.tags}
                           onClick={() => open(e)}
-                          className="group relative flex items-start gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-muted"
-                        >
-                          <span className="mt-0.5 w-8 shrink-0 text-right text-xs text-muted-foreground">
-                            {e.date.slice(8)}
-                          </span>
-                          <MoodGlyph mood={e.mood} className="text-lg" />
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-foreground group-hover:text-primary">
-                              {e.title || "未命名"}
-                            </p>
-                            <p className="line-clamp-1 text-xs text-muted-foreground">
-                              {e.body.replace(/[#>*_`~]/g, "").slice(0, 48) ||
-                                formatHumanDate(new Date(e.date + "T00:00:00"))}
-                            </p>
-                          </div>
-                        </motion.button>
-                      );
-                    })}
+                        />
+                      </motion.div>
+                    ))}
                   </div>
                 </div>
               ))}

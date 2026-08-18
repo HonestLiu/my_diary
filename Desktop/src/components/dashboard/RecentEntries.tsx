@@ -1,8 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Card } from "@/components/ui/card";
-import { MoodGlyph } from "@/components/MoodGlyph";
-import { WeatherGlyph } from "@/components/WeatherGlyph";
+import { EntryCard } from "@/components/EntryCard";
 import { useAppStore } from "@/store/appStore";
 import type { JournalEntry } from "@/types/journal";
 
@@ -20,8 +18,8 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
   };
 
   return (
-    <Card className="overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4">
+    <section>
+      <div className="mb-3 flex items-center justify-between px-1">
         <h3 className="text-base font-semibold">最近日记</h3>
         <button
           onClick={() => navigate("/timeline")}
@@ -30,40 +28,27 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
           查看全部 →
         </button>
       </div>
-      <div className="divide-y divide-border/70">
-        {entries.map((e, i) => {
-          return (
-            <motion.button
-              key={e.id}
+      <div className="flex flex-col gap-3">
+        {entries.map((e, i) => (
+          <motion.div
+            key={e.id}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: i * 0.05 }}
+          >
+            <EntryCard
+              title={e.title}
+              meta={e.date.slice(5)}
+              mood={e.mood}
+              weather={e.weather}
+              preview={e.body || "（空白日记）"}
+              location={e.location}
+              tags={e.tags}
               onClick={() => open(e)}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.05 }}
-              className="group flex w-full items-start gap-4 px-6 py-4 text-left transition-colors hover:bg-accent/50"
-            >
-              <div className="mt-0.5 text-2xl leading-none">
-                <MoodGlyph mood={e.mood} className="text-2xl" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-medium">
-                    {e.title || "未命名"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    <WeatherGlyph weather={e.weather} className="text-xs" />
-                  </span>
-                </div>
-                <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">
-                  {e.body || "（空白日记）"}
-                </p>
-              </div>
-              <div className="shrink-0 text-xs text-muted-foreground">
-                {e.date.slice(5)}
-              </div>
-            </motion.button>
-          );
-        })}
+            />
+          </motion.div>
+        ))}
       </div>
-    </Card>
+    </section>
   );
 }
