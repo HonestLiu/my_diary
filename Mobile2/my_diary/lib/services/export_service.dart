@@ -47,10 +47,10 @@ class ExportService {
         final rel = _rel(vaultRoot, e.path);
         final bytes = e.readAsBytesSync();
         final text = utf8.decode(bytes, allowMalformed: true);
-        // 先按原始 vault 相对路径收集引用，再把文本中的引用
-        // 改写为相对 .md 所在目录的路径，最后写入 zip。
+        // 先按原始 vault 相对路径收集引用，再把正文中的引用
+        // 改写为相对 .md 所在目录的路径（frontmatter 保持原样），最后写入 zip。
         referenced.addAll(_collectAssetRefs(text));
-        final rewritten = _prefixAssetRefs(text, _relativePrefix(rel));
+        final rewritten = _rewriteBodyAssetRefs(text, _relativePrefix(rel));
         final out = utf8.encode(rewritten);
         zip.addFile(ArchiveFile(rel, out.length, out));
       }
@@ -85,7 +85,17 @@ class ExportService {
       }
       // 必须用同步 addFileSync：addFile 是 async（内部 await 文件流关闭），
       // 在同步函数里不 await 会 fire-and-forget，close 时数据未写完 → 1kb 空包。
-      encoder.addFileSync(e, rel);
+      if (rel.toLowerCase().endsWith('.md')) {
+        // .md：改写正文资产引用为相对路径（Typora 直接打开单个文件即可看图），
+        // frontmatter 保持 vault 根相对原样（App 还原时按原路径解析）。
+        final bytes = e.readAsBytesSync();
+        final text = utf8.decode(bytes, allowMalformed: true);
+        final rewritten = _rewriteBodyAssetRefs(text, _relativePrefix(rel));
+        final out = utf8.encode(rewritten);
+        encoder.addArchiveFile(ArchiveFile(rel, out.length, out));
+      } else {
+        encoder.addFileSync(e, rel);
+      }
       count++;
     }
     encoder.closeSync(); // 同步 close，确保数据全部落盘
@@ -100,6 +110,18 @@ class ExportService {
   static String _relativePrefix(String mdRel) {
     final dirs = mdRel.split('/').length - 1;
     return '../' * dirs;
+  }
+
+  /// 只改写**正文**（frontmatter 结束标记 `---` 之后）中的资产引用；
+  /// frontmatter（`assets`/`path` 元数据）保持 vault 根相对原样，
+  /// 供 App 按原路径解析（还原/导入不破坏）。
+  static String _rewriteBodyAssetRefs(String text, String prefix) {
+    if (!text.startsWith('---')) return _prefixAssetRefs(text, prefix);
+    final end = text.indexOf('\n---', 3); // frontmatter 的结束 `---` 行
+    if (end < 0) return _prefixAssetRefs(text, prefix);
+    final head = text.substring(0, end + 4); // 含 `---\n` 结束标记
+    final body = text.substring(end + 4);
+    return head + _prefixAssetRefs(body, prefix);
   }
 
   /// 把文本中的 vault 相对资产引用改写为相对 .md 所在目录的路径：
