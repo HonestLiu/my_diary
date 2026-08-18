@@ -113,7 +113,7 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   /// 列表工具条：与日记卡片同款「柔和投影圆角卡」，内含计数 + 媒体筛选 + 排序。
-  /// 位于回忆区块下方。
+  /// 位于回忆区块下方。两个按钮统一 32 高、卡片上下 padding 对称（6/6）。
   Widget _buildToolbar(BuildContext context, int count) {
     final t = context.tokens;
     final primary = Theme.of(context).colorScheme.primary;
@@ -125,7 +125,7 @@ class HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(t.radiusCard)),
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
+        padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
         child: Row(
           children: [
             Text(
@@ -133,42 +133,36 @@ class HomeScreenState extends State<HomeScreen> {
               style: context.caption.copyWith(color: t.textSecondary),
             ),
             const Spacer(),
-            // 媒体筛选 chip。
-            FilterChip(
-              label: Text('仅媒体',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight:
-                        _onlyMedia ? FontWeight.w700 : FontWeight.w500,
-                    color: _onlyMedia ? primary : t.textSecondary,
-                  )),
-              selected: _onlyMedia,
-              onSelected: (v) => setState(() => _onlyMedia = v),
-              visualDensity: VisualDensity.compact,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              selectedColor: primary.withValues(alpha: 0.12),
-              checkmarkColor: primary,
-              backgroundColor: context.cs.surface,
-              side: BorderSide(
-                color: _onlyMedia
-                    ? primary.withValues(alpha: 0.45)
-                    : t.border,
+            // 媒体筛选 chip（统一高度，上下居中）。
+            SizedBox(
+              height: 32,
+              child: FilterChip(
+                label: Text('仅媒体',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          _onlyMedia ? FontWeight.w700 : FontWeight.w500,
+                      color: _onlyMedia ? primary : t.textSecondary,
+                    )),
+                selected: _onlyMedia,
+                onSelected: (v) => setState(() => _onlyMedia = v),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                selectedColor: primary.withValues(alpha: 0.12),
+                checkmarkColor: primary,
+                backgroundColor: context.cs.surface,
+                side: BorderSide(
+                  color: _onlyMedia
+                      ? primary.withValues(alpha: 0.45)
+                      : t.border,
+                ),
               ),
             ),
             const SizedBox(width: 8),
-            // 排序 chip（点击弹菜单）。
-            PopupMenuButton<HomeSort>(
-              tooltip: '排序',
-              initialValue: _sortBy,
-              onSelected: (v) => setState(() => _sortBy = v),
-              itemBuilder: (_) => [
-                for (final s in HomeSort.values)
-                  CheckedPopupMenuItem(
-                    value: s,
-                    checked: s == _sortBy,
-                    child: Text(s.label),
-                  ),
-              ],
+            // 排序 chip：直接 onPressed 弹底部单选面板（不用 PopupMenuButton 包
+            // chip，否则点击手势会被 chip 吃掉、弹不出来）。
+            SizedBox(
+              height: 32,
               child: ActionChip(
                 avatar: Icon(Icons.sort, size: 15, color: primary),
                 label: Text(_sortBy.label,
@@ -176,7 +170,7 @@ class HomeScreenState extends State<HomeScreen> {
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: t.textSecondary)),
-                onPressed: () {}, // 点击由 PopupMenuButton 接管
+                onPressed: _showSortSheet,
                 visualDensity: VisualDensity.compact,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 backgroundColor: context.cs.surface,
@@ -187,6 +181,49 @@ class HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  /// 排序选择：底部单选面板（与 App 其他弹层风格一致）。
+  Future<void> _showSortSheet() async {
+    final t = context.tokens;
+    final primary = Theme.of(context).colorScheme.primary;
+    final v = await showModalBottomSheet<HomeSort>(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(t.radiusSheet)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('排序方式',
+                    style: context.titleMedium),
+              ),
+            ),
+            for (final s in HomeSort.values)
+              ListTile(
+                leading: Icon(
+                  s == _sortBy ? Icons.check_circle : Icons.circle_outlined,
+                  size: 22,
+                  color: s == _sortBy ? primary : t.textTertiary,
+                ),
+                title: Text(s.label,
+                    style: TextStyle(
+                      fontWeight:
+                          s == _sortBy ? FontWeight.w700 : FontWeight.w400,
+                    )),
+                onTap: () => Navigator.pop(context, s),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (v != null && mounted) setState(() => _sortBy = v);
   }
 
   void _create(BuildContext context) {
