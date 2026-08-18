@@ -727,7 +727,7 @@ class _Thumb extends StatelessWidget {
         store: store,
         width: size.width,
         height: size.height,
-        showBadge: false,
+        showBadge: true,
       ),
     );
   }

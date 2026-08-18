@@ -593,6 +593,20 @@ class _MemoryCard extends StatelessWidget {
             left: 10,
             child: _memoBadge(context, item.badge, dark: true),
           ),
+          if (cover.kind == AssetKind.video)
+            const Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  shape: BoxShape.circle,
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(7),
+                  child: Icon(Icons.play_arrow_rounded,
+                      color: Colors.white, size: 26),
+                ),
+              ),
+            ),
           Positioned(
             left: 10,
             right: 10,
