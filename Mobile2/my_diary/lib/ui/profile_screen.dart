@@ -4,18 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
-import 'package:my_diary_mobile/models/sync_types.dart';
-import 'package:my_diary_mobile/sync/auth_service.dart';
 import 'package:my_diary_mobile/repository/journal_repository.dart';
-import 'package:my_diary_mobile/services/export_service.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/favorite_screen.dart';
 import 'package:my_diary_mobile/ui/search_screen.dart';
 import 'package:my_diary_mobile/ui/settings_screen.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 /// 我的：个人中心 + 统计 + 账户与同步 + 外观快捷 + 设置入口。
 /// 精致卡片风：柔和投影无边框卡，散落小组件合并成更少的卡。
@@ -27,13 +22,9 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  Future<List<String>>? _conflicts;
-  bool _exporting = false;
-
   @override
   void initState() {
     super.initState();
-    _conflicts = context.read<AppStore>().pendingConflictPaths();
   }
 
   int get _streak {
@@ -56,59 +47,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _key(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-  Future<void> _sync() async {
-    final store = context.read<AppStore>();
-    await store.syncNow();
-    if (mounted) setState(() => _conflicts = store.pendingConflictPaths());
-  }
-
-  /// 导出完整备份：流式生成 zip 到临时目录后走系统分享面板
-  /// （移动端 saveFile 强制要求 bytes，整包进内存违背流式初衷，故用分享）。
-  Future<void> _exportFullBackup() async {
-    final store = context.read<AppStore>();
-    setState(() => _exporting = true);
-    try {
-      final tmp = await getTemporaryDirectory();
-      final stamp = DateFormat('yyyyMMdd-HHmm').format(DateTime.now());
-      final zipPath = '${tmp.path}/my-diary-full-$stamp.zip';
-      final count =
-          await ExportService.buildFullZip(store.repo.storage.root, zipPath);
-      if (!mounted) return;
-      if (count == 0) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('还没有可导出的数据')));
-        return;
-      }
-      await Share.shareXFiles(
-        [XFile(zipPath, mimeType: 'application/zip')],
-        text: 'MyDiary 完整备份（$count 个文件）',
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('备份已生成（$count 个文件）：$zipPath'),
-      ));
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('导出失败：$e')));
-      }
-    } finally {
-      if (mounted) setState(() => _exporting = false);
-    }
-  }
-
-  Future<void> _resolve(String path, ConflictResolution r) async {
-    final store = context.read<AppStore>();
-    await store.resolveConflict(path, r);
-    if (mounted) {
-      setState(() => _conflicts = store.pendingConflictPaths());
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(r == ConflictResolution.local
-              ? '已保留本地版本'
-              : '已采用远程版本')));
-    }
-  }
 
   /// 编辑座右铭：弹窗输入，保存后写 settings.motto。
   ///
@@ -215,10 +153,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final auth = context.watch<AuthService>();
     final t = context.tokens;
     final s = store.settings;
-    final sync = s.sync;
     final total = store.entries.length;
     final favCount = store.entries.where((e) => e.favorite).length;
     final ym = DateFormat('yyyy-MM').format(DateTime.now());
@@ -352,246 +288,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _TagCloudCard(tags: tagCloud),
           const SizedBox(height: 16),
 
-          // 卡 5：账户与同步
-          _Card(children: [
-            if (auth.isCloudAuthenticated)
-              Row(
-                children: [
-                  const Icon(Icons.verified_user_outlined, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(auth.email ?? '已登录',
-                            style: const TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
-                        Text('云服务已连接', style: context.caption),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      await auth.logout();
-                      if (mounted) setState(() {});
-                    },
-                    child: const Text('注销'),
-                  ),
-                ],
-              )
-            else
-              InkWell(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const SettingsScreen()),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.cloud_outlined, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('云服务账户',
-                              style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 2),
-                          Text('登录后多端同步日记', style: context.caption),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.chevron_right, color: t.textTertiary),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 14),
-            const Divider(height: 1),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Icon(sync.enabled
-                    ? Icons.cloud_done_outlined
-                    : Icons.cloud_off_outlined),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    sync.enabled
-                        ? '同步已启用 · ${_providerLabel(sync.provider)}'
-                        : '同步未启用',
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: store.busy ? null : _sync,
-                icon: store.busy
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.sync),
-                label: Text(store.busy ? '同步中…' : '立即同步'),
-              ),
-            ),
-            if (store.lastSyncAt != null) ...[
-              const SizedBox(height: 8),
-              Text('上次同步：${DateFormat('MM-dd HH:mm').format(store.lastSyncAt!.toLocal())}',
-                  style: context.caption),
-            ],
-            if (store.lastSync != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _Stat(label: '上传', value: store.lastSync!.uploaded.length),
-                  _Stat(label: '下载', value: store.lastSync!.downloaded.length),
-                  _Stat(
-                      label: '冲突',
-                      value: store.lastSync!.conflicts.length,
-                      danger: store.lastSync!.conflicts.isNotEmpty),
-                ],
-              ),
-            ],
-            FutureBuilder<List<String>>(
-              future: _conflicts,
-              builder: (c, snap) {
-                final conflicts = snap.data;
-                if (conflicts == null || conflicts.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 12),
-                    const Divider(height: 1),
-                    const SizedBox(height: 10),
-                    Text('待解决冲突',
-                        style: context.titleMedium),
-                    const SizedBox(height: 8),
-                    for (final p in conflicts)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: t.fill,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(p.split('/').last,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () =>
-                                        _resolve(p, ConflictResolution.local),
-                                    child: const Text('保留本地'),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: FilledButton(
-                                    onPressed: () => _resolve(
-                                        p, ConflictResolution.remote),
-                                    child: const Text('采用远程'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
-          ]),
-          const SizedBox(height: 16),
 
-          // 卡 6：外观
+          // 卡 7：设置入口
           _Card(children: [
-            const Text('主题',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 10),
-            SegmentedButton<ThemePreference>(
-              segments: const [
-                ButtonSegment(
-                    value: ThemePreference.light, label: Text('亮')),
-                ButtonSegment(
-                    value: ThemePreference.dark, label: Text('暗')),
-                ButtonSegment(
-                    value: ThemePreference.system, label: Text('跟随系统')),
-              ],
-              selected: {s.theme},
-              onSelectionChanged: (sel) => store
-                  .saveSettings(s.copyWith(theme: sel.first)),
-            ),
-            const SizedBox(height: 18),
-            const Text('品牌色',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 14,
-              children: AccentKey.values
-                  .map((a) => InkWell(
-                        onTap: () =>
-                            store.saveSettings(s.copyWith(accent: a)),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: accentSeeds[a],
-                            shape: BoxShape.circle,
-                            border: s.accent == a
-                                ? Border.all(
-                                    color: t.textPrimary, width: 2.5)
-                                : null,
-                          ),
-                          child: s.accent == a
-                              ? const Icon(Icons.check,
-                                  color: Colors.white, size: 18)
-                              : null,
-                        ),
-                      ))
-                  .toList(),
-            ),
-          ]),
-          const SizedBox(height: 16),
-
-          // 卡 7：导出与设置入口
-          _Card(children: [
-            ListTile(
-              leading: const Icon(Icons.backup_outlined),
-              title: const Text('导出完整备份'),
-              subtitle: const Text('含图片/音视频等全部数据（流式压缩）'),
-              trailing: _exporting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.chevron_right),
-              contentPadding: EdgeInsets.zero,
-              onTap: _exporting ? null : _exportFullBackup,
-            ),
-            const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.settings_outlined),
-              title: const Text('全部设置'),
-              subtitle: const Text('同步方式 · 默认心情 · 昵称'),
+              title: const Text('设置'),
+              subtitle: const Text('外观 · 日记 · 同步 · 数据与备份'),
               trailing: const Icon(Icons.chevron_right),
               contentPadding: EdgeInsets.zero,
               onTap: () => Navigator.push(
@@ -609,23 +312,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
-  }
-
-  String _providerLabel(SyncProvider p) {
-    switch (p) {
-      case SyncProvider.none:
-        return '未启用';
-      case SyncProvider.cloud:
-        return '云服务';
-      case SyncProvider.s3:
-        return 'S3';
-      case SyncProvider.r2:
-        return 'Cloudflare R2';
-      case SyncProvider.minio:
-        return 'MinIO';
-      case SyncProvider.oss:
-        return '阿里云 OSS';
-    }
   }
 
   /// 统计某维度（心情 / 天气）在全部日记中的分布，返回降序排列、含全部类别（含 0 值）。
@@ -796,41 +482,6 @@ Widget _vDivider(AppTokens t) => Container(
       height: 46,
       color: t.border,
     );
-
-class _Stat extends StatelessWidget {
-  final String label;
-  final int value;
-  final bool danger;
-  const _Stat(
-      {required this.label, required this.value, this.danger = false});
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: Container(
-          margin: const EdgeInsets.only(right: 8),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: context.tokens.fill,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            children: [
-              Text('$value',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: danger
-                          ? const Color(0xFFB42318)
-                          : context.tokens.textPrimary)),
-              const SizedBox(height: 2),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 12, color: context.tokens.textSecondary)),
-            ],
-          ),
-        ),
-      );
-}
 
 /// 柱状图单条数据：图标 widget（emoji 文本 / iconfont 图标）+ 中文标签 + 计数。
 class _BarDatum {
