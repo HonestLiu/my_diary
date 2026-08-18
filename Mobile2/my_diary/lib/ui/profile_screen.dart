@@ -58,6 +58,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) setState(() => _conflicts = store.pendingConflictPaths());
   }
 
+  /// 导出完整备份（流式压缩，含媒体），经系统保存对话框选择位置。
+  Future<void> _exportFullBackup() async {
+    final store = context.read<AppStore>();
+    setState(() => _exporting = true);
+    try {
+      final stamp = DateFormat('yyyyMMdd-HHmm').format(DateTime.now());
+      // bytes: null → 只弹系统保存框返回路径，zip 由流式管道直接写入目标文件。
+      final target = await FilePicker.platform.saveFile(
+        dialogTitle: '导出完整备份',
+        fileName: 'my-diary-full-$stamp.zip',
+        bytes: null,
+      );
+      if (!mounted) return;
+      if (target == null) return; // 用户取消
+      final count =
+          await ExportService.buildFullZip(store.repo.storage.root, target);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('完整备份已导出（$count 个文件）：$target'),
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('导出失败：$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   /// 导出全部 Markdown 日记为 zip（经系统保存对话框选择位置）。
   Future<void> _exportMarkdownZip() async {
     final store = context.read<AppStore>();
@@ -421,6 +451,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   : const Icon(Icons.chevron_right),
               contentPadding: EdgeInsets.zero,
               onTap: _exporting ? null : _exportMarkdownZip,
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.backup_outlined),
+              title: const Text('导出完整备份'),
+              subtitle: const Text('含图片/音视频等全部数据（流式压缩）'),
+              trailing: _exporting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.chevron_right),
+              contentPadding: EdgeInsets.zero,
+              onTap: _exporting ? null : _exportFullBackup,
             ),
             const Divider(height: 1),
             ListTile(
