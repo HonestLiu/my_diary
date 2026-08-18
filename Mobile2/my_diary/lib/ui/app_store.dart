@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -32,6 +33,7 @@ class AppStore extends ChangeNotifier {
   SyncResult? _lastSync;
   String? _syncError;
   DateTime? _lastSyncAt;
+  Timer? _autoSyncTimer; // 编辑后自动同步防抖（避免连续编辑频繁请求远程）
 
   AppStore({
     required this.auth,
@@ -47,6 +49,7 @@ class AppStore extends ChangeNotifier {
   String? get syncError => _syncError;
   DateTime? get lastSyncAt => _lastSyncAt;
   String get deviceId => _deviceId;
+  bool get syncEnabled => _settings.sync.enabled;
 
   /// 当前待解决的冲突（本地冲突副本存在即视为待处理）。返回条目文件相对路径。
   Future<List<String>> pendingConflictPaths() async {
@@ -101,6 +104,8 @@ class AppStore extends ChangeNotifier {
     await refreshEntries();
     _initialized = true;
     notifyListeners();
+    // 启动后自动后台同步一次（已配置同步时）。
+    scheduleAutoSync(delay: const Duration(seconds: 2));
   }
 
   Future<void> refreshEntries() async {
@@ -111,17 +116,20 @@ class AppStore extends ChangeNotifier {
   Future<void> saveEntry(JournalEntry entry) async {
     await repo.saveEntry(entry);
     await refreshEntries();
+    scheduleAutoSync();
   }
 
   /// 切换喜欢标记（轻量元数据更新，不归档历史版本）。
   Future<void> setFavorite(JournalEntry entry, bool fav) async {
     await repo.saveEntry(entry.copyWith(favorite: fav), archive: false);
     await refreshEntries();
+    scheduleAutoSync();
   }
 
   Future<void> deleteEntry(String id) async {
     await repo.deleteEntry(id);
     await refreshEntries();
+    scheduleAutoSync();
   }
 
   Future<List<JournalEntry>> search(String q,
@@ -201,6 +209,17 @@ class AppStore extends ChangeNotifier {
   /// 设置座右铭（个人主页展示）。
   Future<void> setMotto(String motto) async {
     await saveSettings(_settings.copyWith(motto: motto.trim()));
+  }
+
+  /// 启动后 / 保存、删除、切换喜欢后自动同步（防抖）。
+  /// 仅在已启用同步时生效；连续编辑会重置计时器，避免频繁请求远程。
+  void scheduleAutoSync({Duration delay = const Duration(seconds: 3)}) {
+    if (!_settings.sync.enabled) return;
+    _autoSyncTimer?.cancel();
+    _autoSyncTimer = Timer(delay, () {
+      _autoSyncTimer = null;
+      syncNow();
+    });
   }
 
   /// 立即同步（上传 / 下载 / 冲突检测）。

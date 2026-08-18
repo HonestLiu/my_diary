@@ -11,6 +11,7 @@ import 'package:my_diary_mobile/ui/editor_screen.dart';
 import 'package:my_diary_mobile/ui/entry_card.dart';
 import 'package:my_diary_mobile/ui/profile_screen.dart';
 import 'package:my_diary_mobile/ui/search_screen.dart';
+import 'package:my_diary_mobile/ui/settings_screen.dart';
 import 'package:provider/provider.dart';
 
 /// 首页日记列表的排序方式。
@@ -69,6 +70,16 @@ class HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('日记'),
         actions: [
+          if (store.syncEnabled)
+            _SyncStatusIcon(
+              syncing: store.busy,
+              lastSyncAt: store.lastSyncAt,
+              error: store.syncError,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.search_outlined),
             tooltip: '搜索',
@@ -318,6 +329,48 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+/// AppBar 同步状态指示：同步中转圈、成功显示上次同步时间、失败显示错误，
+/// 未开始显示等待。仅启用同步时显示；点击进入设置页。
+class _SyncStatusIcon extends StatelessWidget {
+  final bool syncing;
+  final DateTime? lastSyncAt;
+  final String? error;
+  final VoidCallback onTap;
+  const _SyncStatusIcon({
+    required this.syncing,
+    required this.lastSyncAt,
+    required this.error,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget icon;
+    String tooltip;
+    if (syncing) {
+      icon = const SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+      tooltip = '正在同步…';
+    } else if (error != null) {
+      icon = const Icon(Icons.cloud_off_outlined, color: Colors.redAccent);
+      tooltip = '同步失败，点击查看';
+    } else if (lastSyncAt != null) {
+      icon = const Icon(Icons.cloud_done_outlined);
+      tooltip = '已同步：${DateFormat('MM-dd HH:mm').format(lastSyncAt!.toLocal())}';
+    } else {
+      icon = const Icon(Icons.cloud_sync_outlined);
+      tooltip = '等待首次同步';
+    }
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(icon: icon, onPressed: onTap),
+    );
+  }
+}
+
 class _ConflictBanner extends StatelessWidget {
   final VoidCallback onTap;
   const _ConflictBanner({required this.onTap});
@@ -328,7 +381,6 @@ class _ConflictBanner extends StatelessWidget {
           color: const Color(0xFFFEF3F2),
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
-            borderRadius: BorderRadius.circular(12),
             onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
