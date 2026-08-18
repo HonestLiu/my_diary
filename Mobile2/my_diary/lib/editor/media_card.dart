@@ -5,6 +5,7 @@ import 'package:my_diary_mobile/editor/doc_model.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
+import 'package:my_diary_mobile/ui/media_player.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
 
@@ -47,7 +48,7 @@ String labelForKind(AssetKind kind) {
   }
 }
 
-/// 正文里的媒体块：图片直接预览，音视频 / 附件渲染为卡片并交由系统播放器打开。
+/// 正文里的媒体块：图片直接预览，音视频软件内播放（弹层），附件交系统打开。
 ///
 /// 编辑态与只读态共用同一组件，只在编辑态显示删除按钮 —— 保证「所见即所得」。
 class MediaBlockCard extends StatelessWidget {
@@ -76,6 +77,19 @@ class MediaBlockCard extends StatelessWidget {
             child: Center(child: Image.file(file)),
           ),
         ),
+      );
+      return;
+    }
+    // 音视频：软件内播放（弹层），不再跳三方应用；附件仍交系统打开。
+    if (media.kind == AssetKind.video || media.kind == AssetKind.audio) {
+      if (!context.mounted) return;
+      await showInAppMediaPlayer(
+        context,
+        kind: media.kind,
+        file: file,
+        title: media.name.isEmpty
+            ? file.path.split(RegExp(r'[/\\]')).last
+            : media.name,
       );
       return;
     }

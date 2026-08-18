@@ -7,6 +7,7 @@ import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/detail_screen.dart';
 import 'package:my_diary_mobile/ui/entry_card.dart';
+import 'package:my_diary_mobile/ui/media_player.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
 
@@ -344,6 +345,37 @@ class _PreviewSheet extends StatelessWidget {
                           ),
                         );
                       }
+                      // 音视频：软件内播放（页内直接可播），不再跳三方应用。
+                      if (a.kind == AssetKind.video) {
+                        return Center(
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 10),
+                            child: InAppVideoPlayer(file: file),
+                          ),
+                        );
+                      }
+                      if (a.kind == AssetKind.audio) {
+                        return Center(
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 20),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                InAppAudioPlayer(file: file),
+                                const SizedBox(height: 12),
+                                Text(a.name ?? '',
+                                    style: const TextStyle(
+                                        color: Colors.white70, fontSize: 12),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+                      // 附件：占位 + 交系统打开。
                       return Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
