@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/models/sync_types.dart';
@@ -107,6 +110,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// 编辑座右铭：弹窗输入，保存后写 settings.motto。
+  Future<void> _editMotto() async {
+    final store = context.read<AppStore>();
+    final ctrl = TextEditingController(text: store.settings.motto);
+    final v = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('座右铭'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 60,
+          maxLines: 2,
+          decoration: const InputDecoration(
+              hintText: '写一句鼓舞自己的话…', border: InputBorder.none),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: const Text('保存')),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (v != null) await store.setMotto(v);
+  }
+
+  /// 更换 / 移除头像：底部弹层选择，相册选图后拷贝到应用文档目录。
+  Future<void> _changeAvatar() async {
+    final store = context.read<AppStore>();
+    final hasAvatar = store.avatarFile != null;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('从相册选择'),
+              onTap: () => Navigator.pop(ctx, 'pick'),
+            ),
+            if (hasAvatar)
+              ListTile(
+                leading: const Icon(Icons.delete_outline,
+                    color: Colors.redAccent),
+                title: const Text('移除头像',
+                    style: TextStyle(color: Colors.redAccent)),
+                onTap: () => Navigator.pop(ctx, 'remove'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'remove') {
+      await store.clearAvatar();
+      return;
+    }
+    if (action != 'pick') return;
+    try {
+      final x = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 90,
+      );
+      if (x == null) return;
+      await store.setAvatar(File(x.path));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('设置头像失败：$e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
@@ -138,7 +219,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _Card(children: [
             Row(
               children: [
-                _Avatar(name: s.displayName, size: 64),
+                _Avatar(
+                  name: s.displayName,
+                  size: 64,
+                  image: store.avatarFile,
+                  onTap: _changeAvatar,
+                ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
@@ -150,6 +236,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 4),
                       Text('$total 篇日记 · 连续 $_streak 天',
                           style: context.caption),
+                      const SizedBox(height: 2),
+                      // 座右铭：点击编辑（空时显示添加提示）。
+                      InkWell(
+                        onTap: _editMotto,
+                        borderRadius: BorderRadius.circular(6),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                s.motto.isEmpty ? '添加座右铭' : '“${s.motto}”',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: s.motto.isEmpty
+                                    ? TextStyle(
+                                        fontSize: 12.5, color: t.textTertiary)
+                                    : TextStyle(
+                                        fontSize: 12.5,
+                                        color: t.textSecondary,
+                                        fontStyle: FontStyle.italic),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.edit_outlined,
+                                size: 13, color: t.textTertiary),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -863,27 +976,64 @@ class _StatsChartCardState extends State<_StatsChartCard> {
 class _Avatar extends StatelessWidget {
   final String name;
   final double size;
-  const _Avatar({required this.name, required this.size});
+  final File? image; // 已设置头像时显示图片，否则回退首字
+  final VoidCallback? onTap;
+  const _Avatar({
+    required this.name,
+    required this.size,
+    this.image,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final src = name.isEmpty ? '我' : name;
     final letter = String.fromCharCode(src.runes.first);
     final color = Theme.of(context).colorScheme.primary;
-    return Container(
+    final base = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         shape: BoxShape.circle,
         border: Border.all(color: color.withValues(alpha: 0.35), width: 1.5),
+        image: image == null
+            ? null
+            : DecorationImage(image: FileImage(image!), fit: BoxFit.cover),
       ),
       alignment: Alignment.center,
-      child: Text(letter,
-          style: TextStyle(
-              fontSize: size * 0.4,
-              fontWeight: FontWeight.w700,
-              color: color)),
+      clipBehavior: Clip.antiAlias,
+      child: image == null
+          ? Text(letter,
+              style: TextStyle(
+                  fontSize: size * 0.4,
+                  fontWeight: FontWeight.w700,
+                  color: color))
+          : null,
+    );
+    // 右下角小相机角标：提示可点击更换。
+    final badge = Positioned(
+      right: 0,
+      bottom: 0,
+      child: Container(
+        padding: EdgeInsets.all(size * 0.05),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          shape: BoxShape.circle,
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Icon(Icons.photo_camera_outlined,
+            size: size * 0.18, color: color),
+      ),
+    );
+    return Stack(
+      children: [
+        if (onTap != null)
+          InkWell(customBorder: const CircleBorder(), onTap: onTap, child: base)
+        else
+          base,
+        badge,
+      ],
     );
   }
 }
