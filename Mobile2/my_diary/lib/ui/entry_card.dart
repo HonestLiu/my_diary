@@ -8,8 +8,8 @@ import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/detail_screen.dart';
 
 /// 首页 / 日历共用的日记卡片：柔和投影无边框圆角卡。
-/// 布局：左列（标题 + 喜欢角标 + 两行预览 + 底部 meta 胶囊），右侧可选大封面图。
-/// 有封面时右侧 84×84 圆角图成为视觉锚点；无封面时纯文字纵向舒展。
+/// 布局：标题行（标题 + 心情/天气 emoji + 喜欢角标）→ 地点行 → 两行预览 →
+/// 底部标签胶囊；右侧可选大封面图。信息分层分散，不挤在底部一行。
 class EntryCard extends StatelessWidget {
   final JournalEntry entry;
   const EntryCard({super.key, required this.entry});
@@ -19,6 +19,7 @@ class EntryCard extends StatelessWidget {
     final t = context.tokens;
     final imgs = entry.assets.where((a) => a.kind == AssetKind.image);
     final cover = imgs.isEmpty ? null : imgs.first;
+    final loc = entry.location?.trim() ?? '';
     // 渲染后的预览：解码正文为文档块，再压平成带行内样式的 span（保留加粗/斜体等）。
     final previewSpans = docBlocksToPreviewSpans(
       context,
@@ -48,7 +49,7 @@ class EntryCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 标题行：标题 + 喜欢红心角标。
+                    // 标题行：标题 + 心情/天气 emoji + 喜欢红心角标。
                     Row(
                       children: [
                         Expanded(
@@ -60,23 +61,73 @@ class EntryCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        Text(entry.mood.emoji,
+                            style: const TextStyle(fontSize: 14)),
+                        if (entry.weather != Weather.unknown) ...[
+                          const SizedBox(width: 3),
+                          Text(entry.weather.emoji,
+                              style: const TextStyle(fontSize: 14)),
+                        ],
                         if (entry.favorite) ...[
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 5),
                           const Icon(Icons.favorite,
                               size: 15, color: Colors.redAccent),
                         ],
                       ],
                     ),
+                    // 地点行：📍 图标 + 文本。
+                    if (loc.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.place_outlined,
+                              size: 13, color: t.textTertiary),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              loc,
+                              style: TextStyle(
+                                  fontSize: 12, color: t.textTertiary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    // 正文预览两行。
                     if (hasPreview) ...[
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 7),
                       Text.rich(
                         TextSpan(children: previewSpans),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                    const SizedBox(height: 10),
-                    _MetaChips(entry: entry),
+                    // 底部标签胶囊。
+                    if (entry.tags.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final tag in entry.tags.take(2))
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: t.fill,
+                                borderRadius:
+                                    BorderRadius.circular(t.radiusChip),
+                              ),
+                              child: Text('#$tag',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: t.textTertiary)),
+                            ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -89,50 +140,6 @@ class EntryCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-/// 底部 meta 胶囊行：地点 / 心情 / 天气 / 标签，浅底小圆角逐个排开。
-class _MetaChips extends StatelessWidget {
-  final JournalEntry entry;
-  const _MetaChips({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final chips = <Widget>[];
-    void add(IconData? icon, String text) {
-      chips.add(Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-        decoration: BoxDecoration(
-          color: t.fill,
-          borderRadius: BorderRadius.circular(t.radiusChip),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 12, color: t.textTertiary),
-              const SizedBox(width: 3),
-            ],
-            Text(text,
-                style: TextStyle(fontSize: 11, color: t.textTertiary)),
-          ],
-        ),
-      ));
-    }
-
-    final loc = entry.location?.trim() ?? '';
-    if (loc.isNotEmpty) add(Icons.place_outlined, loc);
-    add(null, '${entry.mood.emoji} ${entry.mood.label}');
-    if (entry.weather != Weather.unknown) {
-      add(null, '${entry.weather.emoji} ${entry.weather.label}');
-    }
-    for (final tag in entry.tags.take(2)) {
-      add(null, '#$tag');
-    }
-    if (chips.isEmpty) return const SizedBox.shrink();
-    return Wrap(spacing: 6, runSpacing: 6, children: chips);
   }
 }
 
