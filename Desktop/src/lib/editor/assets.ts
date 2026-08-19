@@ -317,7 +317,10 @@ export async function saveDroppedAssets(
   return refs;
 }
 
-/** 桌面端：原格式写入 + Rust 就地压缩。 */
+/** 桌面端：原格式写入 + Rust 就地压缩。
+ *  图片等待压缩完成返回；视频**立即返回**（先插入占位卡片），随后后台
+ *  发起 compress_video（jobId = 资产相对路径），进度经 media-progress 事件
+ *  驱动 AttachmentNodeView 的「压缩中」卡片。 */
 async function saveViaRust(
   file: File,
   kind: AssetKind,
@@ -331,33 +334,34 @@ async function saveViaRust(
   const path = assetPath(kind, filename);
   await storage.writeBytes(path, original);
 
-  let size = original.length;
-  let thumbWritten = false;
-  try {
+  // 视频：立即返回，压缩在后台进行（进度卡片见 AttachmentNodeView）。
+  if (kind === "video" && opts.videoQuality < 100) {
     const adapter = storage as TauriFsAdapter;
     const absPath = adapter.resolveAbs(path);
+    void invoke<{ size: number; thumb_written: boolean }>("compress_video", {
+      jobId: path, // 与 Attachment 节点 src 一致，前端按它匹配进度
+      absPath,
+      quality: opts.videoQuality,
+    }).catch((e) => console.error("视频压缩失败，保留原文件:", e));
+    return { kind, path, name: file.name || filename, size: original.length };
+  }
+
+  // 图片（或其他）：等待 Rust 压缩完成后返回。
+  let size = original.length;
+  try {
     if (kind === "image" && opts.imageQuality < 100) {
+      const adapter = storage as TauriFsAdapter;
+      const absPath = adapter.resolveAbs(path);
       const r = await invoke<{ size: number; thumb_written: boolean }>(
         "compress_image",
         { absPath, quality: opts.imageQuality },
       );
       size = r.size;
-      thumbWritten = r.thumb_written;
-    } else if (kind === "video" && opts.videoQuality < 100) {
-      const r = await invoke<{ size: number; thumb_written: boolean }>(
-        "compress_video",
-        { absPath, quality: opts.videoQuality },
-      );
-      size = r.size;
-      thumbWritten = r.thumb_written;
     }
   } catch (e) {
     // Rust 压缩失败：保留原文件字节，不转格式。
     console.error("压缩失败，保留原文件:", e);
   }
-
-  // 压缩失败但用户期望缩略图时，缩略图也回退由 Rust 生成（若成功）；否则跳过。
-  void thumbWritten;
   return { kind, path, name: file.name || filename, size };
 }
 

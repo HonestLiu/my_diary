@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import {
   FileText,
   Film,
+  Loader2,
   Paperclip,
   Pause,
   Play,
 } from "lucide-react";
 import { getStorage } from "@/lib/storage";
+import { useMediaProgress } from "@/lib/editor/mediaProgress";
 import type { AssetKind } from "@/types/journal";
 
 /**
@@ -40,6 +42,13 @@ export function AttachmentNodeView({
   const width: number | null = node.attrs.width ?? null;
   const [url, setUrl] = useState<string>("");
   const wrapRef = useRef<HTMLDivElement>(null);
+  // 视频压缩进度（jobId = 资产相对路径 = node.src）。压缩中/完成前显示进度卡。
+  const progress = kind === "video" ? useMediaProgress(src) : undefined;
+  const compressing =
+    progress !== undefined &&
+    (progress.stage === "downloading" ||
+      progress.stage === "transcoding" ||
+      progress.stage === "thumbnail");
 
   useEffect(() => {
     let active = true;
@@ -122,23 +131,56 @@ export function AttachmentNodeView({
           <div
             className={`overflow-hidden rounded-2xl border border-border bg-card/70 shadow-sm backdrop-blur ${ring}`}
           >
-            {url && (
-              <video
-                src={url}
-                controls
-                preload="metadata"
-                className="block w-full bg-black/5"
-              />
+            {compressing ? (
+              /* 压缩中卡片：进度条 + 阶段文案，完成后自动转为下方视频播放器。 */
+              <div className="flex flex-col items-center gap-3 px-6 py-8">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-primary">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+                <div className="w-full max-w-sm">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="truncate text-foreground">{name}</span>
+                    <span className="ml-3 shrink-0 tabular-nums text-muted-foreground">
+                      {progress?.percent ?? 0}%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-200"
+                      style={{ width: `${progress?.percent ?? 0}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {progress?.message ?? "正在处理…"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {url && (
+                  <video
+                    src={url}
+                    controls
+                    preload="metadata"
+                    className="block w-full bg-black/5"
+                  />
+                )}
+                <div className="flex items-center gap-2 px-3 py-2">
+                  <Film className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-sm font-medium text-foreground">
+                    {name}
+                  </span>
+                  <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
+                    {fmtSize(size)}
+                  </span>
+                </div>
+                {progress?.stage === "error" && (
+                  <p className="border-t border-border px-3 py-1.5 text-xs text-red-500">
+                    压缩失败，已保留原文件
+                  </p>
+                )}
+              </>
             )}
-            <div className="flex items-center gap-2 px-3 py-2">
-              <Film className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="truncate text-sm font-medium text-foreground">
-                {name}
-              </span>
-              <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
-                {fmtSize(size)}
-              </span>
-            </div>
           </div>
           {handle}
         </div>
