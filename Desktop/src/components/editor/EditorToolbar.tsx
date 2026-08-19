@@ -18,7 +18,6 @@ import {
   Redo2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AIAssist } from "@/components/editor/AIAssist";
 
 interface Props {
   editor: Editor | null;
@@ -184,7 +183,6 @@ export function EditorToolbar({ editor, onPickFiles }: Props) {
         }}
       />
       <Divider />
-      {editor && <AIAssist editor={editor} />}
     </div>
   );
 }

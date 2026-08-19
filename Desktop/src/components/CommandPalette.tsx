@@ -45,9 +45,6 @@ export function CommandPalette() {
   const startNewEntry = useAppStore((s) => s.startNewEntry);
   const setTheme = useAppStore((s) => s.setTheme);
   const theme = useAppStore((s) => s.theme);
-  const vaults = useAppStore((s) => s.vaults);
-  const activeVaultId = useAppStore((s) => s.activeVaultId);
-  const switchVault = useAppStore((s) => s.switchVault);
 
   // Global ⌘K / Ctrl+K toggle, plus an event the top-bar search trigger fires
   // so the palette can be opened from a mouse click without prop drilling.
@@ -169,32 +166,17 @@ export function CommandPalette() {
             }))
         : [];
 
-    const vaultCmds: Cmd[] = vaults.map((v) => ({
-      id: `vault-${v.id}`,
-      label: `切换到日记库：${v.name}`,
-      hint: v.id === activeVaultId ? "当前" : undefined,
-      icon: Layers,
-      group: "日记库",
-      run: () => {
-        void switchVault(v.id);
-        setOpen(false);
-      },
-    }));
-
-    return [...nav, ...dateCmd, ...actions, ...titleCmds, ...vaultCmds];
+    return [...nav, ...dateCmd, ...actions, ...titleCmds];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     query,
     entries,
     theme,
-    vaults,
-    activeVaultId,
     navigate,
     openEntryById,
     openDate,
     startNewEntry,
     setTheme,
-    switchVault,
   ]);
 
   const filtered = useMemo(() => {

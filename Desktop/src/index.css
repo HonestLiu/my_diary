@@ -221,3 +221,29 @@
 .route-fade {
   animation: routeFade 0.22s ease-out both;
 }
+
+/* 回忆墙卡片入场：轻微上浮 + 淡入，配合 stagger delay。 */
+@keyframes memoryIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- Leaflet / 足迹地图 ----
+   Leaflet 内部 z-index 很大，收进独立层里避免盖过 Tailwind 的浮层与侧栏；
+   divIcon 默认样式有背景/边框，替换为透明以完全交给内联 HTML。 */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  isolation: isolate;
+}
+.tdt-marker {
+  background: transparent;
+  border: none;
+}

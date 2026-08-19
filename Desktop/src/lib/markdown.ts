@@ -128,6 +128,8 @@ function normalizeMeta(obj: Record<string, unknown>): JournalMeta {
     ? (obj.weather as Weather)
     : "unknown";
   const location = typeof obj.location === "string" ? obj.location : undefined;
+  const latitude = toFiniteNum(obj.latitude);
+  const longitude = toFiniteNum(obj.longitude);
   const tags = Array.isArray(obj.tags)
     ? obj.tags.filter((t): t is string => typeof t === "string")
     : [];
@@ -146,6 +148,8 @@ function normalizeMeta(obj: Record<string, unknown>): JournalMeta {
     mood,
     weather,
     location,
+    latitude,
+    longitude,
     tags,
     favorite,
     assets,
@@ -189,6 +193,16 @@ function isAssetRef(v: unknown): v is AssetRef {
   );
 }
 
+/** Parse a YAML number (or numeric string) into a finite number, else undefined. */
+function toFiniteNum(v: unknown): number | undefined {
+  if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
 function buildFrontmatter(entry: JournalEntry): Record<string, unknown> {
   return {
     id: entry.id,
@@ -197,6 +211,9 @@ function buildFrontmatter(entry: JournalEntry): Record<string, unknown> {
     mood: entry.mood,
     weather: entry.weather,
     location: entry.location ?? "",
+    // 与移动端 yaml_frontmatter 一致：仅在有坐标时落盘。
+    ...(entry.latitude != null ? { latitude: entry.latitude } : {}),
+    ...(entry.longitude != null ? { longitude: entry.longitude } : {}),
     tags: entry.tags ?? [],
     ...(entry.favorite ? { favorite: true } : {}),
     assets: entry.assets ?? [],

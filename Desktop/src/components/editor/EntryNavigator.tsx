@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EntryCard } from "@/components/EntryCard";
+import { MarkdownPreview } from "@/components/MarkdownPreview";
 import type { JournalEntry } from "@/types/journal";
 
 interface Props {
@@ -100,12 +101,10 @@ export function EntryNavigator({
   );
 }
 
-function preview(e: JournalEntry): string {
-  const text = (e.body ?? "")
-    .replace(/[#>*_`~[\]()]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (text) return text.slice(0, 40);
+function preview(e: JournalEntry): React.ReactNode {
+  if (e.body.trim()) {
+    return <MarkdownPreview body={e.body} />;
+  }
   return e.tags.slice(0, 3).join(" · ") || "空白日记";
 }
 

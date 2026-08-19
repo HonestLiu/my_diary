@@ -5,6 +5,7 @@ import {
   PenLine,
   CalendarDays,
   Images,
+  Map as MapIcon,
   Search,
   Settings,
   BookHeart,
@@ -18,6 +19,7 @@ const navItems = [
   { to: "/editor", label: "记录", icon: PenLine },
   { to: "/calendar", label: "日历", icon: CalendarDays },
   { to: "/media", label: "媒体", icon: Images },
+  { to: "/map", label: "地图", icon: MapIcon },
   { to: "/search", label: "搜索", icon: Search },
   { to: "/on-this-day", label: "回忆", icon: BookHeart },
 ];

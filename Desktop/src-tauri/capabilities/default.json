@@ -16,7 +16,6 @@
     "fs:allow-app-write-recursive",
     "fs:allow-app-read-recursive",
     "fs:allow-app-meta-recursive",
-    "dialog:default",
-    "llm:default"
+    "dialog:default"
   ]
 }

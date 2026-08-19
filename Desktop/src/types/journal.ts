@@ -59,6 +59,10 @@ export interface JournalMeta {
   mood: Mood;
   weather: Weather;
   location?: string;
+  /** 纬度（WGS-84；天地图瓦片为 CGCS2000，与 WGS-84 偏差 <1m，可直接共用）。 */
+  latitude?: number;
+  /** 经度。 */
+  longitude?: number;
   tags: string[];
   /** 喜欢标记（frontmatter 里仅 true 时落盘；移动端可写入）。 */
   favorite?: boolean;

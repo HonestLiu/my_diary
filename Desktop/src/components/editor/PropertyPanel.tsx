@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarDays, MapPin, Tag, X, Paperclip, FileText } from "lucide-react";
+import { CalendarDays, MapPin, Map, LocateFixed, Tag, X, Paperclip, FileText } from "lucide-react";
 import { MoodSelector } from "@/components/dashboard/MoodSelector";
 import { WeatherGlyph } from "@/components/WeatherGlyph";
 import { WEATHERS } from "@/lib/constants";
@@ -12,12 +12,17 @@ interface Props {
   mood: Mood;
   weather: Weather;
   location: string;
+  latitude?: number;
+  longitude?: number;
   tags: string[];
   assets: AssetRef[];
   onDateChange: (v: string) => void;
   onMoodChange: (m: Mood) => void;
   onWeatherChange: (w: Weather) => void;
   onLocationChange: (v: string) => void;
+  onMapPick: () => void;
+  onLocate: () => void;
+  onClearCoords: () => void;
   onTagsChange: (tags: string[]) => void;
   onRemoveAsset: (path: string) => void;
 }
@@ -34,12 +39,17 @@ export function PropertyPanel({
   mood,
   weather,
   location,
+  latitude,
+  longitude,
   tags,
   assets,
   onDateChange,
   onMoodChange,
   onWeatherChange,
   onLocationChange,
+  onMapPick,
+  onLocate,
+  onClearCoords,
   onTagsChange,
   onRemoveAsset,
 }: Props) {
@@ -96,15 +106,48 @@ export function PropertyPanel({
       </Section>
 
       <Section title="地点">
-        <div className="flex items-center gap-2 rounded-xl border border-border px-3 py-2">
-          <MapPin className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-1 rounded-xl border border-border py-1.5 pl-3 pr-1.5">
+          <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
           <input
             value={location}
             onChange={(e) => onLocationChange(e.target.value)}
             placeholder="你在哪里？"
-            className="w-full bg-transparent text-sm text-foreground outline-none"
+            className="w-full min-w-0 bg-transparent px-1 py-1 text-sm text-foreground outline-none"
           />
+          <button
+            type="button"
+            onClick={onLocate}
+            title="定位当前位置"
+            aria-label="定位当前位置"
+            className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+          >
+            <LocateFixed className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onMapPick}
+            title="地图选点"
+            aria-label="地图选点"
+            className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+          >
+            <Map className="h-4 w-4" />
+          </button>
         </div>
+        {latitude != null && longitude != null && (
+          <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+            <MapPin className="h-3.5 w-3.5 text-red-500" />
+            <span>
+              已选坐标 {latitude.toFixed(5)}, {longitude.toFixed(5)}
+            </span>
+            <button
+              type="button"
+              onClick={onClearCoords}
+              className="text-xs text-red-500 underline underline-offset-2 hover:text-red-600"
+            >
+              清除
+            </button>
+          </div>
+        )}
       </Section>
 
       <Section title="标签">

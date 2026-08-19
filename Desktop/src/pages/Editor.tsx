@@ -7,9 +7,12 @@ import { formatDateKey, formatHumanDate } from "@/lib/utils";
 import type { AssetRef, JournalEntry, Mood, Weather } from "@/types/journal";
 import { EditorCanvas } from "@/components/editor/EditorCanvas";
 import { PropertyPanel } from "@/components/editor/PropertyPanel";
+import { MapPicker, type MapPickResult } from "@/components/editor/MapPicker";
 import { EntryNavigator } from "@/components/editor/EntryNavigator";
 import { VersionHistory } from "@/components/editor/VersionHistory";
 import { Button } from "@/components/ui/button";
+import { getCurrentPosition } from "@/lib/map/geolocation";
+import { reverseGeocode } from "@/lib/map/geocode";
 
 /**
  * Editor page — three-column journal workspace:
@@ -35,6 +38,7 @@ export default function Editor() {
   const [entry, setEntry] = useState<JournalEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const saveTimer = useRef<number | null>(null);
   /** Id currently held in local state — guards against needless reloads. */
@@ -115,6 +119,28 @@ export default function Editor() {
     if (!date || date === entry?.date) return;
     patch({ date });
     setActiveDate(date);
+  };
+
+  /** 地图选点确认：回写经纬度与地点名称。 */
+  const onMapPicked = (r: MapPickResult) => {
+    patch({
+      latitude: r.lat,
+      longitude: r.lon,
+      location: r.name || undefined,
+    });
+    setShowMapPicker(false);
+  };
+
+  /** 一键定位：GPS 获取当前位置 + 逆地理编码回填地点名称，同时记录经纬度。 */
+  const onLocateCurrent = async () => {
+    const pos = await getCurrentPosition();
+    if (!pos) return;
+    const addr = await reverseGeocode(pos.latitude, pos.longitude);
+    patch({
+      latitude: pos.latitude,
+      longitude: pos.longitude,
+      location: addr || undefined,
+    });
   };
 
   // Restore a historical version: swap in the restored entry and force the
@@ -237,17 +263,35 @@ export default function Editor() {
             mood={entry.mood}
             weather={entry.weather}
             location={entry.location ?? ""}
+            latitude={entry.latitude}
+            longitude={entry.longitude}
             tags={entry.tags}
             assets={entry.assets ?? []}
             onDateChange={onDateChange}
             onMoodChange={(mood: Mood) => patch({ mood })}
             onWeatherChange={(weather: Weather) => patch({ weather })}
             onLocationChange={(location) => patch({ location })}
+            onMapPick={() => setShowMapPicker(true)}
+            onLocate={() => void onLocateCurrent()}
+            onClearCoords={() =>
+              patch({ latitude: undefined, longitude: undefined })
+            }
             onTagsChange={(tags) => patch({ tags })}
             onRemoveAsset={onRemoveAsset}
           />
         )}
       </aside>
+
+      {/* 地图选点弹窗 */}
+      {showMapPicker && entry && (
+        <MapPicker
+          initialLat={entry.latitude}
+          initialLon={entry.longitude}
+          initialName={entry.location}
+          onConfirm={onMapPicked}
+          onClose={() => setShowMapPicker(false)}
+        />
+      )}
     </div>
   );
 }

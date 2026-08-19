@@ -5,14 +5,7 @@ import {
   getRepository,
   type JournalRepository,
 } from "@/lib/journal";
-import {
-  ensureRegistry,
-  loadRegistry,
-  makeVault,
-  resolveRootForVault,
-  saveRegistry,
-  type VaultDescriptor,
-} from "@/lib/vaultManager";
+import { isTauri } from "@/lib/storage/types";
 
 interface AppState {
   /* ---- lifecycle ---- */
@@ -43,10 +36,6 @@ interface AppState {
   stats: { entries: number; words: number; images: number };
   settings: AppSettings;
 
-  /* ---- Multi-vault ---- */
-  vaults: VaultDescriptor[];
-  activeVaultId: string;
-
   /* ---- Actions ---- */
   initialize: () => Promise<void>;
   setTheme: (t: Theme) => void;
@@ -63,10 +52,21 @@ interface AppState {
   upsertEntry: (entry: JournalEntry) => Promise<void>;
   removeEntry: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
-  switchVault: (id: string) => Promise<void>;
-  createVault: (name: string, path?: string) => Promise<void>;
-  renameVault: (id: string, name: string) => Promise<void>;
-  removeVault: (id: string) => Promise<void>;
+}
+
+/**
+ * 唯一日记库根目录：
+ * - Tauri（桌面）：系统文档目录下 my-diary，与移动端
+ *   `getApplicationDocumentsDirectory()/my-diary` 一致，两端数据互通。
+ * - 浏览器（预览）：固定 IndexedDB 库名。
+ */
+async function resolveSingleVaultRoot(): Promise<string> {
+  if (isTauri()) {
+    const { documentDir } = await import("@tauri-apps/api/path");
+    const dir = (await documentDir()).replace(/\\/g, "/").replace(/\/+$/, "");
+    return `${dir}/my-diary`;
+  }
+  return "my-diary-vault";
 }
 
 function computeStreak(dates: string[]): number {
@@ -108,21 +108,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     sync: { enabled: false, provider: "none" },
   },
 
-  vaults: [],
-  activeVaultId: "",
-
   initialize: async () => {
     if (get().initialized || get().loading) return;
     set({ loading: true, error: undefined });
     try {
-      const reg = ensureRegistry();
-      const active =
-        reg.vaults.find((v) => v.id === reg.activeId) ?? reg.vaults[0];
-      if (!active) {
-        set({ error: "未找到任何日记库", loading: false, initialized: true });
-        return;
-      }
-      const root = await resolveRootForVault(active);
+      const root = await resolveSingleVaultRoot();
       const repo = get().repo;
       await repo.init(root);
       const seeded = await repo.seedIfEmpty();
@@ -131,8 +121,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       const settings = await repo.loadSettings();
       const startDate = seeded ? formatDateKey() : get().activeDate;
       set({
-        vaults: reg.vaults,
-        activeVaultId: active.id,
         entries,
         recentEntries: entries.slice(0, 4),
         streak: computeStreak(entries.map((e) => e.date)),
@@ -157,83 +145,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         loading: false,
         initialized: true,
       });
-    }
-  },
-
-  /**
-   * Load (or reload) the active vault's data into the store after (re)pointing
-   * the repository at a vault root. Shared by initialize() and switchVault().
-   */
-  switchVault: async (id: string) => {
-    const reg = loadRegistry();
-    const target = reg.vaults.find((v) => v.id === id);
-    if (!target) return;
-    set({ loading: true, error: undefined });
-    try {
-      const root = await resolveRootForVault(target);
-      const repo = get().repo;
-      await repo.init(root);
-      await repo.seedIfEmpty();
-      const entries = await repo.listEntries();
-      const stats = await repo.stats();
-      const settings = await repo.loadSettings();
-      saveRegistry({ vaults: reg.vaults, activeId: id });
-      set({
-        vaults: reg.vaults,
-        activeVaultId: id,
-        // Entry ids belong to a vault — never carry one across a switch.
-        activeEntryId:
-          entries.find((e) => e.date === get().activeDate)?.id ?? null,
-        entries,
-        recentEntries: entries.slice(0, 4),
-        streak: computeStreak(entries.map((e) => e.date)),
-        stats: {
-          entries: stats.entries,
-          words: stats.words,
-          images: stats.images,
-        },
-        settings,
-        theme: settings.theme,
-        loading: false,
-      });
-    } catch (e) {
-      set({
-        error: e instanceof Error ? e.message : String(e),
-        loading: false,
-      });
-    }
-  },
-
-  createVault: async (name: string, path?: string) => {
-    const reg = loadRegistry();
-    const vault = makeVault(name, path);
-    const next = {
-      vaults: [...reg.vaults, vault],
-      activeId: vault.id,
-    };
-    saveRegistry(next);
-    await get().switchVault(vault.id);
-  },
-
-  renameVault: async (id: string, name: string) => {
-    const reg = loadRegistry();
-    const vaults = reg.vaults.map((v) =>
-      v.id === id ? { ...v, name: name.trim() || v.name } : v,
-    );
-    saveRegistry({ vaults, activeId: reg.activeId });
-    set({ vaults });
-  },
-
-  removeVault: async (id: string) => {
-    const reg = loadRegistry();
-    if (reg.vaults.length <= 1) return; // never remove the last vault
-    const vaults = reg.vaults.filter((v) => v.id !== id);
-    const activeId = reg.activeId === id ? (vaults[0]?.id ?? reg.activeId) : reg.activeId;
-    saveRegistry({ vaults, activeId });
-    if (reg.activeId === id) {
-      await get().switchVault(activeId);
-    } else {
-      set({ vaults });
     }
   },
 

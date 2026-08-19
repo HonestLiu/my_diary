@@ -1,4 +1,4 @@
-import { MapPin } from "lucide-react";
+import { Heart, MapPin } from "lucide-react";
 import type { ReactNode } from "react";
 import { MoodGlyph } from "@/components/MoodGlyph";
 import { WeatherGlyph } from "@/components/WeatherGlyph";
@@ -21,6 +21,8 @@ interface EntryCardProps {
   preview?: ReactNode;
   location?: string;
   tags?: string[];
+  /** 喜欢标记：标题行右侧红心（与移动端一致）。 */
+  favorite?: boolean;
   /** 封面图（vault 相对路径，如 assets/images/xxx.webp）；缺省不显示。 */
   coverPath?: string;
   onClick?: () => void;
@@ -36,6 +38,7 @@ export function EntryCard({
   location,
   tags,
   coverPath,
+  favorite,
   onClick,
   className,
 }: EntryCardProps) {
@@ -77,6 +80,9 @@ export function EntryCard({
               weather={weather}
               className="shrink-0 text-base text-muted-foreground"
             />
+          )}
+          {favorite && (
+            <Heart className="h-[15px] w-[15px] shrink-0 fill-red-500 text-red-500" />
           )}
           {meta && (
             <span className="ml-auto shrink-0 text-xs text-muted-foreground">

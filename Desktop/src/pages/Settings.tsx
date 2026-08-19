@@ -1,5 +1,5 @@
 import { useMemo, useState, type ChangeEvent } from "react";
-import { Cloud, CheckCircle2, AlertTriangle, Download, FolderPlus, Trash2 } from "lucide-react";
+import { Cloud, CheckCircle2, AlertTriangle, Download } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { S3StorageProvider } from "@/lib/sync/s3";
 import { SyncEngine, type SyncResult } from "@/lib/sync/engine";
@@ -7,7 +7,6 @@ import { uuid } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { SyncConfig } from "@/types/journal";
 import { importMarkdownFiles, type ImportConflictPolicy, type ImportResult } from "@/lib/import";
-import { isTauri } from "@/lib/storage/types";
 import { ACCENT_LIST } from "@/lib/personalization";
 
 const DEVICE_KEY = "my-diary-device-id";
@@ -61,29 +60,11 @@ export default function Settings() {
   const [result, setResult] = useState<SyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const vaults = useAppStore((s) => s.vaults);
-  const activeVaultId = useAppStore((s) => s.activeVaultId);
-  const switchVault = useAppStore((s) => s.switchVault);
-  const createVault = useAppStore((s) => s.createVault);
-  const renameVault = useAppStore((s) => s.renameVault);
-  const removeVault = useAppStore((s) => s.removeVault);
-
-  const [newVaultName, setNewVaultName] = useState("");
-  const [newVaultPath, setNewVaultPath] = useState("");
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-
   const [importPolicy, setImportPolicy] = useState<ImportConflictPolicy>("skip");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   const setExportOpen = useAppStore((s) => s.setExportOpen);
-
-  const handleCreateVault = async () => {
-    await createVault(newVaultName, isTauri() ? newVaultPath : undefined);
-    setNewVaultName("");
-    setNewVaultPath("");
-  };
 
   const handleImport = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -285,133 +266,6 @@ export default function Settings() {
                 ),
               )}
             </div>
-          </div>
-        </Card>
-
-        {/* Vaults */}
-        <Card title="日记库（多 Vault）">
-          <p className="mb-4 text-sm text-muted-foreground">
-            可以拥有多个互相独立的日记库（例如「个人」与「工作」），切换即时生效。每个库都是独立的开放 Markdown 文件夹，互不影响。
-          </p>
-
-          <div className="space-y-2">
-            {vaults.map((v) => {
-              const active = v.id === activeVaultId;
-              const renaming = renamingId === v.id;
-              return (
-                <div
-                  key={v.id}
-                  className={cn(
-                    "flex items-center gap-2 rounded-xl border px-3 py-2",
-                    active ? "border-primary bg-accent" : "border-border",
-                  )}
-                >
-                  {renaming ? (
-                    <input
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={() => {
-                        if (renameValue.trim()) renameVault(v.id, renameValue);
-                        setRenamingId(null);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          if (renameValue.trim()) renameVault(v.id, renameValue);
-                          setRenamingId(null);
-                        }
-                      }}
-                      className="flex-1 rounded-lg border border-border bg-card px-2 py-1 text-sm text-foreground outline-none"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => !active && switchVault(v.id)}
-                      className="flex flex-1 items-center gap-2 text-left text-sm"
-                    >
-                      <span
-                        className={cn(
-                          "font-medium",
-                          active ? "text-primary" : "text-foreground",
-                        )}
-                      >
-                        {v.name}
-                      </span>
-                      {active && (
-                        <span className="text-xs text-primary">当前</span>
-                      )}
-                      {!isTauri() && (
-                        <span className="truncate text-xs text-muted-foreground">
-                          · {v.root}
-                        </span>
-                      )}
-                    </button>
-                  )}
-
-                  {!renaming && (
-                    <>
-                      <button
-                        type="button"
-                        title="重命名"
-                        onClick={() => {
-                          setRenamingId(v.id);
-                          setRenameValue(v.name);
-                        }}
-                        className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
-                      >
-                        重命名
-                      </button>
-                      <button
-                        type="button"
-                        title="删除该日记库"
-                        disabled={vaults.length <= 1}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `确定删除日记库「${v.name}」？此操作仅从列表中移除，磁盘上的文件需手动删除。`,
-                            )
-                          ) {
-                            void removeVault(v.id);
-                          }
-                        }}
-                        className="rounded-md px-2 py-1 text-xs text-red-500 hover:bg-red-50 disabled:opacity-40"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-end gap-2">
-            <Labeled label="新日记库名称">
-              <input
-                value={newVaultName}
-                onChange={(e) => setNewVaultName(e.target.value)}
-                placeholder="例如：工作笔记"
-                className={inputCls}
-              />
-            </Labeled>
-            {isTauri() && (
-              <Labeled label="目录（可选，留空用默认位置）">
-                <input
-                  value={newVaultPath}
-                  onChange={(e) => setNewVaultPath(e.target.value)}
-                  placeholder="绝对路径，如 D:/Diaries/work"
-                  className={inputCls}
-                />
-              </Labeled>
-            )}
-            <button
-              type="button"
-              onClick={handleCreateVault}
-              className="flex items-center gap-2 rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/90"
-            >
-              <FolderPlus className="h-4 w-4" />
-              新建并切换
-            </button>
           </div>
         </Card>
 

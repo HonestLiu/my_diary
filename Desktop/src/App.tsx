@@ -9,6 +9,7 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Editor = lazy(() => import("@/pages/Editor"));
 const Calendar = lazy(() => import("@/pages/Calendar"));
 const Media = lazy(() => import("@/pages/Media"));
+const MapPage = lazy(() => import("@/pages/Map"));
 const Search = lazy(() => import("@/pages/Search"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const OnThisDay = lazy(() => import("@/pages/OnThisDay"));
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="editor" element={<Editor />} />
           <Route path="calendar" element={<Calendar />} />
           <Route path="media" element={<Media />} />
+          <Route path="map" element={<MapPage />} />
           <Route path="search" element={<Search />} />
           <Route path="settings" element={<Settings />} />
           <Route path="on-this-day" element={<OnThisDay />} />

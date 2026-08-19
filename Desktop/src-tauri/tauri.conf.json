@@ -30,16 +30,6 @@
   "plugins": {
     "fs": {
       "requireLiteralLeadingDot": true
-    },
-    "llm": {
-      "llmconfig": {
-        "name": "Qwen3-0.6B-Instruct",
-        "tokenizer_file": "./models/Qwen3-0.6B-Instruct/tokenizer.json",
-        "tokenizer_config_file": "./models/Qwen3-0.6B-Instruct/tokenizer_config.json",
-        "model_config_file": "./models/Qwen3-0.6B-Instruct/config.json",
-        "model_index_file": "./models/Qwen3-0.6B-Instruct/model.safetensors.index.json",
-        "model_dir": "./models/Qwen3-0.6B-Instruct/"
-      }
     }
   },
   "bundle": {

@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { EntryCard } from "@/components/EntryCard";
+import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { useAppStore } from "@/store/appStore";
 import type { JournalEntry } from "@/types/journal";
 
@@ -33,7 +34,13 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
               meta={e.date.slice(5)}
               mood={e.mood}
               weather={e.weather}
-              preview={e.body || "（空白日记）"}
+              preview={
+                e.body.trim() ? (
+                  <MarkdownPreview body={e.body} />
+                ) : (
+                  "（空白日记）"
+                )
+              }
               location={e.location}
               tags={e.tags}
               coverPath={e.assets.find((a) => a.kind === "image")?.path}

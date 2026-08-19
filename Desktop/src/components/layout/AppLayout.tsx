@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import {
@@ -9,10 +9,6 @@ import {
   Sun,
   Moon,
   Monitor,
-  Layers,
-  ChevronDown,
-  Check,
-  Settings as SettingsIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/appStore";
@@ -20,7 +16,6 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { ExportDialog } from "@/components/export/ExportDialog";
 import { applyAppearance } from "@/lib/personalization";
 import { formatDateKey } from "@/lib/utils";
-import { cn } from "@/lib/utils";
 import type { Theme } from "@/types/journal";
 
 export function AppLayout() {
@@ -111,7 +106,6 @@ export function AppLayout() {
 
           {/* Right-side actions */}
           <div className="flex shrink-0 items-center gap-2">
-            <VaultSwitcher />
             <Button
               variant="ghost"
               size="icon"
@@ -165,82 +159,6 @@ export function AppLayout() {
         open={useAppStore((s) => s.exportOpen)}
         onOpenChange={(open) => useAppStore.getState().setExportOpen(open)}
       />
-    </div>
-  );
-}
-
-/** Compact vault switcher dropdown shown in the top bar. */
-function VaultSwitcher() {
-  const vaults = useAppStore((s) => s.vaults);
-  const activeVaultId = useAppStore((s) => s.activeVaultId);
-  const switchVault = useAppStore((s) => s.switchVault);
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-
-  const current = vaults.find((v) => v.id === activeVaultId);
-
-  return (
-    <div className="relative">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setOpen((o) => !o)}
-        className="h-9 gap-1.5 px-2.5 text-foreground"
-        title="切换日记库"
-      >
-        <Layers className="h-4 w-4 text-muted-foreground" />
-        <span className="max-w-[120px] truncate">
-          {current?.name ?? "日记库"}
-        </span>
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-      </Button>
-
-      {open && (
-        <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setOpen(false)}
-            aria-hidden
-          />
-          <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-border bg-card p-1.5 shadow-2xl">
-            <div className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              日记库
-            </div>
-            {vaults.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => {
-                  void switchVault(v.id);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted",
-                  v.id === activeVaultId ? "text-primary" : "text-foreground",
-                )}
-              >
-                <Layers className="h-4 w-4 shrink-0" />
-                <span className="flex-1 truncate text-left">{v.name}</span>
-                {v.id === activeVaultId && (
-                  <Check className="h-4 w-4 shrink-0" />
-                )}
-              </button>
-            ))}
-            <div className="my-1 h-px bg-border" />
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                navigate("/settings");
-              }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
-            >
-              <SettingsIcon className="h-4 w-4 shrink-0" />
-              管理日记库
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }
