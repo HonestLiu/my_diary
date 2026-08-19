@@ -1,5 +1,5 @@
-import { useMemo, useState, type ChangeEvent } from "react";
-import { Cloud, CheckCircle2, AlertTriangle, Download } from "lucide-react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Cloud, CheckCircle2, AlertTriangle, Download, Upload, X } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { S3StorageProvider } from "@/lib/sync/s3";
 import { SyncEngine, type SyncResult } from "@/lib/sync/engine";
@@ -7,6 +7,8 @@ import { uuid } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { SyncConfig } from "@/types/journal";
 import { importMarkdownFiles, type ImportConflictPolicy, type ImportResult } from "@/lib/import";
+import { Avatar } from "@/components/Avatar";
+import { profileAvatarPath } from "@/lib/vault";
 import { ACCENT_LIST } from "@/lib/personalization";
 
 const DEVICE_KEY = "my-diary-device-id";
@@ -65,6 +67,35 @@ export default function Settings() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   const setExportOpen = useAppStore((s) => s.setExportOpen);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+
+  /** 选择图片写入 vault profile/，更新 settings.avatar。 */
+  const handleAvatarFile = async (file: File | undefined) => {
+    if (!file) return;
+    setAvatarBusy(true);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const ext = safeImageExt(file.name) || ".png";
+      const rel = profileAvatarPath(`avatar${ext}`);
+      await repo.storageAdapter.writeBytes(rel, bytes);
+      updateSettings({ avatar: rel });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAvatarBusy(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
+
+  /** 移除头像：删除 vault 文件并清空 settings.avatar。 */
+  const handleClearAvatar = async () => {
+    const cur = settings.avatar;
+    updateSettings({ avatar: "" });
+    if (cur.trim()) {
+      await repo.storageAdapter.delete(cur).catch(() => undefined);
+    }
+  };
 
   const handleImport = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -235,14 +266,67 @@ export default function Settings() {
           <p className="mb-4 text-sm text-muted-foreground">
             设置你的名字，会显示在应用角落与导出的日记中，让记录更有「你」的气息。
           </p>
-          <Labeled label="昵称 / 署名">
-            <input
-              value={settings.displayName}
-              onChange={(e) => updateSettings({ displayName: e.target.value })}
-              placeholder="例如：小林"
-              className={inputCls}
-            />
+          <Labeled label="头像">
+            <div className="flex items-center gap-3">
+              <Avatar
+                avatar={settings.avatar}
+                name={settings.displayName}
+                size={56}
+              />
+              <div className="flex flex-col gap-1.5">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(e) => void handleAvatarFile(e.target.files?.[0])}
+                />
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarBusy}
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition hover:bg-muted disabled:opacity-60"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  {avatarBusy ? "上传中…" : "选择图片"}
+                </button>
+                {settings.avatar && (
+                  <button
+                    type="button"
+                    onClick={() => void handleClearAvatar()}
+                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-red-500 transition hover:bg-red-50"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    移除头像
+                  </button>
+                )}
+              </div>
+            </div>
           </Labeled>
+          <div className="mt-4">
+            <Labeled label="座右铭">
+              <input
+                value={settings.motto}
+                onChange={(e) => updateSettings({ motto: e.target.value })}
+                placeholder="写一句鼓舞自己的话…"
+                maxLength={60}
+                className={inputCls}
+              />
+            </Labeled>
+            <p className="mt-1 text-xs text-muted-foreground">
+              会显示在侧边栏个人资料下方，让应用更有「你」的气息。
+            </p>
+          </div>
+          <div className="mt-4">
+            <Labeled label="昵称 / 署名">
+              <input
+                value={settings.displayName}
+                onChange={(e) => updateSettings({ displayName: e.target.value })}
+                placeholder="例如：小林"
+                className={inputCls}
+              />
+            </Labeled>
+          </div>
           <div className="mt-4">
             <div className="mb-2 text-xs font-medium text-muted-foreground">
               日历每周从
@@ -533,4 +617,10 @@ function SyncStat({
       </span>
     </div>
   );
+}
+
+/** 从文件名取安全的图片扩展名（含点）；未知时返回空串。 */
+function safeImageExt(fileName: string): string {
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  return /^(png|jpe?g|webp|gif)$/.test(ext) ? `.${ext === "jpeg" ? "jpg" : ext}` : "";
 }

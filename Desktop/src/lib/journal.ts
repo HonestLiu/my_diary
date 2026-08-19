@@ -18,6 +18,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   accent: "sky",
   font: "sans",
   displayName: "",
+  motto: "",
+  avatar: "",
   weekStartsOn: 1,
   defaultMood: "neutral",
   sync: { enabled: false, provider: "none" },

@@ -103,6 +103,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     accent: "sky",
     font: "sans",
     displayName: "",
+    motto: "",
+    avatar: "",
     weekStartsOn: 1,
     defaultMood: "neutral",
     sync: { enabled: false, provider: "none" },

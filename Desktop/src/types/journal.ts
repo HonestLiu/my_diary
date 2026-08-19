@@ -106,6 +106,10 @@ export interface AppSettings {
   font: FontKey;
   /** Author name shown in exports and the app shell (personalization). */
   displayName: string;
+  /** 座右铭（个人主页/侧栏展示），与移动端一致。 */
+  motto: string;
+  /** 头像：vault 相对路径（如 profile/avatar.png）；空 = 未设置。 */
+  avatar: string;
   /** First day of the week for the calendar: 0 = Sunday, 1 = Monday. */
   weekStartsOn: 0 | 1;
   /** Root directory of the journal vault (absolute path). */

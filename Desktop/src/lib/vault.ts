@@ -134,5 +134,11 @@ export function requiredDirectories(): string[] {
     "metadata",
     "versions",
     "conflicts",
+    "profile",
   ];
+}
+
+/** 个人资料文件（如头像）：`profile/<filename>`，随 vault 导出/同步。 */
+export function profileAvatarPath(filename: string): string {
+  return `profile/${filename}`;
 }
