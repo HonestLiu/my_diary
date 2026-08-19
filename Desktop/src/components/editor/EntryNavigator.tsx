@@ -3,7 +3,8 @@ import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EntryCard } from "@/components/EntryCard";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
-import { firstCoverAsset } from "@/lib/vault";
+import { entryFilePath, firstCoverAsset } from "@/lib/vault";
+import { useAppStore } from "@/store/appStore";
 import type { JournalEntry } from "@/types/journal";
 
 interface Props {
@@ -32,6 +33,7 @@ export function EntryNavigator({
   onDelete,
 }: Props) {
   const groups = useMemo(() => groupByDate(entries), [entries]);
+  const unsyncedPaths = useAppStore((s) => s.unsyncedPaths);
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-3">
@@ -75,6 +77,9 @@ export function EntryNavigator({
                       location={e.location}
                       tags={e.tags}
                       cover={firstCoverAsset(e.assets)}
+                      unsynced={unsyncedPaths.has(
+                        entryFilePath({ id: e.id, date: e.date }),
+                      )}
                       onClick={() => onSelect(e)}
                     />
                     <button

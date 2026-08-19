@@ -36,6 +36,10 @@ class AppStore extends ChangeNotifier {
   Timer? _autoSyncTimer; // 编辑后自动同步防抖（避免连续编辑频繁请求远程）
   Timer? _periodicSyncTimer; // 定期自动同步（按 autoSyncIntervalMinutes 周期）
 
+  int _loadedBodies = 0; // 已补齐正文的条目数（按排序序前 N 个）
+  bool _loadingMore = false;
+  static const int _listPageSize = 40; // 首页正文分批加载的每页条数
+
   AppStore({
     required this.auth,
     required this.prefs,
@@ -112,8 +116,38 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> refreshEntries() async {
-    _entries = await repo.listEntries();
+    // 全量元数据一次到位（frontmatter 快路径，毫秒级），正文先补首页一页；
+    // 其余随滑动由 loadMoreEntries 分批补齐，避免启动/保存后整库正文解码。
+    final all = await repo.listMetadata();
+    _entries = all;
+    _loadedBodies = 0;
+    await _fillBodyPage();
     notifyListeners();
+  }
+
+  /// 滑动接近列表底部时，再补一页正文（幂等：已在加载或已全部补齐则跳过）。
+  Future<void> loadMoreEntries() async {
+    if (_loadingMore || _loadedBodies >= _entries.length) return;
+    _loadingMore = true;
+    try {
+      await _fillBodyPage();
+      notifyListeners();
+    } finally {
+      _loadingMore = false;
+    }
+  }
+
+  Future<void> _fillBodyPage() async {
+    final start = _loadedBodies;
+    final end = (start + _listPageSize).clamp(0, _entries.length);
+    if (start >= end) return;
+    final filled = await repo.fillBodies(_entries.sublist(start, end));
+    final updated = List<JournalEntry>.of(_entries);
+    for (var i = 0; i < filled.length; i++) {
+      updated[start + i] = filled[i];
+    }
+    _entries = updated;
+    _loadedBodies = end;
   }
 
   Future<void> saveEntry(JournalEntry entry) async {

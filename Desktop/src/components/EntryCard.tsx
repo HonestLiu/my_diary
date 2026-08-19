@@ -1,4 +1,4 @@
-import { Heart, MapPin } from "lucide-react";
+import { CloudOff, Heart, MapPin } from "lucide-react";
 import type { ReactNode } from "react";
 import { MoodGlyph } from "@/components/MoodGlyph";
 import { WeatherGlyph } from "@/components/WeatherGlyph";
@@ -23,6 +23,8 @@ interface EntryCardProps {
   tags?: string[];
   /** 喜欢标记：标题行右侧红心（与移动端一致）。 */
   favorite?: boolean;
+  /** 尚未同步到云端：标题行右侧显示「未同步」标识。 */
+  unsynced?: boolean;
   /** 封面资产（图片优先，其次视频）；缺省不显示封面。 */
   cover?: AssetRef | null;
   onClick?: () => void;
@@ -39,6 +41,7 @@ export function EntryCard({
   tags,
   cover,
   favorite,
+  unsynced,
   onClick,
   className,
 }: EntryCardProps) {
@@ -84,10 +87,21 @@ export function EntryCard({
           {favorite && (
             <Heart className="h-[15px] w-[15px] shrink-0 fill-red-500 text-red-500" />
           )}
-          {meta && (
-            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-              {meta}
-            </span>
+          {(unsynced || meta) && (
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {unsynced && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+                  title="尚未同步到云端"
+                >
+                  <CloudOff className="h-3 w-3" />
+                  未同步
+                </span>
+              )}
+              {meta && (
+                <span className="text-xs text-muted-foreground">{meta}</span>
+              )}
+            </div>
           )}
         </div>
 

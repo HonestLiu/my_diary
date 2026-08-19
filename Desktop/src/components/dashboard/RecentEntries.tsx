@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { EntryCard } from "@/components/EntryCard";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
-import { firstCoverAsset } from "@/lib/vault";
+import { entryFilePath, firstCoverAsset } from "@/lib/vault";
 import { useAppStore } from "@/store/appStore";
 import type { JournalEntry } from "@/types/journal";
 
@@ -13,6 +13,7 @@ interface RecentEntriesProps {
 export function RecentEntries({ entries }: RecentEntriesProps) {
   const navigate = useNavigate();
   const openEntry = useAppStore((s) => s.openEntry);
+  const unsyncedPaths = useAppStore((s) => s.unsyncedPaths);
 
   const open = (e: JournalEntry) => {
     openEntry(e.id, e.date);
@@ -45,6 +46,9 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
               location={e.location}
               tags={e.tags}
               cover={firstCoverAsset(e.assets)}
+              unsynced={unsyncedPaths.has(
+                entryFilePath({ id: e.id, date: e.date }),
+              )}
               onClick={() => open(e)}
             />
           </motion.div>

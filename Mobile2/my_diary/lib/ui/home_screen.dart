@@ -40,6 +40,28 @@ class HomeScreenState extends State<HomeScreen> {
   void refresh() => setState(() {});
 
   @override
+  void initState() {
+    super.initState();
+    // 接近列表底部时触发正文分页加载（列表本身已是懒构建 + 卡片懒解码，
+    // 这里把「读入正文」也变为按需）。
+    widget.controller?.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    widget.controller?.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final c = widget.controller;
+    if (c == null || !c.hasClients || !mounted) return;
+    if (c.position.extentAfter < 600) {
+      context.read<AppStore>().loadMoreEntries();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final entries = store.entries;
@@ -62,6 +84,40 @@ class HomeScreenState extends State<HomeScreen> {
     if (_sortBy == HomeSort.updatedDesc) {
       for (final g in groups.values) {
         g.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      }
+    }
+
+    // 懒加载行列表：日记卡片不立即构建，滚动到可视区才由 ListView.builder
+    // 调用构建器（长列表 + 整页重建时显著降低 build 开销）。
+    final rows = <Widget Function()>[];
+    final hasConflicts = store.lastSync?.conflicts.isNotEmpty == true;
+    if (hasConflicts) {
+      rows.add(() => _ConflictBanner(onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+          )));
+    }
+    final syncError = store.syncError;
+    if (syncError != null) {
+      rows.add(() => _ErrorBanner(message: syncError));
+    }
+    for (final w in _memorySection(context, entries)) {
+      rows.add(() => w);
+    }
+    rows.add(() => _buildToolbar(context, visible.length));
+    if (visible.isEmpty) {
+      rows.add(() => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 48),
+            child: Center(child: Text('没有符合条件的日记', style: context.caption)),
+          ));
+    }
+    for (final d in dates) {
+      rows.add(() => _DayHeader(dateKey: d));
+      final dayEntries = groups[d]!;
+      for (var i = 0; i < dayEntries.length; i++) {
+        if (i > 0) rows.add(() => const SizedBox(height: 12));
+        final card = dayEntries[i]; // 每迭代独立绑定，闭包捕获安全
+        rows.add(() => EntryCard(entry: card));
       }
     }
 
@@ -88,36 +144,11 @@ class HomeScreenState extends State<HomeScreen> {
       ),
       body: entries.isEmpty
           ? _EmptyState(onCreate: () => _create(context))
-          : ListView(
+          : ListView.builder(
               controller: widget.controller,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              children: [
-                if (store.lastSync?.conflicts.isNotEmpty == true)
-                  _ConflictBanner(onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const ProfileScreen()),
-                      )),
-                if (store.syncError != null)
-                  _ErrorBanner(message: store.syncError!),
-                ..._memorySection(context, entries),
-                _buildToolbar(context, visible.length),
-                if (visible.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48),
-                    child: Center(
-                      child: Text('没有符合条件的日记',
-                          style: context.caption),
-                    ),
-                  ),
-                for (final d in dates) ...[
-                  _DayHeader(dateKey: d),
-                  for (var i = 0; i < groups[d]!.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 12),
-                    EntryCard(entry: groups[d]![i]),
-                  ],
-                ],
-              ],
+              itemCount: rows.length,
+              itemBuilder: (_, i) => rows[i](),
             ),
     );
   }
@@ -603,11 +634,13 @@ class _MemoryCard extends StatelessWidget {
     final previewBase = cover != null
         ? const TextStyle(color: Colors.white70, fontSize: 12)
         : TextStyle(color: t.textSecondary, fontSize: 12);
-    final previewSpans = docBlocksToPreviewSpans(
-      context,
-      decodeEntryBody(e.body, e.assets),
-      baseStyle: previewBase,
-    );
+    final previewSpans = e.body.trim().isEmpty
+        ? const <InlineSpan>[]
+        : docBlocksToPreviewSpans(
+            context,
+            cachedDecodeEntryBody(e),
+            baseStyle: previewBase,
+          );
     final hasPreview =
         TextSpan(children: previewSpans).toPlainText().trim().isNotEmpty;
     final dateStr = _memoDate(e);

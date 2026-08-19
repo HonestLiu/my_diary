@@ -5,11 +5,14 @@
 // plus SHA-256 file fingerprints for sync. These tests pin that contract so the
 // two sides stay compatible.
 
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
+import 'package:my_diary_mobile/repository/journal_repository.dart';
 import 'package:my_diary_mobile/sync/crypto.dart';
+import 'package:my_diary_mobile/vault/local_vault.dart';
 import 'package:my_diary_mobile/vault/markdown_codec.dart';
 import 'package:my_diary_mobile/vault/vault_layout.dart';
 import 'package:my_diary_mobile/vault/yaml_frontmatter.dart';
@@ -102,6 +105,78 @@ updated_at: "2026-08-17T00:00:00.000Z"
     });
   });
 
+  group('Fast frontmatter parser (self-generated block format)', () {
+    test('parses scalars, escapes, numbers, block lists and asset maps', () {
+      // 与 encodeFrontmatter 落盘形态一致（原始字符串：转义为字面反斜杠）。
+      const text = r'''
+id: "e-42"
+date: "2026-08-17"
+title: "标题 \"带引号\" 与\n换行"
+mood: "excited"
+weather: "sunny"
+location: "上海"
+latitude: 31.23
+longitude: 121.47
+favorite: true
+tags:
+  - "日常"
+  - "工作"
+assets:
+  - kind: "image"
+    path: "assets/images/a1.jpg"
+    name: "a1.jpg"
+    size: 12345
+created_at: "2026-08-17T00:00:00.000Z"
+updated_at: "2026-08-17T01:00:00.000Z"
+''';
+      final m = parseFrontmatter(text);
+      expect(m.id, 'e-42');
+      expect(m.title, '标题 "带引号" 与\n换行');
+      expect(m.mood, Mood.excited);
+      expect(m.latitude, 31.23);
+      expect(m.favorite, isTrue);
+      expect(m.tags, const ['日常', '工作']);
+      expect(m.assets, hasLength(1));
+      expect(m.assets.first.kind, AssetKind.image);
+      expect(m.assets.first.path, 'assets/images/a1.jpg');
+      expect(m.assets.first.name, 'a1.jpg');
+      expect(m.assets.first.size, 12345);
+    });
+
+    test('round-trip via encodeFrontmatter survives the fast path', () {
+      final entry = JournalEntry(
+        id: 'roundtrip',
+        date: '2026-08-17',
+        title: '回环测试',
+        mood: Mood.happy,
+        weather: Weather.foggy,
+        location: '杭州',
+        tags: const ['a', 'b'],
+        assets: const [
+          AssetRef(
+            kind: AssetKind.video,
+            path: 'assets/videos/v1.mp4',
+            name: 'v1.mp4',
+            size: 99,
+          ),
+        ],
+        createdAt: '2026-08-17T00:00:00.000Z',
+        updatedAt: '2026-08-17T00:00:00.000Z',
+        body: '正文',
+      );
+      final m = parseFrontmatter(encodeFrontmatter(entry));
+      expect(m.id, entry.id);
+      expect(m.title, entry.title);
+      expect(m.mood, entry.mood);
+      expect(m.weather, entry.weather);
+      expect(m.location, entry.location);
+      expect(m.tags, entry.tags);
+      expect(m.assets, hasLength(1));
+      expect(m.assets.first.path, 'assets/videos/v1.mp4');
+      expect(m.assets.first.size, 99);
+    });
+  });
+
   group('Vault layout paths', () {
     test('entryFilePath follows entries/YYYY/MM convention', () {
       final p = entryFilePath(
@@ -148,6 +223,47 @@ updated_at: "2026-08-17T00:00:00.000Z"
       expect(hex,
           'b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7');
       expect(RegExp(r'^[0-9a-f]{64}$').hasMatch(hex), isTrue);
+    });
+  });
+
+  group('Incremental list loading (listMetadata + fillBodies)', () {
+    test('元数据列表不含正文，fillBodies 按页补齐', () async {
+      final root = Directory.systemTemp.createTempSync('incr_').path;
+      final vault = LocalVault(root);
+      await vault.init();
+      final repo = JournalRepository(vault);
+      await repo.init(root);
+      for (var i = 0; i < 5; i++) {
+        final e = JournalEntry(
+          id: 'e$i',
+          date: '2026-08-1$i',
+          title: 't$i',
+          mood: Mood.calm,
+          weather: Weather.sunny,
+          tags: const [],
+          assets: const [],
+          createdAt: '2026-08-01T00:00:00.000Z',
+          updatedAt: '2026-08-01T00:00:00.000Z',
+          body: '正文内容 $i',
+        );
+        await vault.writeText(
+          entryFilePath(EntryFileRef(id: e.id, date: e.date)),
+          serializeEntryFile(e),
+        );
+      }
+
+      final all = await repo.listMetadata();
+      expect(all, hasLength(5));
+      expect(all.every((e) => e.body.isEmpty), isTrue,
+          reason: 'listMetadata 不携带正文');
+
+      // 再补一页正文（前 3 条）。
+      final page = await repo.fillBodies(all.take(3).toList());
+      expect(page, hasLength(3));
+      expect(page.every((e) => e.body.isNotEmpty), isTrue);
+      expect(page.first.body, contains('正文内容'));
+
+      await Directory(root).delete(recursive: true);
     });
   });
 }

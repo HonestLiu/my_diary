@@ -9,6 +9,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/appStore";
@@ -25,6 +26,10 @@ export function AppLayout() {
   const setTheme = useAppStore((s) => s.setTheme);
   const settings = useAppStore((s) => s.settings);
   const startNewEntry = useAppStore((s) => s.startNewEntry);
+  const syncing = useAppStore((s) => s.syncing);
+  const syncError = useAppStore((s) => s.syncError);
+  const lastSyncAt = useAppStore((s) => s.lastSyncAt);
+  const syncNow = useAppStore((s) => s.syncNow);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -106,6 +111,27 @@ export function AppLayout() {
 
           {/* Right-side actions */}
           <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => void syncNow()}
+              disabled={syncing || !settings.sync || settings.sync.provider === "none"}
+              aria-label="立即同步"
+              title={
+                syncing
+                  ? "同步中…"
+                  : !settings.sync || settings.sync.provider === "none"
+                    ? "同步未配置（设置中配置）"
+                    : syncError
+                      ? `上次同步失败：${syncError}`
+                      : `立即同步${lastSyncAt ? ` · 上次 ${new Date(lastSyncAt).toLocaleTimeString()}` : ""}`
+              }
+              className="shrink-0"
+            >
+              <RefreshCw
+                className={`h-[18px] w-[18px] ${syncing ? "animate-spin" : ""}`}
+              />
+            </Button>
             <Button
               variant="ghost"
               size="icon"

@@ -6,7 +6,7 @@ import { useAppStore } from "@/store/appStore";
 import { EntryCard } from "@/components/EntryCard";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { MoodGlyph } from "@/components/MoodGlyph";
-import { firstCoverAsset } from "@/lib/vault";
+import { entryFilePath, firstCoverAsset } from "@/lib/vault";
 import { MOODS } from "@/lib/constants";
 import { byRecency } from "@/lib/journal";
 import { cn, formatHumanDate } from "@/lib/utils";
@@ -30,6 +30,7 @@ const SCOPE_INFO: { key: SearchScope; label: string; icon: typeof Type }[] = [
 export default function Search() {
   const entries = useAppStore((s) => s.entries);
   const openEntry = useAppStore((s) => s.openEntry);
+  const unsyncedPaths = useAppStore((s) => s.unsyncedPaths);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -238,6 +239,9 @@ export default function Search() {
                   location={e.location}
                   tags={e.tags}
                   cover={firstCoverAsset(e.assets)}
+                  unsynced={unsyncedPaths.has(
+                    entryFilePath({ id: e.id, date: e.date }),
+                  )}
                   onClick={() => open(e)}
                 />
               </motion.div>

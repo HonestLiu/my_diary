@@ -118,7 +118,9 @@ export default function Settings() {
   const deviceId = useMemo(() => getDeviceId(), []);
 
   const save = () => {
-    updateSettings({ sync: form });
+    // 桌面端 UI 没有「启用同步」开关：provider 选定即视为启用，
+    // 归一化 enabled 使落盘配置语义一致（移动端 / 后续逻辑可依赖）。
+    updateSettings({ sync: { ...form, enabled: form.provider !== "none" } });
     setError(null);
   };
 

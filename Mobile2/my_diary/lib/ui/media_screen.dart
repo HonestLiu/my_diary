@@ -437,7 +437,7 @@ class _PreviewBar extends StatelessWidget {
     // 渲染后的预览：解码正文为文档块，再压平成带行内样式的 span（保留加粗/斜体等）。
     final previewSpans = docBlocksToPreviewSpans(
       context,
-      decodeEntryBody(entry.body, entry.assets),
+      cachedDecodeEntryBody(entry),
       baseStyle: context.caption,
     );
     return Material(

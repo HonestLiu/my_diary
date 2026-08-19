@@ -626,3 +626,20 @@ List<DocBlock> decodeEntryBody(String body, List<AssetRef> assets) {
   }
   return blocks;
 }
+
+/// `decodeEntryBody` 的记忆化版本：键含 id + updatedAt + 正文长度，
+/// 编辑保存后 updatedAt 变化自然失效。首页卡片 / 记忆卡 / 详情页共用，
+/// 滚动与整页重建时避免反复解析同一篇 Markdown（纯函数记忆化，调用方安全）。
+final Map<String, ({String key, List<DocBlock> blocks})> _bodyCache = {};
+const int _bodyCacheCap = 400;
+
+List<DocBlock> cachedDecodeEntryBody(JournalEntry entry) {
+  final key = '${entry.id}|${entry.updatedAt}|${entry.body.length}';
+  final hit = _bodyCache[entry.id];
+  if (hit != null && hit.key == key) return hit.blocks;
+  final blocks = decodeEntryBody(entry.body, entry.assets);
+  _bodyCache[entry.id] = (key: key, blocks: blocks);
+  // 上限保护：超出即整体清空（不常用路径，代价可忽略）。
+  if (_bodyCache.length > _bodyCacheCap) _bodyCache.clear();
+  return blocks;
+}

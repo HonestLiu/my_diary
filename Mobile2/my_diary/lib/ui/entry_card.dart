@@ -21,11 +21,14 @@ class EntryCard extends StatelessWidget {
     final cover = store.coverFor(entry.assets);
     final loc = entry.location?.trim() ?? '';
     // 渲染后的预览：解码正文为文档块，再压平成带行内样式的 span（保留加粗/斜体等）。
-    final previewSpans = docBlocksToPreviewSpans(
-      context,
-      decodeEntryBody(entry.body, entry.assets),
-      baseStyle: context.caption.copyWith(fontSize: 13),
-    );
+    // 正文未加载（首页分页加载，body 为空）时先不渲染预览，补齐后自动出现。
+    final previewSpans = entry.body.trim().isEmpty
+        ? const <InlineSpan>[]
+        : docBlocksToPreviewSpans(
+            context,
+            cachedDecodeEntryBody(entry),
+            baseStyle: context.caption.copyWith(fontSize: 13),
+          );
     final hasPreview =
         TextSpan(children: previewSpans).toPlainText().trim().isNotEmpty;
 

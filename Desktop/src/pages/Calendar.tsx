@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { EntryCard } from "@/components/EntryCard";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
-import { firstCoverAsset } from "@/lib/vault";
+import { firstCoverAsset, entryFilePath } from "@/lib/vault";
 import { cn, formatDateKey } from "@/lib/utils";
 import type { JournalEntry } from "@/types/journal";
 
@@ -18,6 +18,7 @@ export default function Calendar() {
   const entries = useAppStore((s) => s.entries);
   const activeDate = useAppStore((s) => s.activeDate);
   const openEntry = useAppStore((s) => s.openEntry);
+  const unsyncedPaths = useAppStore((s) => s.unsyncedPaths);
   const weekStartsOn = useAppStore((s) => s.settings.weekStartsOn);
   const navigate = useNavigate();
 
@@ -185,6 +186,9 @@ export default function Calendar() {
                   location={e.location}
                   tags={e.tags}
                   cover={firstCoverAsset(e.assets)}
+                  unsynced={unsyncedPaths.has(
+                    entryFilePath({ id: e.id, date: e.date }),
+                  )}
                   onClick={() => open(e)}
                 />
               ))}

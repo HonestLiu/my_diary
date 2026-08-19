@@ -1,11 +1,20 @@
 import { create } from "zustand";
-import type { AppSettings, JournalEntry, Mood, Theme } from "@/types/journal";
+import { invoke } from "@tauri-apps/api/core";
+import type {
+  AppSettings,
+  JournalEntry,
+  Mood,
+  SyncResult,
+  Theme,
+} from "@/types/journal";
 import { formatDateKey, formatHumanDate } from "@/lib/utils";
 import {
   getRepository,
   type JournalRepository,
 } from "@/lib/journal";
 import { isTauri } from "@/lib/storage/types";
+import { entryFilePath } from "@/lib/vault";
+import { sha256Hex } from "@/lib/crypto";
 
 interface AppState {
   /* ---- lifecycle ---- */
@@ -27,6 +36,16 @@ interface AppState {
    */
   activeEntryId: string | null;
   exportOpen: boolean;
+
+  /* ---- Sync (P7)：共享「正在同步 / 上次同步」状态，供顶栏按钮与设置页复用 ---- */
+  syncing: boolean;
+  syncError?: string;
+  lastSyncAt?: number;
+  /**
+   * 尚未同步到云端的条目文件路径（相对 vault 根）。每次 refresh 后按
+   * 本地基线（metadata/sync.json）与当前文件哈希比对得出；未配置同步时为空。
+   */
+  unsyncedPaths: Set<string>;
 
   /* ---- Data (backed by the real repository) ---- */
   repo: JournalRepository;
@@ -52,6 +71,10 @@ interface AppState {
   upsertEntry: (entry: JournalEntry) => Promise<void>;
   removeEntry: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
+  /** 立即同步（Rust `sync_vault`）。使用已保存的 settings.sync 配置。 */
+  syncNow: () => Promise<void>;
+  /** 重新计算未同步条目的路径集合（哈希比对本地基线）。 */
+  computeUnsynced: () => Promise<void>;
 }
 
 /**
@@ -91,6 +114,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeDate: formatDateKey(),
   activeEntryId: null,
   exportOpen: false,
+  syncing: false,
+  unsyncedPaths: new Set<string>(),
 
   repo: getRepository(),
   entries: [],
@@ -143,6 +168,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeEntryId:
           entries.find((e) => e.date === startDate)?.id ?? null,
       });
+      void get().computeUnsynced();
     } catch (e) {
       set({
         error: e instanceof Error ? e.message : String(e),
@@ -214,6 +240,92 @@ export const useAppStore = create<AppState>((set, get) => ({
         images: stats.images,
       },
     });
+    void get().computeUnsynced();
+  },
+
+  computeUnsynced: async () => {
+    const s = get();
+    const cfg = s.settings.sync;
+    const configured =
+      !!cfg &&
+      cfg.provider !== "none" &&
+      !!cfg.endpoint &&
+      !!cfg.bucket &&
+      !!cfg.accessKey &&
+      !!cfg.secretKey;
+    if (!configured) {
+      if (s.unsyncedPaths.size > 0) set({ unsyncedPaths: new Set() });
+      return;
+    }
+    const repo = s.repo;
+    // 本地基线（Rust 每次同步后写入）：path -> 上次已同步的 sha256。
+    let baseline: Record<string, string> = {};
+    try {
+      if (await repo.storageAdapter.exists("metadata/sync.json")) {
+        const m = JSON.parse(
+          await repo.storageAdapter.readText("metadata/sync.json"),
+        ) as { files?: { path: string; hash: string }[] };
+        baseline = Object.fromEntries(
+          (m.files ?? []).map((f) => [f.path, f.hash]),
+        );
+      }
+    } catch {
+      baseline = {};
+    }
+    const unsynced = new Set<string>();
+    await Promise.all(
+      s.entries.map(async (e) => {
+        const path = entryFilePath({ id: e.id, date: e.date });
+        try {
+          const bytes = await repo.storageAdapter.readBytes(path);
+          const hash = await sha256Hex(bytes);
+          if (hash !== baseline[path]) unsynced.add(path);
+        } catch {
+          /* 文件缺失（如旧版路径）——无法比对，跳过 */
+        }
+      }),
+    );
+    set({ unsyncedPaths: unsynced });
+  },
+
+  syncNow: async () => {
+    const s = get();
+    if (s.syncing) return;
+    if (!isTauri()) {
+      set({ syncError: "云同步仅在桌面端（Tauri）可用。" });
+      return;
+    }
+    const cfg = s.settings.sync;
+    if (!cfg || cfg.provider === "none") {
+      set({ syncError: "同步未配置：请先在“设置 → 云同步”中填写并保存。" });
+      return;
+    }
+    if (!cfg.endpoint || !cfg.bucket || !cfg.accessKey || !cfg.secretKey) {
+      set({ syncError: "同步凭据不完整：请先在设置中补全并保存。" });
+      return;
+    }
+    const vaultRoot = s.repo.vaultRoot;
+    if (!vaultRoot) {
+      set({ syncError: "未找到 vault 根目录。" });
+      return;
+    }
+    set({ syncing: true, syncError: undefined });
+    try {
+      // 同步逻辑完全在 Rust 侧（src-tauri/src/sync.rs），前端只调用命令。
+      // `enabled` 是历史遗留字段（桌面端 UI 未暴露开关），仅保证 Rust
+      // serde 反序列化不缺字段即可，实际以 provider/凭据为准。
+      await invoke<SyncResult>("sync_vault", {
+        vaultRoot,
+        config: { ...cfg, enabled: cfg.enabled ?? false },
+      });
+      set({ lastSyncAt: Date.now() });
+      await get().refresh();
+      await get().computeUnsynced();
+    } catch (e) {
+      set({ syncError: e instanceof Error ? e.message : String(e) });
+    } finally {
+      set({ syncing: false });
+    }
   },
 }));
 

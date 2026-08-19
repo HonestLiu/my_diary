@@ -6,7 +6,7 @@ import { useAppStore } from "@/store/appStore";
 import { EntryCard } from "@/components/EntryCard";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { getStorage } from "@/lib/storage";
-import { firstCoverAsset, thumbnailPath } from "@/lib/vault";
+import { entryFilePath, firstCoverAsset, thumbnailPath } from "@/lib/vault";
 import { cn } from "@/lib/utils";
 import type { JournalEntry } from "@/types/journal";
 import {
@@ -33,6 +33,7 @@ const INITIAL_ZOOM = 4;
 export default function Map() {
   const entries = useAppStore((s) => s.entries);
   const openEntry = useAppStore((s) => s.openEntry);
+  const unsyncedPaths = useAppStore((s) => s.unsyncedPaths);
   const navigate = useNavigate();
 
   const mapEl = useRef<HTMLDivElement | null>(null);
@@ -235,6 +236,9 @@ export default function Map() {
                       location={e.location}
                       tags={e.tags}
                       cover={firstCoverAsset(e.assets)}
+                      unsynced={unsyncedPaths.has(
+                        entryFilePath({ id: e.id, date: e.date }),
+                      )}
                       onClick={() => {
                         setGroup(null);
                         open(e);

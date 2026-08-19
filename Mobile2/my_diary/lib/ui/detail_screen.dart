@@ -120,7 +120,7 @@ class _DetailScreenState extends State<DetailScreen> {
     final e = _entry;
     // 正文按块渲染：图片 / 音视频 / 附件都在写作时所处的位置就地呈现，
     // 因此不再单独堆一层封面图和缩略图条（否则同一张图会出现两次）。
-    final blocks = decodeEntryBody(e.body, e.assets);
+    final blocks = cachedDecodeEntryBody(e);
 
     return Scaffold(
       appBar: AppBar(

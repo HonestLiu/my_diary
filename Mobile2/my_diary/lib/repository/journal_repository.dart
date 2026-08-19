@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/models/settings.dart';
@@ -53,45 +54,118 @@ class JournalRepository {
   Future<void> init(String vaultRoot) async {
     this.vaultRoot = vaultRoot;
     await storage.init();
-    await reindex();
+    // 注意：这里不再重建条目索引。启动首帧前的 preloadSettings 只读设置，
+    // 全量解析整库会阻塞首帧；索引由首帧后的 refreshEntries（listMetadata）
+    // 构建。索引未就绪时 resolvePath 会自动回退到完整扫描，行为不变。
   }
 
   /// 从磁盘 Markdown 重建索引（及 id -> 路径映射）。
+  ///
+  /// 复用 `listEntries` 的并发读 + 后台 isolate 解析，避免启动时在主线程
+  /// 顺序解析一遍、随后 refreshEntries 再解析一遍（重复 + 卡 UI）。
   Future<void> reindex() async {
-    _pathById.clear();
-    final files = await storage.list('entries/');
-    for (final f in files) {
-      if (!f.endsWith('.md')) continue;
-      try {
-        final raw = await storage.readText(f);
-        final parsed = parseEntryFile(raw);
-        _pathById[parsed.meta.id] = f;
-      } catch (_) {
-        // 跳过不可读 / 损坏的文件
-      }
-    }
-    _pathMapFresh = true;
+    await listEntries();
   }
 
   /// 读取全部条目，最新在前，并刷新 id -> 路径映射。
   Future<List<JournalEntry>> listEntries() async {
     final files = await storage.list('entries/');
-    final entries = <JournalEntry>[];
+    final mdFiles = files.where((f) => f.endsWith('.md')).toList();
     _pathById.clear();
-    for (final f in files) {
-      if (!f.endsWith('.md')) continue;
+
+    // 并发读取，把串行 I/O 延迟压到最低（读文件本身不阻塞 UI 线程）。
+    final loaded = <({String path, String raw})>[];
+    final reads = await Future.wait(mdFiles.map((f) async {
       try {
-        final raw = await storage.readText(f);
-        final parsed = parseEntryFile(raw);
-        _pathById[parsed.meta.id] = f;
-        entries.add(_toEntry(parsed.meta, parsed.body));
+        return (path: f, raw: await storage.readText(f));
       } catch (_) {
-        /* skip */
+        return null;
+      }
+    }));
+    for (final r in reads) {
+      if (r != null) loaded.add(r);
+    }
+
+    // CPU 密集的 YAML+Markdown 解析：小库内联（避免 isolate 启动开销），
+    // 大库切到后台 isolate，避免解析期间卡住 UI 线程（300 条 ≈ 260ms）。
+    List<({String path, JournalEntry entry})> parsed;
+    if (loaded.length < _isolateParseThreshold) {
+      parsed = [for (final r in loaded) _parseEntry(r)];
+    } else {
+      parsed = await Isolate.run(() => [for (final r in loaded) _parseEntry(r)]);
+    }
+
+    final entries = <JournalEntry>[];
+    for (final p in parsed) {
+      _pathById[p.entry.id] = p.path;
+      entries.add(p.entry);
+    }
+    _pathMapFresh = true;
+    entries.sort(byRecency);
+    return entries;
+  }
+
+  /// 快速列出全部条目的元数据（正文留空），最新在前，并刷新 id -> 路径映射。
+  ///
+  /// 首页用：全量索引一次到位（frontmatter 快路径解析，毫秒级），正文由
+  /// [fillBodies] 按页分批补齐 —— 启动时不必把整库正文全部读入/解码，
+  /// 只渲染列表前几页，其余随滑动加载。
+  Future<List<JournalEntry>> listMetadata() async {
+    final files = await storage.list('entries/');
+    final mdFiles = files.where((f) => f.endsWith('.md')).toList();
+    _pathById.clear();
+
+    final loaded = <({String path, String raw})>[];
+    final reads = await Future.wait(mdFiles.map((f) async {
+      try {
+        return (path: f, raw: await storage.readText(f));
+      } catch (_) {
+        return null;
+      }
+    }));
+    for (final r in reads) {
+      if (r != null) loaded.add(r);
+    }
+
+    final entries = <JournalEntry>[];
+    for (final r in loaded) {
+      try {
+        final parsed = parseEntryFile(r.raw);
+        _pathById[parsed.meta.id] = r.path;
+        entries.add(_toEntry(parsed.meta, '')); // 正文稍后按需补齐
+      } catch (_) {
+        /* 跳过损坏文件 */
       }
     }
     _pathMapFresh = true;
     entries.sort(byRecency);
     return entries;
+  }
+
+  /// 为一批条目补齐正文（Markdown 原文；Markdown → 块的解码仍由渲染侧
+  /// [cachedDecodeEntryBody] 按需进行并缓存）。返回补齐后的条目列表，
+  /// 顺序与传入一致；读取失败或文件缺失的条目保持原样。
+  Future<List<JournalEntry>> fillBodies(List<JournalEntry> entries) async {
+    final out = <JournalEntry>[];
+    for (final e in entries) {
+      if (e.body.isNotEmpty) {
+        out.add(e);
+        continue;
+      }
+      final path = _pathById[e.id];
+      if (path == null) {
+        out.add(e);
+        continue;
+      }
+      try {
+        final raw = await storage.readText(path);
+        final parsed = parseEntryFile(raw);
+        out.add(_toEntry(parsed.meta, parsed.body));
+      } catch (_) {
+        out.add(e);
+      }
+    }
+    return out;
   }
 
   /// 定位条目文件，仅在必要时重新扫描 vault。
@@ -270,24 +344,36 @@ class JournalRepository {
   Future<void> saveSettings(AppSettings settings) async {
     await storage.writeText(VaultLayout.settings, _jsonEncode(settings.toJson()));
   }
-
-  JournalEntry _toEntry(JournalMeta meta, String body) => JournalEntry(
-        id: meta.id,
-        date: meta.date,
-        title: meta.title,
-        mood: meta.mood,
-        weather: meta.weather,
-        location: meta.location,
-        latitude: meta.latitude,
-        longitude: meta.longitude,
-        favorite: meta.favorite,
-        tags: meta.tags,
-        assets: meta.assets,
-        createdAt: meta.createdAt,
-        updatedAt: meta.updatedAt,
-        body: body,
-      );
 }
+
+/// 条目数量超过该值时，`listEntries` 的解析切到后台 isolate。
+/// 低于阈值内联更快（省去 isolate 启动的 ~10–30ms）。
+const int _isolateParseThreshold = 50;
+
+/// 解析单条 raw → (path, entry)。纯函数：主线程与后台 isolate 共用，
+/// 不能在内部引用任何带状态的实例成员。
+({String path, JournalEntry entry}) _parseEntry(
+    ({String path, String raw}) r) {
+  final parsed = parseEntryFile(r.raw);
+  return (path: r.path, entry: _toEntry(parsed.meta, parsed.body));
+}
+
+JournalEntry _toEntry(JournalMeta meta, String body) => JournalEntry(
+      id: meta.id,
+      date: meta.date,
+      title: meta.title,
+      mood: meta.mood,
+      weather: meta.weather,
+      location: meta.location,
+      latitude: meta.latitude,
+      longitude: meta.longitude,
+      favorite: meta.favorite,
+      tags: meta.tags,
+      assets: meta.assets,
+      createdAt: meta.createdAt,
+      updatedAt: meta.updatedAt,
+      body: body,
+    );
 
 /// 最新在前：先比日期，同日再比创建时间。
 int byRecency(JournalEntry a, JournalEntry b) {

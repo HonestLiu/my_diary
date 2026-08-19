@@ -84,7 +84,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _tags = List.of(e.tags);
     _latitude = e.latitude;
     _longitude = e.longitude;
-    _blocks.addAll(decodeEntryBody(e.body, e.assets));
+    _blocks.addAll(cachedDecodeEntryBody(e));
     _ensureTrailingText();
     _titleCtl.addListener(_markDirty);
     _locationCtl.addListener(_markDirty);

@@ -126,14 +126,160 @@ bool _isAssetRef(dynamic v) {
           kind == 'attachment');
 }
 
+// ---------------------------------------------------------------------------
+// 快速 frontmatter 解析（自产块式 YAML 快路径；识别不了回退 loadYaml）
+// ---------------------------------------------------------------------------
+
+final RegExp _fmKeyRe = RegExp(r'^[A-Za-z_][A-Za-z0-9_-]*$');
+
+/// 反解 `_yamlString` 写入的双引号字符串转义。
+String _unescapeDoubleQuoted(String s) {
+  final sb = StringBuffer();
+  var i = 0;
+  while (i < s.length) {
+    final c = s[i];
+    if (c == '\\' && i + 1 < s.length) {
+      final e = s[i + 1];
+      switch (e) {
+        case 'n':
+          sb.write('\n');
+          break;
+        case 'r':
+          sb.write('\r');
+          break;
+        case 't':
+          sb.write('\t');
+          break;
+        case '"':
+          sb.write('"');
+          break;
+        case '\\':
+          sb.write('\\');
+          break;
+        default:
+          sb
+            ..write('\\')
+            ..write(e); // 未知转义原样保留（罕见，值仍为字符串）
+      }
+      i += 2;
+    } else {
+      sb.write(c);
+      i++;
+    }
+  }
+  return sb.toString();
+}
+
+/// 解析单个标量：双引号字符串 / 数字 / bool / null / 裸字符串。
+/// 行内集合（`[...]`/`{...}`）或块标量（`|`/`>`）返回 [_unsupported] 让调用方回退。
+Object _unsupported = Object();
+
+dynamic _fastScalar(String s) {
+  final v = s.trim();
+  if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) {
+    return _unescapeDoubleQuoted(v.substring(1, v.length - 1));
+  }
+  if (v.isEmpty || v == '~' || v == 'null') return null;
+  if (v.startsWith('[') || v.startsWith('{') || v.startsWith('|') || v.startsWith('>')) {
+    return _unsupported;
+  }
+  if (v == 'true') return true;
+  if (v == 'false') return false;
+  final n = num.tryParse(v);
+  if (n != null) return n;
+  return v; // 裸字符串（桌面端可能不加引号）
+}
+
+/// 快速解析自产（或桌面端）frontmatter 的块式 YAML：
+/// 顶层 `key: scalar` / `key:` 空值 / `key:` 块式列表（列表项可为
+/// 标量或内嵌 map，如 tags / assets）。仅覆盖我们生成的固定格式；
+/// 任何意外形态返回 null，由 [parseFrontmatter] 回退 `loadYaml`，
+/// 保证与桌面端 js-yaml 的互通不受影响。
+Map<String, dynamic>? _tryFastParse(String text) {
+  final lines = text.replaceAll('\r\n', '\n').split('\n');
+  final map = <String, dynamic>{};
+  var i = 0;
+  while (i < lines.length) {
+    final line = lines[i];
+    if (line.trim().isEmpty) {
+      i++;
+      continue;
+    }
+    if (line.startsWith(' ') || line.startsWith('\t')) return null; // 意外缩进
+    final colon = line.indexOf(':');
+    if (colon <= 0) return null;
+    final key = line.substring(0, colon).trim();
+    if (!_fmKeyRe.hasMatch(key)) return null;
+    final value = line.substring(colon + 1).trim();
+    i++;
+
+    if (value.isEmpty) {
+      if (i < lines.length && lines[i].startsWith('  - ')) {
+        final list = <dynamic>[];
+        while (i < lines.length && lines[i].startsWith('  - ')) {
+          final itemRest = lines[i].substring(4).trim();
+          i++;
+          final itemMap = <String, dynamic>{};
+          final firstColon = itemRest.indexOf(':');
+          if (firstColon > 0) {
+            // 内联首键："- kind: x"
+            final k = itemRest.substring(0, firstColon).trim();
+            final v = itemRest.substring(firstColon + 1).trim();
+            if (!_fmKeyRe.hasMatch(k) || v.isEmpty) return null;
+            final sv = _fastScalar(v);
+            if (identical(sv, _unsupported)) return null;
+            itemMap[k] = sv;
+          } else if (itemRest.isNotEmpty) {
+            final sv = _fastScalar(itemRest);
+            if (identical(sv, _unsupported)) return null;
+            list.add(sv);
+            continue;
+          }
+          // map 项其余键（4 空格缩进）；比 assets 更深（>2 层）→ 回退
+          while (i < lines.length &&
+              lines[i].startsWith('    ') &&
+              !lines[i].startsWith('    -')) {
+            final sub = lines[i].substring(4);
+            final c = sub.indexOf(':');
+            if (c <= 0) return null;
+            final k = sub.substring(0, c).trim();
+            final v = sub.substring(c + 1).trim();
+            if (!_fmKeyRe.hasMatch(k) || v.isEmpty) return null;
+            final sv = _fastScalar(v);
+            if (identical(sv, _unsupported)) return null;
+            itemMap[k] = sv;
+            i++;
+          }
+          list.add(itemMap);
+        }
+        map[key] = list;
+      } else {
+        map[key] = null; // 空标量
+      }
+    } else {
+      final sv = _fastScalar(value);
+      if (identical(sv, _unsupported)) return null;
+      map[key] = sv;
+    }
+  }
+  return map;
+}
+
 /// 解析 frontmatter YAML 文本为归一化后的元数据。
 JournalMeta parseFrontmatter(String text, {String? fallbackId}) {
   final nowIso = DateTime.now().toUtc().toIso8601String();
   Map<String, dynamic> obj;
   try {
-    final loaded = loadYaml(text);
-    obj = (loaded == null ? <String, dynamic>{} : _deepToMap(loaded))
-        as Map<String, dynamic>;
+    // 快路径：我们自产的块式格式毫秒级解析；失败/未知形态回退 yaml 包，
+    // 保证与桌面端 js-yaml 输出完全兼容。
+    final fast = _tryFastParse(text);
+    if (fast != null) {
+      obj = fast;
+    } else {
+      final loaded = loadYaml(text);
+      obj = (loaded == null ? <String, dynamic>{} : _deepToMap(loaded))
+          as Map<String, dynamic>;
+    }
   } catch (_) {
     obj = <String, dynamic>{};
   }
