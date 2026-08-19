@@ -41,8 +41,13 @@ export default function Editor() {
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const saveTimer = useRef<number | null>(null);
+  /** Latest entry held in local state — lets the unmount cleanup flush it. */
+  const entryRef = useRef<JournalEntry | null>(null);
   /** Id currently held in local state — guards against needless reloads. */
   const loadedId = useRef<string | null>(null);
+
+  // Keep entryRef in sync so the unmount cleanup can flush the latest edits.
+  entryRef.current = entry;
 
   // Load the selected entry, or scaffold a blank draft for the active day.
   useEffect(() => {
@@ -73,7 +78,10 @@ export default function Editor() {
       // Route through the store so every save also refreshes the global
       // entries/stats — otherwise Timeline/Calendar/Dashboard/Search would
       // keep showing stale data until the app is restarted.
-      void useAppStore.getState().upsertEntry(next);
+      void useAppStore
+        .getState()
+        .upsertEntry(next)
+        .catch((e) => console.error("保存日记失败:", e));
       // First save of a draft: adopt it as the selection so the navigator
       // highlights it and a later refresh cannot drop it.
       if (useAppStore.getState().activeEntryId !== next.id) {
@@ -82,10 +90,24 @@ export default function Editor() {
     }, 600);
   }, []);
 
-  // Flush a pending save when leaving the page / closing the window.
+  // Flush a pending save when leaving the page / closing the window —
+  // otherwise debounced edits typed right before navigating away are lost.
   useEffect(
     () => () => {
-      if (saveTimer.current) window.clearTimeout(saveTimer.current);
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        const next = entryRef.current;
+        if (next) {
+          void useAppStore
+            .getState()
+            .upsertEntry(next)
+            .catch((e) => console.error("保存日记失败:", e));
+          if (useAppStore.getState().activeEntryId !== next.id) {
+            useAppStore.getState().openEntry(next.id, next.date);
+          }
+        }
+      }
     },
     [],
   );
