@@ -166,21 +166,17 @@ export interface SyncManifest {
   generatedAt: number;
 }
 
+/** 一次同步的结果（由 Rust `sync_vault` 命令返回）。 */
+export interface SyncResult {
+  uploaded: string[];
+  downloaded: string[];
+  conflicts: string[];
+  errors: string[];
+}
+
 /* ------------------------------------------------------------------ */
 /* Storage abstraction (P5) — provider independent                    */
 /* ------------------------------------------------------------------ */
-
-export interface StorageProvider {
-  readonly name: string;
-  upload(remotePath: string, data: Uint8Array | ArrayBuffer): Promise<void>;
-  download(remotePath: string): Promise<Uint8Array>;
-  delete(remotePath: string): Promise<void>;
-  /** List objects, optionally under a prefix. */
-  list(prefix?: string): Promise<string[]>;
-  /** Fetch the remote sync manifest if present. */
-  fetchManifest(): Promise<SyncManifest | null>;
-  pushManifest(manifest: SyncManifest): Promise<void>;
-}
 
 /* ------------------------------------------------------------------ */
 /* Encryption abstraction (P12) — end-to-end ready                    */

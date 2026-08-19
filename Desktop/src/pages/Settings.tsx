@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Cloud, CheckCircle2, AlertTriangle, Download, Upload, X } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
-import { S3StorageProvider } from "@/lib/sync/s3";
-import { SyncEngine, type SyncResult } from "@/lib/sync/engine";
+import { invoke } from "@tauri-apps/api/core";
+import { isTauri } from "@/lib/storage/types";
+import type { SyncResult } from "@/types/journal";
 import { uuid } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { SyncConfig } from "@/types/journal";
@@ -127,24 +128,28 @@ export default function Settings() {
   };
 
   const runSync = async () => {
+    if (!isTauri()) {
+      setError("云同步仅在桌面端（Tauri）可用。");
+      return;
+    }
     if (!form.endpoint || !form.bucket || !form.accessKey || !form.secretKey) {
       setError("请先填写完整的存储配置并保存。");
+      return;
+    }
+    const vaultRoot = useAppStore.getState().repo.vaultRoot;
+    if (!vaultRoot) {
+      setError("未找到 vault 根目录。");
       return;
     }
     setError(null);
     setSyncing(true);
     setResult(null);
     try {
-      const remote = new S3StorageProvider({
-        endpoint: form.endpoint,
-        bucket: form.bucket,
-        region: form.region ?? "us-east-1",
-        accessKey: form.accessKey,
-        secretKey: form.secretKey,
-        pathStyle: form.pathStyle ?? false,
+      // 同步逻辑完全在 Rust 侧（src-tauri/src/sync.rs），前端只调用命令。
+      const res = await invoke<SyncResult>("sync_vault", {
+        vaultRoot,
+        config: form,
       });
-      const engine = new SyncEngine(repo.storageAdapter, remote, deviceId);
-      const res = await engine.sync();
       setResult(res);
       await useAppStore.getState().refresh();
     } catch (e) {
@@ -473,10 +478,10 @@ export default function Settings() {
               />
               {result.conflicts.map((c) => (
                 <div
-                  key={c.path}
+                  key={c}
                   className="flex items-center justify-between rounded-xl bg-accent px-3 py-2 text-sm text-primary"
                 >
-                  <span className="truncate">⚠ 冲突：{c.path}</span>
+                  <span className="truncate">⚠ 冲突：{c}</span>
                 </div>
               ))}
               {result.errors.length > 0 && (
