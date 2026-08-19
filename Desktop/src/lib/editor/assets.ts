@@ -1,21 +1,22 @@
+import { invoke } from "@tauri-apps/api/core";
 import { getStorage } from "@/lib/storage";
 import { assetPath, thumbnailPath } from "@/lib/vault";
+import { isTauri } from "@/lib/storage/types";
+import type { TauriFsAdapter } from "@/lib/storage/tauri";
 import type { AssetRef, AssetKind } from "@/types/journal";
 
 /**
  * Editor-side asset pipeline.
  *
- * Images dropped/pasted into the editor are re-encoded to WebP (per the data
- * spec: "图片自动压缩为 WebP") at the configured quality, downscaled to a
- * 2000px max edge, and stored under `assets/images/<hash>.webp`. Videos are
- * re-encoded to WebM with the MediaRecorder API when compression is enabled;
- * on any failure the original bytes are kept. Every image/video also gets a
- * 256px JPEG list thumbnail under `assets/thumbnails/<hash>.jpg` (matches the
- * mobile app), which the list / media / memory / map views prefer to load.
- * Audio and other files are stored verbatim.
+ * 桌面端（Tauri）：原始文件先按原格式写入 vault，然后调用 Rust 侧
+ * `compress_image` / `compress_video` 命令**就地压缩**（保持原格式：
+ * jpg→jpg、png→png、webp→webp、mp4→mp4），并生成 256px 列表缩略图。
+ * Rust 通过 std::fs 直接读写绝对路径，不受前端 fs scope 限制。
  *
- * Every reference is a VAULT-RELATIVE path so the Markdown file stays portable
- * and the "data belongs to the user" principle holds.
+ * 浏览器预览：回退到前端 Canvas/MediaRecorder 方案（图片→WebP、
+ * 视频→WebM），仅保证预览可用。
+ *
+ * 音频和其他文件原样存储。所有引用均为 VAULT-RELATIVE 路径。
  */
 
 /** SHA-256 hex digest (browser/webview Crypto). */
@@ -293,10 +294,12 @@ async function fileToBytes(file: File): Promise<Uint8Array> {
 
 /**
  * Persist dropped/pasted files and return their vault-relative references.
- * Images are re-encoded to WebP (quality/long-edge from [opts]); videos are
- * re-encoded to WebM when compression is enabled (fallback to original on
- * failure). Images and videos also get a 256px JPEG thumbnail. Audio and other
- * files are stored as-is.
+ *
+ * Tauri（桌面端）：
+ *   - 原始字节按原格式写入 `assets/<kind>/<hash>.<ext>`
+ *   - 调 Rust `compress_image` / `compress_video` 就地压缩（保持格式）+ 生成缩略图
+ *   - Rust 失败时保留原文件（不转格式）
+ * 浏览器：前端 Canvas/MediaRecorder 方案（图片→WebP、视频→WebM）。
  */
 export async function saveDroppedAssets(
   files: Iterable<File>,
@@ -306,52 +309,122 @@ export async function saveDroppedAssets(
   const refs: AssetRef[] = [];
   for (const file of files) {
     const kind = kindFromFile(file);
-    let bytes: Uint8Array;
-    let ext: string;
-    let thumb: Uint8Array | null = null;
+    const ref = isTauri()
+      ? await saveViaRust(file, kind, opts, storage)
+      : await saveViaBrowser(file, kind, opts);
+    if (ref) refs.push(ref);
+  }
+  return refs;
+}
 
-    if (kind === "image") {
-      try {
-        bytes = await convertToWebp(file, imageQuality01(opts.imageQuality), 2000);
-        ext = "webp";
-      } catch {
-        // Fallback: keep the original bytes if WebP conversion fails.
-        bytes = await fileToBytes(file);
-        ext = extOf(file.name) || "bin";
-      }
-      try {
-        thumb = await thumbnailFromImage(file);
-      } catch {
-        thumb = null;
-      }
-    } else if (kind === "video") {
-      const compressed =
-        opts.videoQuality < 100 ? await compressVideo(file, opts.videoQuality) : null;
-      if (compressed) {
-        bytes = compressed;
-        ext = "webm";
-      } else {
-        bytes = await fileToBytes(file);
-        ext = extOf(file.name) || "bin";
-      }
-      try {
-        thumb = await posterFromVideo(file);
-      } catch {
-        thumb = null;
-      }
+/** 桌面端：原格式写入 + Rust 就地压缩。 */
+async function saveViaRust(
+  file: File,
+  kind: AssetKind,
+  opts: CompressionOptions,
+  storage: ReturnType<typeof getStorage>,
+): Promise<AssetRef | null> {
+  const original = await fileToBytes(file);
+  const ext = extOf(file.name) || fallbackExt(kind);
+  const hash = await sha256Hex(original);
+  const filename = `${hash.slice(0, 16)}.${ext}`;
+  const path = assetPath(kind, filename);
+  await storage.writeBytes(path, original);
+
+  let size = original.length;
+  let thumbWritten = false;
+  try {
+    const adapter = storage as TauriFsAdapter;
+    const absPath = adapter.resolveAbs(path);
+    if (kind === "image" && opts.imageQuality < 100) {
+      const r = await invoke<{ size: number; thumb_written: boolean }>(
+        "compress_image",
+        { absPath, quality: opts.imageQuality },
+      );
+      size = r.size;
+      thumbWritten = r.thumb_written;
+    } else if (kind === "video" && opts.videoQuality < 100) {
+      const r = await invoke<{ size: number; thumb_written: boolean }>(
+        "compress_video",
+        { absPath, quality: opts.videoQuality },
+      );
+      size = r.size;
+      thumbWritten = r.thumb_written;
+    }
+  } catch (e) {
+    // Rust 压缩失败：保留原文件字节，不转格式。
+    console.error("压缩失败，保留原文件:", e);
+  }
+
+  // 压缩失败但用户期望缩略图时，缩略图也回退由 Rust 生成（若成功）；否则跳过。
+  void thumbWritten;
+  return { kind, path, name: file.name || filename, size };
+}
+
+/** 浏览器：前端 Canvas/MediaRecorder 压缩（仅预览）。 */
+async function saveViaBrowser(
+  file: File,
+  kind: AssetKind,
+  opts: CompressionOptions,
+): Promise<AssetRef | null> {
+  const storage = getStorage();
+  let bytes: Uint8Array;
+  let ext: string;
+  let thumb: Uint8Array | null = null;
+
+  if (kind === "image") {
+    try {
+      bytes = await convertToWebp(file, imageQuality01(opts.imageQuality), 2000);
+      ext = "webp";
+    } catch {
+      bytes = await fileToBytes(file);
+      ext = extOf(file.name) || "bin";
+    }
+    try {
+      thumb = await thumbnailFromImage(file);
+    } catch {
+      thumb = null;
+    }
+  } else if (kind === "video") {
+    const compressed =
+      opts.videoQuality < 100 ? await compressVideo(file, opts.videoQuality) : null;
+    if (compressed) {
+      bytes = compressed;
+      ext = "webm";
     } else {
       bytes = await fileToBytes(file);
       ext = extOf(file.name) || "bin";
     }
-
-    const hash = await sha256Hex(bytes);
-    const filename = `${hash.slice(0, 16)}.${ext}`;
-    const path = assetPath(kind, filename);
-    await storage.writeBytes(path, bytes);
-    if (thumb) {
-      await storage.writeBytes(thumbnailPath(path), thumb).catch(() => undefined);
+    try {
+      thumb = await posterFromVideo(file);
+    } catch {
+      thumb = null;
     }
-    refs.push({ kind, path, name: file.name || filename, size: bytes.length });
+  } else {
+    bytes = await fileToBytes(file);
+    ext = extOf(file.name) || "bin";
   }
-  return refs;
+
+  const hash = await sha256Hex(bytes);
+  const filename = `${hash.slice(0, 16)}.${ext}`;
+  const path = assetPath(kind, filename);
+  await storage.writeBytes(path, bytes);
+  if (thumb) {
+    await storage.writeBytes(thumbnailPath(path), thumb).catch(() => undefined);
+  }
+  return { kind, path, name: file.name || filename, size: bytes.length };
+}
+
+/** 无扩展名时的兜底扩展名。 */
+function fallbackExt(kind: AssetKind): string {
+  switch (kind) {
+    case "image":
+      return "png";
+    case "video":
+      return "mp4";
+    case "audio":
+      return "m4a";
+    default:
+      return "bin";
+  }
 }

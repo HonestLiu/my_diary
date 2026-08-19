@@ -37,6 +37,15 @@ export class TauriFsAdapter implements StorageAdapter {
     }
   }
 
+  /**
+   * Resolve a vault-relative path to an absolute disk path.
+   * Used to hand a real file to a Rust command (e.g. in-place media
+   * compression) that reads/writes the file directly via std::fs.
+   */
+  resolveAbs(rel: string): string {
+    return this.abs(rel);
+  }
+
   async readText(path: string): Promise<string> {
     return readTextFile(this.abs(path));
   }
