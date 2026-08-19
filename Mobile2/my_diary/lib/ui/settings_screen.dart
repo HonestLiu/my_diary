@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
@@ -50,9 +52,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _exporting = false;
   late Future<List<String>> _conflicts;
 
+  /// 已导出的本地备份 zip（临时目录下 `my-diary-full-*.zip`），新→旧。
+  List<({String path, String name, int size, DateTime modified})> _backups = [];
+
   @override
   void initState() {
     super.initState();
+    // 首帧后加载历史备份列表（避免在 initState 里 setState）。
+    Future.microtask(_loadBackups);
     final s = context.read<AppStore>().settings;
     // 云账号已移除：历史 cloud 配置降级为「不使用同步」，避免下拉项缺失报错。
     _provider = s.sync.provider == SyncProvider.cloud
@@ -158,6 +165,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   /// 导出完整备份：流式生成 zip 到临时目录后走系统分享面板。
+  /// 分享后不自动删除（Android 分享面板关闭前接收方可能仍在读流），
+  /// 而是刷新下方「历史备份」列表，由用户按需删除 / 一键清空。
   Future<void> _exportFullBackup() async {
     final store = context.read<AppStore>();
     setState(() => _exporting = true);
@@ -181,6 +190,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('备份已生成（$count 个文件）：$zipPath'),
       ));
+      await _loadBackups(); // 新备份出现在下方列表，便于管理
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -189,6 +199,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
+  }
+
+  /// 扫描临时目录下的历史备份 zip（my-diary-full-*.zip），新→旧。
+  Future<void> _loadBackups() async {
+    try {
+      final tmp = await getTemporaryDirectory();
+      final files = <({String path, String name, int size, DateTime modified})>[];
+      await for (final e in tmp.list(followLinks: false)) {
+        if (e is! File) continue;
+        final name = e.uri.pathSegments.last;
+        if (!name.startsWith('my-diary-full-') || !name.endsWith('.zip')) continue;
+        try {
+          final st = await e.stat();
+          files.add((
+            path: e.path,
+            name: name,
+            size: st.size,
+            modified: st.modified,
+          ));
+        } catch (_) {/* 忽略无法读取的文件 */}
+      }
+      files.sort((a, b) => b.modified.compareTo(a.modified));
+      if (!mounted) return;
+      setState(() => _backups = files);
+    } catch (_) {
+      if (mounted) setState(() => _backups = []);
+    }
+  }
+
+  /// 删除单份备份（带确认）。
+  Future<void> _deleteBackup(String path) async {
+    final ok = await _confirm(
+      title: '删除备份',
+      message: '确定删除这份备份文件吗？',
+      confirmLabel: '删除',
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await File(path).delete();
+    } catch (_) {/* 已不存在等 */}
+    await _loadBackups();
+  }
+
+  /// 清空全部历史备份（带确认）。
+  Future<void> _clearAllBackups() async {
+    final ok = await _confirm(
+      title: '清空全部历史备份',
+      message: '将删除全部 ${_backups.length} 份本地备份文件，确定吗？',
+      confirmLabel: '清空',
+    );
+    if (ok != true || !mounted) return;
+    for (final b in _backups) {
+      try {
+        await File(b.path).delete();
+      } catch (_) {}
+    }
+    await _loadBackups();
+  }
+
+  Future<bool?> _confirm({
+    required String title,
+    required String message,
+    required String confirmLabel,
+  }) =>
+      showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(confirmLabel),
+            ),
+          ],
+        ),
+      );
+
+  String _sizeText(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   @override
@@ -582,6 +680,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 contentPadding: EdgeInsets.zero,
                 onTap: _exporting ? null : _exportFullBackup,
               ),
+              const Divider(height: 1),
+              // 历史备份列表：导出后留在临时目录的 zip 在此列出，可单独删除或一键清空。
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 12, 0, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _backups.isEmpty
+                            ? '历史备份'
+                            : '历史备份（${_backups.length}，共 ${_sizeText(_backups.fold<int>(0, (s, b) => s + b.size))}）',
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    if (_backups.isNotEmpty)
+                      TextButton(
+                        onPressed: _clearAllBackups,
+                        child: const Text('清空全部'),
+                      ),
+                  ],
+                ),
+              ),
+              if (_backups.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                    '暂无本地备份文件',
+                    style: TextStyle(fontSize: 12, color: t.textTertiary),
+                  ),
+                )
+              else
+                for (final b in _backups)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.archive_outlined, size: 20),
+                    title: Text(b.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13)),
+                    subtitle: Text(
+                      '${_sizeText(b.size)} · '
+                      '${DateFormat('yyyy-MM-dd HH:mm').format(b.modified.toLocal())}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      tooltip: '删除此备份',
+                      onPressed: () => _deleteBackup(b.path),
+                    ),
+                  ),
             ],
           ),
           const SizedBox(height: 24),

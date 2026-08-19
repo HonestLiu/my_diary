@@ -17,6 +17,8 @@ class VaultLayout {
   static const String settings = 'settings.json';
   static const String index = 'metadata/index.json';
   static const String sync = 'metadata/sync.json';
+  /// 本地哈希缓存（size+mtime→hash，仅本机使用，不进同步）。
+  static const String hashCache = 'metadata/hashes.json';
   static const String entries = 'entries';
   static const String assets = 'assets';
   static const String versions = 'versions';
@@ -80,6 +82,10 @@ String assetPath(AssetKind kind, String filename) => '${assetDir(kind)}/$filenam
 
 /// 个人资料文件（如头像）：`profile/<filename>`，随 vault 导出/同步。
 String profileAvatarPath(String filename) => '${VaultLayout.profile}/$filename';
+
+/// 便携个人档案：`profile/profile.json`，存 displayName / motto / avatar，
+/// 随同步在设备间迁移（头像本体是 `profile/avatar.<ext>`，也一并同步）。
+String profileFilePath() => '${VaultLayout.profile}/profile.json';
 
 String versionDir(String entryKey) => 'versions/${sanitizeKey(entryKey)}';
 

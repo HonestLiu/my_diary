@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -40,6 +41,10 @@ class AppStore extends ChangeNotifier {
   bool _loadingMore = false;
   static const int _listPageSize = 40; // 首页正文分批加载的每页条数
 
+  /// 尚未同步到远程的本地文件路径集合（vault 相对路径）。
+  Set<String> _unsyncedPaths = {};
+  bool _disposed = false;
+
   AppStore({
     required this.auth,
     required this.prefs,
@@ -48,6 +53,7 @@ class AppStore extends ChangeNotifier {
 
   AppSettings get settings => _settings;
   List<JournalEntry> get entries => _entries;
+  Set<String> get unsyncedPaths => _unsyncedPaths;
   bool get initialized => _initialized;
   bool get busy => _busy;
   SyncResult? get lastSync => _lastSync;
@@ -80,7 +86,10 @@ class AppStore extends ChangeNotifier {
     var loaded = await repo.loadSettings();
     // 去掉可能来自桌面端的凭据，避免移动端写回 / 泄露。
     loaded = loaded.copyWith(sync: loaded.sync.copyWith(clearCredentials: true));
+    // 合并同步来的便携档案（displayName / motto / avatar）。
+    loaded = await _applyPortableProfile(loaded);
     _settings = loaded;
+    await _bootstrapPortableProfile(loaded);
     _settingsPreloaded = true;
     // 旧版头像（文档目录裸文件）迁移到 vault profile/（2026-08-18 早前方案）。
     await _migrateLegacyAvatar();
@@ -100,7 +109,10 @@ class AppStore extends ChangeNotifier {
       // 去掉可能来自桌面端的凭据，避免移动端写回 / 泄露。
       loaded =
           loaded.copyWith(sync: loaded.sync.copyWith(clearCredentials: true));
+      // 合并同步来的便携档案（displayName / motto / avatar）。
+      loaded = await _applyPortableProfile(loaded);
       _settings = loaded;
+      await _bootstrapPortableProfile(loaded);
 
       // 旧版头像（文档目录裸文件）迁移到 vault profile/（2026-08-18 早前方案）。
       await _migrateLegacyAvatar();
@@ -123,6 +135,31 @@ class AppStore extends ChangeNotifier {
     _loadedBodies = 0;
     await _fillBodyPage();
     notifyListeners();
+    // 「未同步」计算走后台 isolate（含增量哈希缓存），不阻塞列表渲染；
+    // 完成后单独通知，卡片上的标识随后出现/消失。
+    unawaited(_refreshUnsynced());
+  }
+
+  /// 后台刷新「未同步」路径集合（见 SyncEngine.unsyncedPaths）。
+  Future<void> _refreshUnsynced() async {
+    try {
+      final s = await _computeUnsyncedPaths();
+      if (_disposed) return;
+      _unsyncedPaths = s;
+      notifyListeners();
+    } catch (_) {/* 计算失败不影响主流程 */}
+  }
+
+  /// 计算当前未同步路径；同步未启用或凭据不完整时返回空（不显示标识）。
+  Future<Set<String>> _computeUnsyncedPaths() async {
+    if (!_settings.sync.enabled) return {};
+    try {
+      final remote = buildRemoteStorage(_settings.sync, auth);
+      final engine = SyncEngine(repo.storage, remote, _deviceId);
+      return await engine.unsyncedPaths();
+    } catch (_) {
+      return {};
+    }
   }
 
   /// 滑动接近列表底部时，再补一页正文（幂等：已在加载或已全部补齐则跳过）。
@@ -173,8 +210,62 @@ class AppStore extends ChangeNotifier {
           {Set<SearchScope> filters = const {}, Mood? mood}) =>
       repo.search(q, filters: filters, mood: mood);
 
+  /// 便携个人档案 `profile/profile.json`：随同步在设备间迁移。
+  /// settings.json 仍存完整偏好（含设备专属配置），但不同步 —— 凭据/偏好
+  /// 不跨设备互覆；displayName / motto / avatar 走这里。
+  Future<void> _writePortableProfile(AppSettings s) async {
+    await repo.storage.writeText(
+      profileFilePath(),
+      jsonEncode({
+        'displayName': s.displayName,
+        'motto': s.motto,
+        'avatar': s.avatar,
+      }),
+    );
+  }
+
+  Future<Map<String, dynamic>?> _readPortableProfile() async {
+    if (!(await repo.storage.exists(profileFilePath()))) return null;
+    try {
+      return jsonDecode(await repo.storage.readText(profileFilePath()))
+          as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 加载时把同步来的便携档案合并进本地设置（本地为空时优先取档案值）。
+  Future<AppSettings> _applyPortableProfile(AppSettings loaded) async {
+    final p = await _readPortableProfile();
+    if (p == null) return loaded;
+    return loaded.copyWith(
+      displayName: (p['displayName'] as String?) ?? loaded.displayName,
+      motto: (p['motto'] as String?) ?? loaded.motto,
+      avatar: (p['avatar'] as String?) ?? loaded.avatar,
+    );
+  }
+
+  /// 首次加载且本地已存在档案数据时，把数据写入 profile.json 随同步导出；
+  /// 已有 profile.json 或本地无档案时不做任何事，避免空文件覆盖别端数据。
+  Future<void> _bootstrapPortableProfile(AppSettings loaded) async {
+    final has = loaded.displayName.isNotEmpty ||
+        loaded.motto.isNotEmpty ||
+        loaded.avatar.isNotEmpty;
+    if (!has) return;
+    if (await _readPortableProfile() != null) return;
+    await _writePortableProfile(loaded);
+  }
+
   Future<void> saveSettings(AppSettings s) async {
+    final prev = _settings;
     _settings = s;
+    await repo.saveSettings(s);
+    // 个人档案字段变化时写 profile/profile.json，随同步迁移到其他设备。
+    if (prev.displayName != s.displayName ||
+        prev.motto != s.motto ||
+        prev.avatar != s.avatar) {
+      await _writePortableProfile(s);
+    }
     await repo.saveSettings(s);
     notifyListeners();
     // 设置变更后重启定期自动同步（含间隔变化 / 开关切换）。
@@ -200,6 +291,7 @@ class AppStore extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _autoSyncTimer?.cancel();
     _periodicSyncTimer?.cancel();
     super.dispose();
@@ -298,11 +390,23 @@ class AppStore extends ChangeNotifier {
       _lastSync = res;
       _lastSyncAt = DateTime.now();
       await refreshEntries();
+      // 同步可能下载了新 profile.json —— 立即合并档案，让昵称/座右铭/头像生效。
+      await _reapplyProfileAfterSync();
     } catch (e) {
       _syncError = e.toString();
     } finally {
       _busy = false;
       notifyListeners();
+    }
+  }
+
+  /// 同步后重读 profile/profile.json 并合并进当前设置（下载了别端档案时生效）。
+  Future<void> _reapplyProfileAfterSync() async {
+    final merged = await _applyPortableProfile(_settings);
+    if (merged.displayName != _settings.displayName ||
+        merged.motto != _settings.motto ||
+        merged.avatar != _settings.avatar) {
+      _settings = merged;
     }
   }
 

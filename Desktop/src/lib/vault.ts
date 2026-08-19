@@ -145,6 +145,14 @@ export function profileAvatarPath(filename: string): string {
 }
 
 /**
+ * 便携个人档案：`profile/profile.json`，存 displayName / motto / avatar，
+ * 随同步在设备间迁移（头像本体是 `profile/avatar.<ext>`，也一并同步）。
+ */
+export function profileFilePath(): string {
+  return "profile/profile.json";
+}
+
+/**
  * 列表缩略图路径：与资产同基名，落在 `assets/thumbnails/`（与移动端一致）。
  * 例：assets/images/abc.webp → assets/thumbnails/abc.jpg
  */

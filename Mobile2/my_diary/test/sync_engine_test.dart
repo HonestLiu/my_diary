@@ -15,6 +15,7 @@ import 'package:my_diary_mobile/sync/remote_storage.dart';
 import 'package:my_diary_mobile/sync/sync_engine.dart';
 import 'package:my_diary_mobile/vault/local_vault.dart';
 import 'package:my_diary_mobile/vault/markdown_codec.dart';
+import 'package:my_diary_mobile/vault/vault_layout.dart';
 
 /// In-memory RemoteStorage for driving SyncEngine without a real backend.
 class FakeRemoteStorage implements RemoteStorage {
@@ -111,6 +112,53 @@ void main() {
     expect(remote.manifest, isNotNull);
   });
 
+  test('large vault (isolate hash path) uploads all entries', () async {
+    final repo = await _repo();
+    for (var i = 0; i < 25; i++) {
+      await repo.saveEntry(_sample('iso$i', '正文 $i'));
+    }
+
+    final engine = SyncEngine(vault, remote, 'mobile');
+    final res = await engine.sync();
+
+    // 25 个条目超过哈希 isolate 阈值（20），走后台 isolate 路径；全部应上传。
+    expect(res.uploaded, hasLength(25));
+    expect(res.errors, isEmpty);
+    expect(remote.objects, hasLength(25));
+  });
+
+  test('asset hash cache: 未变化复用、变化后重算', () async {
+    final repo = await _repo();
+    await repo.saveEntry(_sample('c1', '正文'));
+    await vault.writeBytes(
+        'assets/images/a1.jpg', Uint8List.fromList([1, 2, 3, 4]));
+
+    final engine = SyncEngine(vault, remote, 'mobile');
+    final m1 = await engine.buildLocalManifest();
+    final assetPath = 'assets/images/a1.jpg';
+    final h1 = m1.files.firstWhere((f) => f.path == assetPath).hash;
+    // 本地哈希缓存文件已生成，且包含该资产。
+    expect(await vault.exists(VaultLayout.hashCache), isTrue);
+    final cacheRaw = await vault.readText(VaultLayout.hashCache);
+    expect(cacheRaw, contains(assetPath));
+
+    // 无变化再次构建：资产命中缓存，哈希保持一致。
+    final m2 = await engine.buildLocalManifest();
+    expect(
+      m2.files.firstWhere((f) => f.path == assetPath).hash,
+      h1,
+    );
+
+    // 原地改写资产（size 变化）→ mtime/size 不再匹配，重新哈希出新值。
+    await vault.writeBytes(
+        'assets/images/a1.jpg', Uint8List.fromList([9, 9, 9, 9, 9]));
+    final m3 = await engine.buildLocalManifest();
+    expect(
+      m3.files.firstWhere((f) => f.path == assetPath).hash,
+      isNot(h1),
+    );
+  });
+
   test('re-sync with no local changes is a no-op', () async {
     final repo = await _repo();
     await repo.saveEntry(_sample('e1', '本地内容'));
@@ -121,6 +169,25 @@ void main() {
     expect(res2.uploaded, isEmpty);
     expect(res2.downloaded, isEmpty);
     expect(res2.conflicts, isEmpty);
+  });
+
+  test('unsyncedPaths: 无基线未同步 → 同步后清空 → 改动后重新出现', () async {
+    final repo = await _repo();
+    await repo.saveEntry(_sample('u1', '正文'));
+
+    final engine = SyncEngine(vault, remote, 'mobile');
+    const path = 'entries/2026/08/2026-08-17-u1.md';
+
+    // 尚未同步：无基线 → 该条目未同步。
+    expect(await engine.unsyncedPaths(), contains(path));
+
+    // 模拟一次成功同步：把当前本地清单写为基线 → 全部已同步。
+    await engine.writeLocalBaseline(await engine.buildLocalManifest());
+    expect(await engine.unsyncedPaths(), isNot(contains(path)));
+
+    // 本地改动后 → 重新标记未同步。
+    await repo.saveEntry(_sample('u1', '改动后的正文'));
+    expect(await engine.unsyncedPaths(), contains(path));
   });
 
   test('remote-only entry is downloaded locally', () async {

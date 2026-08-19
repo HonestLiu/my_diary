@@ -6,6 +6,7 @@ import 'package:my_diary_mobile/editor/markdown_doc.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/app_theme.dart';
 import 'package:my_diary_mobile/ui/detail_screen.dart';
+import 'package:my_diary_mobile/vault/vault_layout.dart';
 
 /// 首页 / 日历共用的日记卡片：柔和投影无边框圆角卡。
 /// 布局：标题行（标题 + 心情/天气 emoji + 喜欢角标）→ 地点行 → 两行预览 →
@@ -20,6 +21,9 @@ class EntryCard extends StatelessWidget {
     final store = context.read<AppStore>();
     final cover = store.coverFor(entry.assets);
     final loc = entry.location?.trim() ?? '';
+    // 未同步标识：本地文件哈希与「本机基线」不一致（自上次同步后有改动/新增）。
+    final unsynced = store.unsyncedPaths.contains(
+        entryFilePath(EntryFileRef(id: entry.id, date: entry.date)));
     // 渲染后的预览：解码正文为文档块，再压平成带行内样式的 span（保留加粗/斜体等）。
     // 正文未加载（首页分页加载，body 为空）时先不渲染预览，补齐后自动出现。
     final previewSpans = entry.body.trim().isEmpty
@@ -76,6 +80,17 @@ class EntryCard extends StatelessWidget {
                           const SizedBox(width: 5),
                           const Icon(Icons.favorite,
                               size: 15, color: Colors.redAccent),
+                        ],
+                        if (unsynced) ...[
+                          const SizedBox(width: 4),
+                          Tooltip(
+                            message: '尚未同步到云端',
+                            child: Icon(
+                              Icons.cloud_upload_outlined,
+                              size: 15,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
                         ],
                       ],
                     ),

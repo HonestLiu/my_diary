@@ -381,7 +381,31 @@ fn hmac_bytes(key: &[u8], data: &[u8]) -> Vec<u8> {
     mac.finalize().into_bytes().to_vec()
 }
 
+/// 与移动端 `SyncEngine.shouldSync` 一致：仅同步可跨设备移植的日记内容。
+///
+/// `settings.json`（设备专属偏好 + 明文凭据）、`metadata/index.json`、
+/// `metadata/sync.json`（本机基线）与 `conflicts/`（冲突副本）都是设备本地
+/// 状态，绝不能互相覆盖 —— 否则基线、凭据、偏好会跨设备互覆。
+/// 个人档案（displayName / motto / avatar）走 `profile/profile.json`，
+/// 与头像文件一起在 `profile/` 下随同步迁移。
+fn should_sync(rel: &str) -> bool {
+    if rel == "settings.json" {
+        return false;
+    }
+    if rel == "metadata/index.json" {
+        return false;
+    }
+    if rel == "metadata/sync.json" {
+        return false;
+    }
+    if rel.starts_with("conflicts/") {
+        return false;
+    }
+    true
+}
+
 /// 递归遍历 vault，返回 (相对路径(/{sep}), sha256, size)。阻塞 IO 放入 spawn_blocking。
+/// 只收集 `should_sync` 允许的便携内容。
 fn list_local(root: &Path) -> Result<Vec<(String, String, u64)>, String> {
     let mut out = Vec::new();
     walk(root, root, &mut out)?;
@@ -402,6 +426,9 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, String, u64)>) -> Result
                 .unwrap_or(&path)
                 .to_string_lossy()
                 .replace('\\', "/");
+            if !should_sync(&rel) {
+                continue;
+            }
             let hash = sha256_hex(&data);
             out.push((rel, hash, data.len() as u64));
         }
@@ -451,17 +478,35 @@ pub async fn sync_vault(
         .map(|(p, h, s)| (p, (h, s)))
         .collect();
 
-    let remote_objects = client.list("").await?;
+    let remote_objects: Vec<String> = client
+        .list("")
+        .await?
+        .into_iter()
+        .filter(|p| should_sync(p))
+        .collect();
     let remote_manifest = client.fetch_manifest().await;
     let remote_hash: HashMap<String, String> = remote_manifest
         .as_ref()
-        .map(|m| m.files.iter().map(|f| (f.path.clone(), f.hash.clone())).collect())
+        .map(|m| {
+            m.files
+                .iter()
+                .filter(|f| should_sync(&f.path))
+                .map(|f| (f.path.clone(), f.hash.clone()))
+                .collect()
+        })
         .unwrap_or_default();
 
     // 读取上一次同步基线（用于判断两侧是否各自变更）。
     let baseline = load_baseline(&root);
-    let base_map: HashMap<String, String> =
-        baseline.map(|m| m.files.iter().map(|f| (f.path.clone(), f.hash.clone())).collect()).unwrap_or_default();
+    let base_map: HashMap<String, String> = baseline
+        .map(|m| {
+            m.files
+                .iter()
+                .filter(|f| should_sync(&f.path))
+                .map(|f| (f.path.clone(), f.hash.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
 
     let mut result = SyncResultDto {
         uploaded: Vec::new(),

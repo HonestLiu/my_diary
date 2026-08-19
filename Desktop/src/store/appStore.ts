@@ -13,7 +13,7 @@ import {
   type JournalRepository,
 } from "@/lib/journal";
 import { isTauri } from "@/lib/storage/types";
-import { entryFilePath } from "@/lib/vault";
+import { entryFilePath, profileFilePath } from "@/lib/vault";
 import { sha256Hex } from "@/lib/crypto";
 
 interface AppState {
@@ -92,6 +92,75 @@ async function resolveSingleVaultRoot(): Promise<string> {
   return "my-diary-vault";
 }
 
+/* ------------------------------------------------------------------ */
+/* 便携个人档案 profile/profile.json：displayName / motto / avatar。    */
+/* 随同步在设备间迁移；本地 settings.json 仍存完整偏好（含凭据），但    */
+/* 不同步。头像本体是 profile/avatar.<ext>，同样随同步迁移。            */
+/* ------------------------------------------------------------------ */
+
+interface PortableProfile {
+  displayName?: string;
+  motto?: string;
+  avatar?: string;
+}
+
+async function readPortableProfile(
+  repo: JournalRepository,
+): Promise<PortableProfile | null> {
+  try {
+    if (!(await repo.storageAdapter.exists(profileFilePath()))) return null;
+    const raw = await repo.storageAdapter.readText(profileFilePath());
+    const p = JSON.parse(raw) as PortableProfile;
+    return typeof p === "object" && p !== null ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writePortableProfile(
+  repo: JournalRepository,
+  settings: AppSettings,
+): Promise<void> {
+  const profile: PortableProfile = {
+    displayName: settings.displayName ?? "",
+    motto: settings.motto ?? "",
+    avatar: settings.avatar ?? "",
+  };
+  await repo.storageAdapter.writeText(
+    profileFilePath(),
+    JSON.stringify(profile, null, 2),
+  );
+}
+
+/** 加载时把同步来的便携档案合并进本地设置（本地值为空时优先取档案值）。 */
+async function applyPortableProfile(
+  repo: JournalRepository,
+  settings: AppSettings,
+): Promise<AppSettings> {
+  const p = await readPortableProfile(repo);
+  if (!p) return settings;
+  return {
+    ...settings,
+    displayName: p.displayName ?? settings.displayName,
+    motto: p.motto ?? settings.motto,
+    avatar: p.avatar ?? settings.avatar,
+  };
+}
+
+/**
+ * 首次加载且本地已存在档案数据时写入 profile.json 随同步导出；
+ * 已有 profile.json 或本地无档案时不做任何事，避免空文件覆盖别端数据。
+ */
+async function bootstrapPortableProfile(
+  repo: JournalRepository,
+  settings: AppSettings,
+): Promise<void> {
+  const has = Boolean(settings.displayName || settings.motto || settings.avatar);
+  if (!has) return;
+  if (await readPortableProfile(repo)) return;
+  await writePortableProfile(repo, settings);
+}
+
 function computeStreak(dates: string[]): number {
   const set = new Set(dates);
   let count = 0;
@@ -147,7 +216,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       const seeded = await repo.seedIfEmpty();
       const entries = await repo.listEntries();
       const stats = await repo.stats();
-      const settings = await repo.loadSettings();
+      // 合并同步来的便携档案（displayName / motto / avatar）。
+      const settings = await applyPortableProfile(repo, await repo.loadSettings());
+      await bootstrapPortableProfile(repo, settings);
       const startDate = seeded ? formatDateKey() : get().activeDate;
       set({
         entries,
@@ -209,6 +280,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const next = { ...get().settings, ...patch };
     set({ settings: next });
     void get().repo.saveSettings(next).catch(() => undefined);
+    // 个人档案字段变化时同步写 profile/profile.json，随 vault 同步迁移。
+    if ("displayName" in patch || "motto" in patch || "avatar" in patch) {
+      void writePortableProfile(get().repo, next).catch(() => undefined);
+    }
   },
 
   upsertEntry: async (entry) => {
@@ -321,6 +396,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ lastSyncAt: Date.now() });
       await get().refresh();
       await get().computeUnsynced();
+      // 同步可能下载了新 profile.json —— 立即合并档案，让昵称/座右铭/头像生效。
+      const cur = get().settings;
+      const merged = await applyPortableProfile(get().repo, cur);
+      if (
+        merged.displayName !== cur.displayName ||
+        merged.motto !== cur.motto ||
+        merged.avatar !== cur.avatar
+      ) {
+        set({ settings: merged });
+      }
     } catch (e) {
       set({ syncError: e instanceof Error ? e.message : String(e) });
     } finally {

@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:isolate';
 
 import 'package:my_diary_mobile/models/sync_types.dart';
 import 'package:my_diary_mobile/sync/auth_service.dart';
@@ -8,6 +10,7 @@ import 'package:my_diary_mobile/vault/local_vault.dart';
 import 'package:my_diary_mobile/vault/vault_layout.dart';
 import 'package:my_diary_mobile/s3_remote.dart';
 import 'package:my_diary_mobile/sync/cloud_remote.dart';
+import 'package:path/path.dart' as p;
 
 /// 本地优先同步引擎。双向、冲突感知、绝不静默覆盖。
 ///
@@ -36,35 +39,94 @@ class SyncEngine {
     if (path == VaultLayout.settings) return false;
     if (path == VaultLayout.index) return false;
     if (path == VaultLayout.sync) return false;
+    if (path == VaultLayout.hashCache) return false; // 本地哈希缓存，不进同步
     if (path.startsWith('${VaultLayout.conflicts}/')) return false;
     return true;
   }
 
-  Future<({String hash, int size})> _hashFile(String path) async {
-    final bytes = await storage.readBytes(path);
-    return (hash: sha256Hex(bytes), size: bytes.length);
-  }
-
   /// 扫描整个 vault，构建当前本地清单（仅内容范围）。
+  ///
+  /// 读取 + SHA-256 是 CPU 密集（assets 下可能有大量图片/视频），在后台
+  /// isolate 中执行，避免同步时主线程被哈希计算占满导致 UI 卡顿。
+  ///
+  /// 增量优化：`assets/` 下的文件由 uuid 命名、落盘后从不原地改写
+  /// （同步下载覆盖时 mtime 会变，会被重新哈希），因此用 size+mtime
+  /// 命中本地哈希缓存即可跳过重复读取，无需逐次重算所有媒体文件；
+  /// `entries/` / `versions/` 等会被原地改写的小文本始终重算，保证精确。
   Future<SyncManifest> buildLocalManifest() async {
     final files = (await storage.list(''))
         .where(shouldSync)
         .toList();
-    final syncFiles = <SyncFile>[];
+    final cache = await _loadHashCache();
+    var cacheDirty = false;
+    final toHash = <String>[];
+    final resolvedHash = <String, String>{};
+    final statByPath = <String, ({int size, int mtime})>{};
+
     for (final f in files) {
-      final hs = await _hashFile(f);
-      syncFiles.add(SyncFile(
-        path: f,
-        hash: hs.hash,
-        size: hs.size,
-        updated: DateTime.now().millisecondsSinceEpoch,
-      ));
+      FileStat st;
+      try {
+        st = await File(p.join(storage.root, f)).stat();
+      } catch (_) {
+        continue; // 读不到则跳过（与之前行为一致）
+      }
+      statByPath[f] = (size: st.size, mtime: st.modified.millisecondsSinceEpoch);
+      final cached = cache[f];
+      if (cached != null &&
+          _isAsset(f) &&
+          cached.size == st.size &&
+          cached.mtime == st.modified.millisecondsSinceEpoch) {
+        resolvedHash[f] = cached.hash; // 未变化，复用缓存哈希
+      } else {
+        toHash.add(f);
+      }
     }
+
+    for (final r in await computeLocalHashes(storage.root, toHash)) {
+      resolvedHash[r.path] = r.hash;
+      if (_isAsset(r.path)) {
+        // 用首轮 stat 的 mtime 入缓存：若哈希期间文件被改动，下次同步的
+        // stat 会对不上（mtime/size 变化），自然触发重算，保证精确。
+        final st = statByPath[r.path];
+        cache[r.path] = (size: r.size, mtime: st?.mtime ?? 0, hash: r.hash);
+        cacheDirty = true;
+      }
+    }
+    if (cacheDirty) await _saveHashCache(cache);
+
+    final syncFiles = <SyncFile>[
+      for (final f in files)
+        if (resolvedHash[f] != null)
+          SyncFile(
+            path: f,
+            hash: resolvedHash[f]!,
+            size: statByPath[f]?.size ?? 0,
+            updated: DateTime.now().millisecondsSinceEpoch,
+          ),
+    ];
     return SyncManifest(
       deviceId: deviceId,
       files: syncFiles,
       generatedAt: DateTime.now().millisecondsSinceEpoch,
     );
+  }
+
+  /// 当前本地「尚未同步到远程」的文件路径集合。
+  ///
+  /// 判定：本地清单中某文件的 hash 与「本机基线」（metadata/sync.json，
+  /// 上次同步完成时的本地状态）不一致，即自上次同步以来有改动、待上传；
+  /// 基线中不存在的新文件（新条目/新资产）同样视为未同步。
+  /// 仅本地计算，不发起任何网络请求。
+  Future<Set<String>> unsyncedPaths() async {
+    final local = await buildLocalManifest();
+    final baseline = await readLocalBaseline();
+    final baseHash = {
+      for (final f in baseline?.files ?? []) f.path: f.hash,
+    };
+    return {
+      for (final f in local.files)
+        if (baseHash[f.path] != f.hash) f.path,
+    };
   }
 
   Future<SyncManifest?> readLocalBaseline() async {
@@ -79,6 +141,39 @@ class SyncEngine {
 
   Future<void> writeLocalBaseline(SyncManifest m) async {
     await storage.writeText(VaultLayout.sync, jsonEncode(m.toJson()));
+  }
+
+  /// 读取本地哈希缓存（metadata/hashes.json）。缺失/损坏一律按空缓存处理。
+  Future<Map<String, ({int size, int mtime, String hash})>> _loadHashCache() async {
+    if (!(await storage.exists(VaultLayout.hashCache))) return {};
+    try {
+      final map =
+          jsonDecode(await storage.readText(VaultLayout.hashCache)) as Map<String, dynamic>;
+      return {
+        for (final e in map.entries)
+          e.key: (
+            size: (e.value['s'] as num).toInt(),
+            mtime: (e.value['m'] as num).toInt(),
+            hash: e.value['h'] as String,
+          ),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// 写回哈希缓存。写失败不影响同步（下次全量重算即可）。
+  Future<void> _saveHashCache(
+      Map<String, ({int size, int mtime, String hash})> cache) async {
+    try {
+      await storage.writeText(
+        VaultLayout.hashCache,
+        jsonEncode({
+          for (final e in cache.entries)
+            e.key: {'s': e.value.size, 'm': e.value.mtime, 'h': e.value.hash},
+        }),
+      );
+    } catch (_) {/* 缓存写失败忽略 */}
   }
 
   Future<SyncResult> sync() async {
@@ -239,3 +334,37 @@ RemoteStorage buildRemoteStorage(
   }
   throw StateError('同步未启用或提供者不支持');
 }
+
+/// 本地文件数超过该值时，哈希切到后台 isolate（否则内联，省 isolate 启动开销）。
+const int _hashIsolateThreshold = 20;
+
+/// 在后台 isolate 中计算一批文件的 SHA-256。
+///
+/// 读取大文件（图片/视频）并算哈希是 CPU + 内存密集——若在主 isolate 执行，
+/// 同步期间 UI 会被占满。读取失败（文件被并发删除等）静默跳过，下次同步
+/// 自然补齐。
+Future<List<({String path, String hash, int size})>> computeLocalHashes(
+    String root, List<String> files) async {
+  if (files.length < _hashIsolateThreshold) {
+    return _hashAllLocal(root, files);
+  }
+  return Isolate.run(() => _hashAllLocal(root, files));
+}
+
+/// 逐文件读取并计算 SHA-256（在后台 isolate 中运行，或小库内联）。
+List<({String path, String hash, int size})> _hashAllLocal(
+    String root, List<String> files) {
+  final out = <({String path, String hash, int size})>[];
+  for (final f in files) {
+    try {
+      final bytes = File(p.join(root, f)).readAsBytesSync();
+      out.add((path: f, hash: sha256Hex(bytes), size: bytes.length));
+    } catch (_) {
+      // 读取失败跳过；与磁盘事实不冲突，下次同步会重新尝试。
+    }
+  }
+  return out;
+}
+
+/// 资产文件（uuid 命名、落盘后不原地改写）才可安全地用 size+mtime 缓存跳过。
+bool _isAsset(String path) => path.startsWith('assets/');
