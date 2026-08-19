@@ -129,6 +129,13 @@
   line-height: 1.8;
   color: hsl(var(--foreground));
 }
+
+/* Diary body font, shared by the editor (.prose-diary) and every reading
+   surface (MarkdownPreview in list cards / calendar / search / map / …) so the
+   user's serif/sans choice applies consistently across write and read. */
+.diary-font {
+  font-family: var(--diary-font, inherit);
+}
 .prose-diary:focus {
   outline: none;
 }

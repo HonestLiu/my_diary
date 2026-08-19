@@ -22,7 +22,7 @@ export function MarkdownPreview({
 }) {
   const nodes = useMemo(() => renderPreview(body), [body]);
   if (nodes.length === 0) return null;
-  return <span className={className}>{nodes}</span>;
+  return <span className={`diary-font ${className ?? ""}`}>{nodes}</span>;
 }
 
 /** 把 Markdown 正文渲染为行内 React 节点（块与块之间以换行分隔）。 */
