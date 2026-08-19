@@ -107,6 +107,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     avatar: "",
     weekStartsOn: 1,
     defaultMood: "neutral",
+    imageCompressQuality: 80,
+    videoCompressQuality: 60,
     sync: { enabled: false, provider: "none" },
   },
 

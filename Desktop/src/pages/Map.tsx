@@ -6,6 +6,7 @@ import { useAppStore } from "@/store/appStore";
 import { EntryCard } from "@/components/EntryCard";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { getStorage } from "@/lib/storage";
+import { firstCoverAsset, thumbnailPath } from "@/lib/vault";
 import { cn } from "@/lib/utils";
 import type { JournalEntry } from "@/types/journal";
 import {
@@ -233,9 +234,7 @@ export default function Map() {
                       }
                       location={e.location}
                       tags={e.tags}
-                      coverPath={
-                        e.assets.find((a) => a.kind === "image")?.path
-                      }
+                      cover={firstCoverAsset(e.assets)}
                       onClick={() => {
                         setGroup(null);
                         open(e);
@@ -322,11 +321,15 @@ async function buildMarker(
   onClick: (cluster: EntryCluster) => void,
 ): Promise<L.Marker> {
   const rep = cluster.representative;
-  const img = rep.assets.find((a) => a.kind === "image");
+  const cover = firstCoverAsset(rep.assets);
   let thumbUrl: string | null = null;
-  if (img) {
+  if (cover) {
+    // 优先 256px 列表缩略图，不存在则回退原资产。
     try {
-      thumbUrl = await getStorage().resolveUrl(img.path);
+      const rel = cover.path;
+      thumbUrl =
+        (await getStorage().resolveUrl(thumbnailPath(rel)).catch(() => "")) ||
+        (await getStorage().resolveUrl(rel).catch(() => ""));
     } catch {
       thumbUrl = null;
     }

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { EntryCard } from "@/components/EntryCard";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { firstCoverAsset } from "@/lib/vault";
 import { cn, formatDateKey } from "@/lib/utils";
 import type { JournalEntry } from "@/types/journal";
 
@@ -183,7 +184,7 @@ export default function Calendar() {
                   }
                   location={e.location}
                   tags={e.tags}
-                  coverPath={e.assets.find((a) => a.kind === "image")?.path}
+                  cover={firstCoverAsset(e.assets)}
                   onClick={() => open(e)}
                 />
               ))}

@@ -1,4 +1,4 @@
-import type { AssetRef, JournalEntry } from "@/types/journal";
+import type { JournalEntry } from "@/types/journal";
 
 /** 一个聚簇：质心坐标 + 簇内日记 + 代表性日记（有图优先）。 */
 export interface EntryCluster {
@@ -63,9 +63,4 @@ export function clusterEntries(
     });
   }
   return clusters;
-}
-
-/** 取一个条目的第一张图片附件（无则返回 null）。 */
-export function firstImageAsset(e: JournalEntry): AssetRef | null {
-  return e.assets.find((a) => a.kind === "image") ?? null;
 }

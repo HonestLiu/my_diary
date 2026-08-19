@@ -22,6 +22,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   avatar: "",
   weekStartsOn: 1,
   defaultMood: "neutral",
+  imageCompressQuality: 80,
+  videoCompressQuality: 60,
   sync: { enabled: false, provider: "none" },
 };
 

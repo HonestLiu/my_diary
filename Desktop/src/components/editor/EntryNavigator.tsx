@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EntryCard } from "@/components/EntryCard";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { firstCoverAsset } from "@/lib/vault";
 import type { JournalEntry } from "@/types/journal";
 
 interface Props {
@@ -73,7 +74,7 @@ export function EntryNavigator({
                       preview={preview(e)}
                       location={e.location}
                       tags={e.tags}
-                      coverPath={e.assets.find((a) => a.kind === "image")?.path}
+                      cover={firstCoverAsset(e.assets)}
                       onClick={() => onSelect(e)}
                     />
                     <button

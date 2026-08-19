@@ -116,6 +116,10 @@ export interface AppSettings {
   vaultPath?: string;
   /** Default new-entry behaviour. */
   defaultMood: Mood;
+  /** 图片上传压缩质量（1–100，100 = 不压缩），与移动端一致。 */
+  imageCompressQuality: number;
+  /** 视频上传压缩质量（1–100，100 = 不压缩），与移动端一致。 */
+  videoCompressQuality: number;
   /** Sync configuration (provider-agnostic). */
   sync?: SyncConfig;
 }

@@ -6,6 +6,7 @@ import { useAppStore } from "@/store/appStore";
 import { EntryCard } from "@/components/EntryCard";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { MoodGlyph } from "@/components/MoodGlyph";
+import { firstCoverAsset } from "@/lib/vault";
 import { MOODS } from "@/lib/constants";
 import { byRecency } from "@/lib/journal";
 import { cn, formatHumanDate } from "@/lib/utils";
@@ -236,7 +237,7 @@ export default function Search() {
                   }
                   location={e.location}
                   tags={e.tags}
-                  coverPath={e.assets.find((a) => a.kind === "image")?.path}
+                  cover={firstCoverAsset(e.assets)}
                   onClick={() => open(e)}
                 />
               </motion.div>

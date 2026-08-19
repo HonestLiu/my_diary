@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { EntryCard } from "@/components/EntryCard";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { firstCoverAsset } from "@/lib/vault";
 import { useAppStore } from "@/store/appStore";
 import type { JournalEntry } from "@/types/journal";
 
@@ -43,7 +44,7 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
               }
               location={e.location}
               tags={e.tags}
-              coverPath={e.assets.find((a) => a.kind === "image")?.path}
+              cover={firstCoverAsset(e.assets)}
               onClick={() => open(e)}
             />
           </motion.div>

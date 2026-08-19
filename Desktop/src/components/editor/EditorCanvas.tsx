@@ -2,8 +2,18 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { useEffect, useRef } from "react";
 import { buildExtensions } from "@/lib/editor/extensions";
 import { saveDroppedAssets } from "@/lib/editor/assets";
+import { useAppStore } from "@/store/appStore";
 import { EditorToolbar } from "@/components/editor/EditorToolbar";
 import type { AssetRef } from "@/types/journal";
+
+/** 从当前设置读取图片/视频压缩质量（100 = 不压缩）。 */
+function compressionOpts() {
+  const s = useAppStore.getState().settings;
+  return {
+    imageQuality: s.imageCompressQuality,
+    videoQuality: s.videoCompressQuality,
+  };
+}
 
 interface Props {
   /** Stable key identifying the loaded entry (its id). */
@@ -67,7 +77,7 @@ export function EditorCanvas({
         const dt = event.clipboardData;
         if (!dt || !dt.files.length) return false;
         event.preventDefault();
-        void saveDroppedAssets(dt.files).then((refs) =>
+        void saveDroppedAssets(dt.files, compressionOpts()).then((refs) =>
           insertAssetRefs(refs),
         );
         return true;
@@ -78,7 +88,7 @@ export function EditorCanvas({
         event.preventDefault();
         const coords = { left: event.clientX, top: event.clientY };
         const pos = view.posAtCoords(coords)?.pos ?? view.state.selection.from;
-        void saveDroppedAssets(dt.files).then((refs) =>
+        void saveDroppedAssets(dt.files, compressionOpts()).then((refs) =>
           insertAssetRefs(refs, pos),
         );
         return true;
@@ -109,7 +119,7 @@ export function EditorCanvas({
       <EditorToolbar
         editor={editor}
         onPickFiles={async (files) => {
-          const refs = await saveDroppedAssets(files);
+          const refs = await saveDroppedAssets(files, compressionOpts());
           insertAssetRefs(refs);
         }}
       />

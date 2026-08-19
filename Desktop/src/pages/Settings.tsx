@@ -353,6 +353,37 @@ export default function Settings() {
           </div>
         </Card>
 
+        {/* 媒体压缩 */}
+        <Card title="媒体">
+          <div className="mb-4">
+            <div className="mb-1 text-sm font-medium text-foreground">
+              图片上传压缩
+            </div>
+            <p className="mb-2 text-xs text-muted-foreground">
+              导入图片时按此质量重压缩（上限 2000px 长边）并生成列表缩略图。
+            </p>
+            <QualitySlider
+              value={settings.imageCompressQuality}
+              onChange={(v) => updateSettings({ imageCompressQuality: v })}
+            />
+          </div>
+          <div>
+            <div className="mb-1 text-sm font-medium text-foreground">
+              视频上传压缩
+            </div>
+            <p className="mb-2 text-xs text-muted-foreground">
+              导入视频时按此质量压缩（100 为不压缩）并抽取封面帧。
+            </p>
+            <QualitySlider
+              value={settings.videoCompressQuality}
+              onChange={(v) => updateSettings({ videoCompressQuality: v })}
+            />
+          </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            两项均只影响之后导入的素材，已存在的图片/视频不会被重新处理。
+          </p>
+        </Card>
+
           </div>
           {/* Right column */}
           <div className="space-y-6">
@@ -623,4 +654,30 @@ function SyncStat({
 function safeImageExt(fileName: string): string {
   const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
   return /^(png|jpe?g|webp|gif)$/.test(ext) ? `.${ext === "jpeg" ? "jpg" : ext}` : "";
+}
+
+/** 1–100 压缩质量滑块 + 数值标签。 */
+function QualitySlider({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <input
+        type="range"
+        min={1}
+        max={100}
+        step={1}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-muted accent-primary"
+      />
+      <span className="w-8 shrink-0 text-right text-sm font-semibold text-foreground">
+        {value}
+      </span>
+    </div>
+  );
 }

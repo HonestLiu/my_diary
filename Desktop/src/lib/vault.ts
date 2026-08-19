@@ -1,4 +1,4 @@
-import type { AssetKind } from "@/types/journal";
+import type { AssetKind, AssetRef } from "@/types/journal";
 
 /**
  * Vault layout (the canonical, open on-disk structure):
@@ -131,6 +131,7 @@ export function requiredDirectories(): string[] {
     "assets/audio",
     "assets/video",
     "assets/attachments",
+    "assets/thumbnails",
     "metadata",
     "versions",
     "conflicts",
@@ -141,4 +142,26 @@ export function requiredDirectories(): string[] {
 /** 个人资料文件（如头像）：`profile/<filename>`，随 vault 导出/同步。 */
 export function profileAvatarPath(filename: string): string {
   return `profile/${filename}`;
+}
+
+/**
+ * 列表缩略图路径：与资产同基名，落在 `assets/thumbnails/`（与移动端一致）。
+ * 例：assets/images/abc.webp → assets/thumbnails/abc.jpg
+ */
+export function thumbnailPath(assetRel: string): string {
+  const base = assetRel.replace(/\\/g, "/").split("/").pop() ?? "asset";
+  const name = base.replace(/\.[^.]+$/, "");
+  return `assets/thumbnails/${name}.jpg`;
+}
+
+/**
+ * 取封面资产：优先图片，其次视频（与移动端 coverFor 一致）。
+ * 供列表卡 / 媒体 / 回忆 / 地图选择封面缩略图。
+ */
+export function firstCoverAsset(assets: AssetRef[]): AssetRef | null {
+  return (
+    assets.find((a) => a.kind === "image") ??
+    assets.find((a) => a.kind === "video") ??
+    null
+  );
 }

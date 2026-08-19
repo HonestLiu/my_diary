@@ -4,7 +4,7 @@ import { MoodGlyph } from "@/components/MoodGlyph";
 import { WeatherGlyph } from "@/components/WeatherGlyph";
 import { EntryCover } from "@/components/EntryCover";
 import { cn } from "@/lib/utils";
-import type { Mood, Weather } from "@/types/journal";
+import type { AssetRef, Mood, Weather } from "@/types/journal";
 
 /**
  * 与移动端 EntryCard 同构的日记列表卡片：柔和投影无边框圆角卡。
@@ -23,8 +23,8 @@ interface EntryCardProps {
   tags?: string[];
   /** 喜欢标记：标题行右侧红心（与移动端一致）。 */
   favorite?: boolean;
-  /** 封面图（vault 相对路径，如 assets/images/xxx.webp）；缺省不显示。 */
-  coverPath?: string;
+  /** 封面资产（图片优先，其次视频）；缺省不显示封面。 */
+  cover?: AssetRef | null;
   onClick?: () => void;
   className?: string;
 }
@@ -37,7 +37,7 @@ export function EntryCard({
   preview,
   location,
   tags,
-  coverPath,
+  cover,
   favorite,
   onClick,
   className,
@@ -120,7 +120,7 @@ export function EntryCard({
       </div>
 
       {/* 右侧封面 84×84（与移动端一致） */}
-      {coverPath && <EntryCover path={coverPath} />}
+      {cover && <EntryCover path={cover.path} kind={cover.kind} />}
     </div>
   );
 }

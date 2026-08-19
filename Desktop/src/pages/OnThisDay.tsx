@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Sparkles, Dice5, Play } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { getStorage } from "@/lib/storage";
+import { firstCoverAsset, thumbnailPath } from "@/lib/vault";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { Button } from "@/components/ui/button";
 import type { AssetRef, JournalEntry } from "@/types/journal";
@@ -315,18 +316,29 @@ function Badge({ text, dark }: { text: string; dark?: boolean }) {
   );
 }
 
-/** 封面缩略图：解析 vault 相对路径为可渲染 URL。 */
+/** 封面缩略图：优先 256px 列表缩略图，不存在则回退原资产。 */
 function CoverImage({ cover }: { cover: AssetRef }) {
   const [url, setUrl] = useState("");
 
   useEffect(() => {
     let active = true;
     getStorage()
-      .resolveUrl(cover.path)
+      .resolveUrl(thumbnailPath(cover.path))
       .then((u) => {
-        if (active) setUrl(u);
+        if (!active) return;
+        if (u) setUrl(u);
+        else return getStorage().resolveUrl(cover.path).then((x) => {
+          if (active) setUrl(x);
+        });
       })
-      .catch(() => undefined);
+      .catch(() =>
+        getStorage()
+          .resolveUrl(cover.path)
+          .then((x) => {
+            if (active) setUrl(x);
+          })
+          .catch(() => undefined),
+      );
     return () => {
       active = false;
     };
@@ -347,9 +359,5 @@ function CoverImage({ cover }: { cover: AssetRef }) {
 
 /** 取首张封面：优先图片，其次视频。 */
 function firstCover(assets: AssetRef[]): AssetRef | null {
-  return (
-    assets.find((a) => a.kind === "image") ??
-    assets.find((a) => a.kind === "video") ??
-    null
-  );
+  return firstCoverAsset(assets);
 }
