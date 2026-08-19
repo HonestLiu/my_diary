@@ -16,6 +16,9 @@
     "fs:allow-app-write-recursive",
     "fs:allow-app-read-recursive",
     "fs:allow-app-meta-recursive",
+    "fs:allow-document-write-recursive",
+    "fs:allow-document-read-recursive",
+    "fs:allow-document-meta-recursive",
     "dialog:default"
   ]
 }
