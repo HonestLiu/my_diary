@@ -3,9 +3,9 @@ import { motion } from "framer-motion";
 import {
   PenLine,
   FileText,
-  Type,
-  Image as ImageIcon,
   Flame,
+  Calendar,
+  Heart,
   Sparkles,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
@@ -31,6 +31,11 @@ export default function Dashboard() {
     startNewEntry(formatDateKey(today));
     navigate("/editor");
   };
+
+  // 与移动端一致的四项统计：本月 / 连续 / 喜欢 / 总计。
+  const thisMonth = formatDateKey(today).slice(0, 7);
+  const monthCount = entries.filter((e) => e.date.startsWith(thisMonth)).length;
+  const favCount = entries.filter((e) => e.favorite).length;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -67,34 +72,35 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Stats row */}
+        {/* Stats row（与移动端一致：本月 / 连续 / 喜欢 / 总计） */}
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard
-            icon={FileText}
-            label="日记"
-            value={stats.entries}
-            hint="累计篇数"
+            icon={Calendar}
+            label="本月"
+            value={monthCount}
+            hint="本月篇数"
             delay={0.05}
           />
           <StatCard
-            icon={Type}
-            label="字数"
-            value={stats.words.toLocaleString()}
-            hint="累计字数"
+            icon={Flame}
+            label="连续"
+            value={streak}
+            hint="坚持记录"
             delay={0.1}
           />
           <StatCard
-            icon={ImageIcon}
-            label="图片"
-            value={stats.images}
-            hint="附件图片"
+            icon={Heart}
+            label="喜欢"
+            value={favCount}
+            hint="标记喜欢"
             delay={0.15}
+            accent="hsl(0 84% 60%)"
           />
           <StatCard
-            icon={Flame}
-            label="连续天数"
-            value={streak}
-            hint="坚持记录"
+            icon={FileText}
+            label="总计"
+            value={stats.entries}
+            hint="累计篇数"
             delay={0.2}
           />
         </div>

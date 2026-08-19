@@ -60,6 +60,8 @@ export interface JournalMeta {
   weather: Weather;
   location?: string;
   tags: string[];
+  /** 喜欢标记（frontmatter 里仅 true 时落盘；移动端可写入）。 */
+  favorite?: boolean;
   /** Asset references (images / media / files) attached to the entry. */
   assets: AssetRef[];
   created_at: string; // ISO 8601

@@ -131,6 +131,7 @@ function normalizeMeta(obj: Record<string, unknown>): JournalMeta {
   const tags = Array.isArray(obj.tags)
     ? obj.tags.filter((t): t is string => typeof t === "string")
     : [];
+  const favorite = obj.favorite === true;
   const assets = Array.isArray(obj.assets)
     ? (obj.assets as unknown[]).filter(isAssetRef)
     : [];
@@ -146,6 +147,7 @@ function normalizeMeta(obj: Record<string, unknown>): JournalMeta {
     weather,
     location,
     tags,
+    favorite,
     assets,
     created_at,
     updated_at,
@@ -196,6 +198,7 @@ function buildFrontmatter(entry: JournalEntry): Record<string, unknown> {
     weather: entry.weather,
     location: entry.location ?? "",
     tags: entry.tags ?? [],
+    ...(entry.favorite ? { favorite: true } : {}),
     assets: entry.assets ?? [],
     created_at: entry.created_at,
     updated_at: entry.updated_at,
