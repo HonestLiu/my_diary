@@ -84,6 +84,10 @@ impl S3Client {
         let region = cfg.region.clone().unwrap_or_else(|| "us-east-1".to_string());
         let path_style = cfg.path_style.unwrap_or(false);
         let http = reqwest::Client::builder()
+            // MinIO / R2 / OSS 的 API 端口都是 HTTP/1.1；强制 1.1 避免任何
+            // HTTP/2 协商问题。
+            .http1_only()
+            .timeout(std::time::Duration::from_secs(60))
             .build()
             .map_err(|e| format!("HTTP 客户端创建失败: {e}"))?;
         Ok(Self {
@@ -226,10 +230,17 @@ impl S3Client {
             req = req.body(b);
         }
 
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| format!("请求 {key} 失败: {e}"))?;
+        let resp = req.send().await.map_err(|e| {
+            let mut msg = format!("请求 {key} 失败: {e}");
+            if e.is_connect() {
+                msg.push_str(
+                    "（无法建立连接：请确认 endpoint 可达。若填的是本机局域网 IP（如 192.168.x.x），\
+改填 127.0.0.1 或 localhost 往往即可——本机用局域网 IP 访问自己常被防火墙拦截，\
+而 127.0.0.1 环路不受影响。）",
+                );
+            }
+            msg
+        })?;
         let status = resp.status().as_u16();
         let bytes = resp
             .bytes()
