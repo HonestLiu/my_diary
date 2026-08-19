@@ -11,7 +11,6 @@ import 'package:my_diary_mobile/ui/editor_screen.dart';
 import 'package:my_diary_mobile/ui/entry_card.dart';
 import 'package:my_diary_mobile/ui/profile_screen.dart';
 import 'package:my_diary_mobile/ui/search_screen.dart';
-import 'package:my_diary_mobile/ui/settings_screen.dart';
 import 'package:provider/provider.dart';
 
 /// 首页日记列表的排序方式。
@@ -75,10 +74,7 @@ class HomeScreenState extends State<HomeScreen> {
               syncing: store.busy,
               lastSyncAt: store.lastSyncAt,
               error: store.syncError,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              ),
+              onTap: () => store.syncNow(),
             ),
           IconButton(
             icon: const Icon(Icons.search_outlined),
@@ -330,7 +326,7 @@ class _EmptyState extends StatelessWidget {
 }
 
 /// AppBar 同步状态指示：同步中转圈、成功显示上次同步时间、失败显示错误，
-/// 未开始显示等待。仅启用同步时显示；点击进入设置页。
+/// 未开始显示等待。仅启用同步时显示；点击立即手动同步。
 class _SyncStatusIcon extends StatelessWidget {
   final bool syncing;
   final DateTime? lastSyncAt;
@@ -356,13 +352,13 @@ class _SyncStatusIcon extends StatelessWidget {
       tooltip = '正在同步…';
     } else if (error != null) {
       icon = const Icon(Icons.cloud_off_outlined, color: Colors.redAccent);
-      tooltip = '同步失败，点击查看';
+      tooltip = '同步失败，点击重试';
     } else if (lastSyncAt != null) {
       icon = const Icon(Icons.cloud_done_outlined);
-      tooltip = '已同步：${DateFormat('MM-dd HH:mm').format(lastSyncAt!.toLocal())}';
+      tooltip = '已同步：${DateFormat('MM-dd HH:mm').format(lastSyncAt!.toLocal())}，点击手动同步';
     } else {
       icon = const Icon(Icons.cloud_sync_outlined);
-      tooltip = '等待首次同步';
+      tooltip = '点击手动同步';
     }
     return Tooltip(
       message: tooltip,

@@ -5,6 +5,8 @@
 // plus SHA-256 file fingerprints for sync. These tests pin that contract so the
 // two sides stay compatible.
 
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/sync/crypto.dart';
@@ -136,6 +138,16 @@ updated_at: "2026-08-17T00:00:00.000Z"
     test('SHA-256 of empty input matches the known digest', () {
       expect(sha256Hex(const []),
           'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    });
+
+    test('HMAC-SHA256 hex 是 64 位小写十六进制（RFC 4231 测试向量 1）', () {
+      // 曾因对 Uint8List 调 toString() 而输出 "[11, 11, ...]" 列表表示，
+      // 生成非法 Signature 导致 S3/MinIO/OSS 全部 400/403。
+      final key = Uint8List.fromList(List.filled(20, 0x0b));
+      final hex = hmacSha256Hex(key, 'Hi There');
+      expect(hex,
+          'b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7');
+      expect(RegExp(r'^[0-9a-f]{64}$').hasMatch(hex), isTrue);
     });
   });
 }

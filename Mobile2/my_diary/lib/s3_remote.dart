@@ -57,15 +57,17 @@ class S3StorageProvider implements RemoteStorage {
     required String path,
     String? query,
     Map<String, String>? extraHeaders,
-    Uint8List? body,
     String? datetime,
   }) {
     const service = 's3';
     final dt = datetime ?? _amzDate(DateTime.now().toUtc());
     final dateStamp = dt.substring(0, 8);
 
-    final payloadBytes = body ?? Uint8List(0);
-    final payloadHash = sha256Hex(payloadBytes);
+    // 阿里云 OSS 等 S3 兼容存储不支持真实 payload 哈希：按 AWS 默认发送
+    // x-amz-content-sha256=<正文 sha256> 会被 OSS 拒签（403
+    // SignatureDoesNotMatch）。UNSIGNED-PAYLOAD 是 AWS S3 / R2 / MinIO /
+    // OSS 都接受的官方「不校验正文」模式，统一使用最省心。
+    const payloadHash = 'UNSIGNED-PAYLOAD';
 
     final extra = extraHeaders ?? {};
     final host = extra['host'];
@@ -136,7 +138,6 @@ class S3StorageProvider implements RemoteStorage {
       path: built.path,
       query: query,
       extraHeaders: {'host': built.host, ...headers},
-      body: body,
     );
     final uri = Uri.parse(built.url + (query != null ? '?$query' : ''));
     return http.Request(method, uri)
@@ -150,7 +151,7 @@ class S3StorageProvider implements RemoteStorage {
         body: data, contentType: 'application/octet-stream');
     final res = await http.Response.fromStream(await req.send());
     if (!res.ok) {
-      throw Exception('S3 上传失败 ($remotePath): ${res.statusCode}');
+      throw Exception('S3 上传失败 ($remotePath): ${_describe(res)}');
     }
   }
 
@@ -159,7 +160,7 @@ class S3StorageProvider implements RemoteStorage {
     final req = await _do('GET', remotePath);
     final res = await http.Response.fromStream(await req.send());
     if (!res.ok) {
-      throw Exception('S3 下载失败 ($remotePath): ${res.statusCode}');
+      throw Exception('S3 下载失败 ($remotePath): ${_describe(res)}');
     }
     return res.bodyBytes;
   }
@@ -169,17 +170,20 @@ class S3StorageProvider implements RemoteStorage {
     final req = await _do('DELETE', remotePath);
     final res = await http.Response.fromStream(await req.send());
     if (!res.ok && res.statusCode != 404) {
-      throw Exception('S3 删除失败 ($remotePath): ${res.statusCode}');
+      throw Exception('S3 删除失败 ($remotePath): ${_describe(res)}');
     }
   }
 
   @override
   Future<List<String>> list([String prefix = '']) async {
+    // 用 ListObjectsV1（不带 list-type=2）：阿里云 OSS 的 S3 兼容接口不
+    // 支持 ListObjectsV2，带 list-type=2 会直接 400。V1 被 AWS S3 /
+    // MinIO / OSS 普遍支持，<Key> 解析对两种响应格式通用。
     final query =
-        'list-type=2&prefix=${Uri.encodeQueryComponent(prefix, encoding: utf8)}';
+        'prefix=${Uri.encodeQueryComponent(prefix, encoding: utf8)}';
     final req = await _do('GET', '', query: query);
     final res = await http.Response.fromStream(await req.send());
-    if (!res.ok) throw Exception('S3 列举失败: ${res.statusCode}');
+    if (!res.ok) throw Exception('S3 列举失败: ${_describe(res)}');
     final xml = res.body;
     final keys = <String>[];
     final re = RegExp(r'<Key>([^<]+)</Key>');
@@ -211,11 +215,25 @@ extension _ResponseStatus on http.Response {
   bool get ok => statusCode >= 200 && statusCode < 300;
 }
 
-/// 20210818T140503Z 形式的 AWS 日期。
+/// 错误信息带上状态码与响应体（OSS/S3 的 XML 错误码，如
+/// SignatureDoesNotMatch / InvalidAccessKeyId / RequestTimeTooSkewed），
+/// 便于定位 403 等鉴权失败的确切原因。
+String _describe(http.Response res) {
+  final b = res.body.trim();
+  final snippet = b.length > 600 ? '${b.substring(0, 600)}…' : b;
+  return '${res.statusCode}${snippet.isEmpty ? '' : ' $snippet'}';
+}
+
+/// 20210818T140503Z 形式的 AWS 基本 ISO8601 日期（恰好 16 位）。
+///
+/// 不能用 toIso8601String() 直接裁剪：Dart 会带微秒（如 .937409），
+/// 原 `\.\d{3}` 只删掉前 3 位，产出 19 位的非法日期（20260817T145841409Z），
+/// minIO / S3 会以 AuthorizationHeaderMalformed / 时间解析失败拒绝。
 String _amzDate(DateTime d) {
-  final s = d.toIso8601String();
-  // 去掉 ':' 与毫秒，再去掉多余的点：2026-08-17T14:58:41.123Z -> 20260817T145841Z
-  return s.replaceAll(RegExp(r'[:-]|\.\d{3}'), '').replaceAll('.', '');
+  final u = d.toUtc();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${u.year}${two(u.month)}${two(u.day)}'
+      'T${two(u.hour)}${two(u.minute)}${two(u.second)}Z';
 }
 
 String _uriEncode(String s) =>

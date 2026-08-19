@@ -34,6 +34,7 @@ class AppStore extends ChangeNotifier {
   String? _syncError;
   DateTime? _lastSyncAt;
   Timer? _autoSyncTimer; // 编辑后自动同步防抖（避免连续编辑频繁请求远程）
+  Timer? _periodicSyncTimer; // 定期自动同步（按 autoSyncIntervalMinutes 周期）
 
   AppStore({
     required this.auth,
@@ -106,6 +107,8 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
     // 启动后自动后台同步一次（已配置同步时）。
     scheduleAutoSync(delay: const Duration(seconds: 2));
+    // 配置定期自动同步（按用户设定的间隔周期执行）。
+    configureAutoSync();
   }
 
   Future<void> refreshEntries() async {
@@ -140,6 +143,32 @@ class AppStore extends ChangeNotifier {
     _settings = s;
     await repo.saveSettings(s);
     notifyListeners();
+    // 设置变更后重启定期自动同步（含间隔变化 / 开关切换）。
+    configureAutoSync();
+    // 若已启用同步，配置变更后立即触发一次后台同步，避免等满一个周期。
+    scheduleAutoSync();
+  }
+
+  /// 按当前同步配置（re）建立定期自动同步定时器。
+  /// 仅在 `enabled` 且 `autoSyncIntervalMinutes > 0` 时启用周期同步；
+  /// 其余情况取消已有定时器。配置变化时（init / saveSettings）调用即可，
+  /// 会先取消旧定时器再按需重建。
+  void configureAutoSync() {
+    _periodicSyncTimer?.cancel();
+    _periodicSyncTimer = null;
+    final mins = _settings.sync.autoSyncIntervalMinutes;
+    if (_settings.sync.enabled && mins > 0) {
+      _periodicSyncTimer = Timer.periodic(Duration(minutes: mins), (_) {
+        if (!_busy) syncNow();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoSyncTimer?.cancel();
+    _periodicSyncTimer?.cancel();
+    super.dispose();
   }
 
   /// 当前头像文件。新方案：vault 内 `profile/avatar.<ext>`（随备份/同步/还原，

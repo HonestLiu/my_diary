@@ -34,6 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   late SyncProvider _provider;
   late bool _pathStyle;
+  late int _autoSyncMinutes; // 定期自动同步间隔（分钟）；0 = 关闭
   late bool _autoLocateNew;
   late bool _showDetailMap;
   late int _imageQuality; // 图片上传压缩质量（1–100）
@@ -63,7 +64,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _defaultMood = s.defaultMood;
     _displayName = s.displayName;
     _weekStartsOn = s.weekStartsOn;
-    _pathStyle = s.sync.pathStyle ?? false;
+    _pathStyle = s.sync.effectivePathStyle();
+    _autoSyncMinutes = s.sync.autoSyncIntervalMinutes;
     _autoLocateNew = s.autoLocateNew;
     _showDetailMap = s.showDetailMap;
     _imageQuality = s.imageCompressQuality;
@@ -100,6 +102,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       bucket: _isDirect(_provider) ? _bucketCtl.text.trim() : null,
       region: _isDirect(_provider) ? _regionCtl.text.trim() : null,
       pathStyle: _isDirect(_provider) ? _pathStyle : null,
+      autoSyncIntervalMinutes: _isDirect(_provider) ? _autoSyncMinutes : 0,
     );
 
     // 直接对象存储秘钥存本地保险箱（不经过 settings.json，避免明文落盘）。
@@ -133,21 +136,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _sync() async {
     final store = context.read<AppStore>();
     await store.syncNow();
-    if (mounted) {
-      setState(() => _conflicts = store.pendingConflictPaths());
-    }
+    if (!mounted) return;
+    setState(() {
+      // 同步回调须为同步函数，不能返回 Future（否则触发
+      // "setState() callback argument returned a Future" 断言）。
+      _conflicts = store.pendingConflictPaths();
+    });
   }
 
   Future<void> _resolve(String path, ConflictResolution r) async {
     final store = context.read<AppStore>();
     await store.resolveConflict(path, r);
-    if (mounted) {
-      setState(() => _conflicts = store.pendingConflictPaths());
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(r == ConflictResolution.local
-              ? '已保留本地版本'
-              : '已采用远程版本')));
-    }
+    if (!mounted) return;
+    setState(() {
+      _conflicts = store.pendingConflictPaths();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(r == ConflictResolution.local
+            ? '已保留本地版本'
+            : '已采用远程版本')));
   }
 
   /// 导出完整备份：流式生成 zip 到临时目录后走系统分享面板。
@@ -409,8 +416,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 10),
                 TextField(
                   controller: _regionCtl,
-                  decoration:
-                      const InputDecoration(labelText: 'Region'),
+                  decoration: const InputDecoration(
+                    labelText: 'Region',
+                    hintText: 'MinIO 留空即可；OSS 留空则按 Endpoint 自动推导',
+                  ),
                 ),
                 const SizedBox(height: 10),
                 SwitchListTile(
@@ -433,6 +442,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Secret Key（留空则不修改）',
                   ),
+                ),
+                const SizedBox(height: 14),
+                const Text('自动同步',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                const Text('开启后按所选间隔后台定期同步（编辑日记后会立即触发一次）',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<int>(
+                  value: _autoSyncMinutes,
+                  decoration:
+                      const InputDecoration(labelText: '同步间隔'),
+                  items: const [
+                    DropdownMenuItem(value: 0, child: Text('关闭（仅手动同步）')),
+                    DropdownMenuItem(value: 5, child: Text('每 5 分钟')),
+                    DropdownMenuItem(value: 15, child: Text('每 15 分钟')),
+                    DropdownMenuItem(value: 30, child: Text('每 30 分钟')),
+                    DropdownMenuItem(value: 60, child: Text('每 60 分钟')),
+                  ],
+                  onChanged: (v) => setState(() => _autoSyncMinutes = v!),
                 ),
               ],
               const SizedBox(height: 14),
@@ -457,6 +486,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                     '上次同步：${DateFormat('MM-dd HH:mm').format(store.lastSyncAt!.toLocal())}',
                     style: context.caption),
+              ],
+              if (store.syncEnabled &&
+                  store.settings.sync.autoSyncIntervalMinutes > 0) ...[
+                const SizedBox(height: 4),
+                Text(
+                    '自动同步：每 ${store.settings.sync.autoSyncIntervalMinutes} 分钟',
+                    style: context.caption.copyWith(
+                        color: Theme.of(context).colorScheme.primary)),
               ],
               if (store.lastSync != null) ...[
                 const SizedBox(height: 12),

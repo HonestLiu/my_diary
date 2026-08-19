@@ -221,17 +221,20 @@ RemoteStorage buildRemoteStorage(
     if (accessKey == null ||
         secretKey == null ||
         publicConfig.endpoint == null ||
-        publicConfig.bucket == null ||
-        publicConfig.region == null) {
+        publicConfig.bucket == null) {
       throw StateError('对象存储凭据不完整，无法同步');
     }
+    // MinIO 等 S3 兼容存储没有用户可填的 Region（服务端默认 us-east-1）；
+    // 阿里云 OSS 的 SigV4 会严格校验 region，必须是 oss-cn-* 这类。见
+    // [SyncConfig.effectiveRegion]。
+    final region = publicConfig.effectiveRegion();
     return S3StorageProvider(S3Config(
       endpoint: publicConfig.endpoint!,
       bucket: publicConfig.bucket!,
-      region: publicConfig.region!,
+      region: region,
       accessKey: accessKey,
       secretKey: secretKey,
-      pathStyle: publicConfig.pathStyle ?? false,
+      pathStyle: publicConfig.effectivePathStyle(),
     ));
   }
   throw StateError('同步未启用或提供者不支持');

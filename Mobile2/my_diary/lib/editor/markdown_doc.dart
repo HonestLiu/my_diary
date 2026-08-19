@@ -251,9 +251,17 @@ final RegExp _bulletRe = RegExp(r'^\s*[-*+]\s+(.*)$');
 final RegExp _numberedRe = RegExp(r'^\s*\d+[.)]\s+(.*)$');
 final RegExp _imageLineRe =
     RegExp(r'^!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+"([^"]*)")?\s*\)$');
+/// 段落内嵌的行内图片（桌面端 tiptap-markdown 会把 `![..](..)` 与相邻文字
+/// 写在同一行）。与 `_imageLineRe` 同构，但不锚定行首行尾。
+final RegExp _inlineImageRe =
+    RegExp(r'!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+"([^"]*)")?\s*\)');
 final RegExp _attachmentLineRe =
     RegExp(r'^<attachment\b([^>]*?)/?>\s*(?:</attachment>)?$',
         caseSensitive: false);
+/// 桌面端序列化 `<attachment …>` 时闭合标签独占一行（tiptap-markdown 的
+/// HTML 渲染输出）。该行需要被吞掉，否则正文会出现孤立的 `</attachment>` 文本。
+final RegExp _closeTagRe =
+    RegExp(r'^\s*</attachment>\s*$', caseSensitive: false);
 final RegExp _attrRe =
     RegExp('''([A-Za-z][A-Za-z0-9-]*)\\s*=\\s*(?:"([^"]*)"|'([^']*)')''');
 final RegExp _widthTitleRe = RegExp(r'^width=(\d+)$');
@@ -316,10 +324,7 @@ List<DocBlock> decodeMarkdown(String markdown) {
   final blocks = <DocBlock>[];
   final paragraph = <String>[];
 
-  void flushParagraph() {
-    if (paragraph.isEmpty) return;
-    final raw = paragraph.join('\n');
-    paragraph.clear();
+  void _emitParagraphText(String raw) {
     final inline = decodeInline(raw);
     if (inline.text.trim().isEmpty) return;
     blocks.add(DocBlock(
@@ -327,6 +332,40 @@ List<DocBlock> decodeMarkdown(String markdown) {
       text: inline.text,
       marks: inline.marks,
     ));
+  }
+
+  /// 段落可能内嵌行内图片（桌面端 `![..](..)` 与相邻文字同行），按图片语法
+  /// 切分为「文本段 + 图片块」序列；无图片时原样作为文本段落。
+  void _emitTextWithInlineImages(String raw) {
+    var last = 0;
+    for (final m in _inlineImageRe.allMatches(raw)) {
+      if (m.start > last) _emitParagraphText(raw.substring(last, m.start));
+      final src =
+          (m.group(2) ?? '').replaceAll(r'\(', '(').replaceAll(r'\)', ')');
+      if (src.isEmpty) {
+        // src 缺失时不算图片，整段按文本输出，避免丢内容。
+        _emitParagraphText(m.group(0)!);
+      } else {
+        final title = m.group(3);
+        final w = title == null ? null : _widthTitleRe.firstMatch(title);
+        blocks.add(DocBlock.media(MediaPayload(
+          kind: AssetKind.image,
+          src: src,
+          name: src.split('/').last,
+          alt: m.group(1) ?? '',
+          width: w == null ? null : int.tryParse(w.group(1)!),
+        )));
+      }
+      last = m.end;
+    }
+    if (last < raw.length) _emitParagraphText(raw.substring(last));
+  }
+
+  void flushParagraph() {
+    if (paragraph.isEmpty) return;
+    final raw = paragraph.join('\n');
+    paragraph.clear();
+    _emitTextWithInlineImages(raw);
   }
 
   DocBlock textBlock(BlockKind kind, String raw, {bool checked = false}) {
@@ -346,6 +385,12 @@ List<DocBlock> decodeMarkdown(String markdown) {
 
     if (trimmed.isEmpty) {
       flushParagraph();
+      i++;
+      continue;
+    }
+
+    // 桌面端多行 `<attachment>` 的闭合标签独占一行：吞掉，避免正文出现孤立文本。
+    if (_closeTagRe.hasMatch(line)) {
       i++;
       continue;
     }
