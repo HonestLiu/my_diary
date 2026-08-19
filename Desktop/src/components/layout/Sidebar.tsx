@@ -3,8 +3,8 @@ import { motion } from "framer-motion";
 import {
   LayoutDashboard,
   PenLine,
-  History,
   CalendarDays,
+  Images,
   Search,
   Settings,
   BookHeart,
@@ -16,8 +16,8 @@ import { useAppStore } from "@/store/appStore";
 const navItems = [
   { to: "/", label: "首页", icon: LayoutDashboard, end: true },
   { to: "/editor", label: "记录", icon: PenLine },
-  { to: "/timeline", label: "时间轴", icon: History },
   { to: "/calendar", label: "日历", icon: CalendarDays },
+  { to: "/media", label: "媒体", icon: Images },
   { to: "/search", label: "搜索", icon: Search },
   { to: "/on-this-day", label: "回忆", icon: BookHeart },
 ];

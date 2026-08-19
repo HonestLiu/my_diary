@@ -7,8 +7,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 // index chunk. See AppLayout for the shared <Suspense> boundary.
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Editor = lazy(() => import("@/pages/Editor"));
-const Timeline = lazy(() => import("@/pages/Timeline"));
 const Calendar = lazy(() => import("@/pages/Calendar"));
+const Media = lazy(() => import("@/pages/Media"));
 const Search = lazy(() => import("@/pages/Search"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const OnThisDay = lazy(() => import("@/pages/OnThisDay"));
@@ -20,8 +20,8 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="editor" element={<Editor />} />
-          <Route path="timeline" element={<Timeline />} />
           <Route path="calendar" element={<Calendar />} />
+          <Route path="media" element={<Media />} />
           <Route path="search" element={<Search />} />
           <Route path="settings" element={<Settings />} />
           <Route path="on-this-day" element={<OnThisDay />} />

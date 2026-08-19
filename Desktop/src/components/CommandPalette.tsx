@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   PenLine,
-  History,
   CalendarDays,
   Search,
   Settings,
@@ -101,8 +100,8 @@ export function CommandPalette() {
       { id: "home", label: "首页", icon: LayoutDashboard, group: "导航", run: () => navigate("/") },
       { id: "editor", label: "记录 · 今天", icon: PenLine, group: "导航", run: () => goDate(formatDateKey()) },
       { id: "new-entry", label: "新写一篇 · 今天", hint: "追加一篇", icon: PenLine, group: "导航", run: () => goNew(formatDateKey()) },
-      { id: "timeline", label: "时间轴", icon: History, group: "导航", run: () => navigate("/timeline") },
       { id: "calendar", label: "日历", icon: CalendarDays, group: "导航", run: () => navigate("/calendar") },
+      { id: "media", label: "媒体", icon: Layers, group: "导航", run: () => navigate("/media") },
       { id: "search", label: "搜索", icon: Search, group: "导航", run: () => navigate("/search") },
       { id: "memory", label: "回忆 · 一年前的今天", icon: Stars, group: "导航", run: () => navigate("/on-this-day") },
       { id: "settings", label: "设置", icon: Settings, group: "导航", run: () => navigate("/settings") },

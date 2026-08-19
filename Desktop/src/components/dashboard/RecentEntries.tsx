@@ -19,15 +19,7 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
 
   return (
     <section>
-      <div className="mb-3 flex items-center justify-between px-1">
-        <h3 className="text-base font-semibold">最近日记</h3>
-        <button
-          onClick={() => navigate("/timeline")}
-          className="text-sm text-muted-foreground transition-colors hover:text-primary"
-        >
-          查看全部 →
-        </button>
-      </div>
+      <h3 className="mb-3 px-1 text-base font-semibold">最近日记</h3>
       <div className="flex flex-col gap-3">
         {entries.map((e, i) => (
           <motion.div
