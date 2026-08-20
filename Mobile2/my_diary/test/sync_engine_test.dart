@@ -4,6 +4,7 @@
 // dir, so we exercise the actual SyncEngine.sync() algorithm — upload, download,
 // idempotent re-sync, and conflict detection — without a live S3/cloud backend.
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -12,6 +13,7 @@ import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/models/sync_types.dart';
 import 'package:my_diary_mobile/repository/journal_repository.dart';
 import 'package:my_diary_mobile/sync/remote_storage.dart';
+import 'package:my_diary_mobile/sync/crypto.dart';
 import 'package:my_diary_mobile/sync/sync_engine.dart';
 import 'package:my_diary_mobile/vault/local_vault.dart';
 import 'package:my_diary_mobile/vault/markdown_codec.dart';
@@ -248,5 +250,99 @@ void main() {
     expect(res.conflicts, hasLength(1));
     expect(await vault.exists('conflicts/2026-08-17-e1.local.md'), isTrue);
     expect(await vault.exists('conflicts/2026-08-17-e1.remote.md'), isTrue);
+  });
+
+  test('首次同步（无基线）两侧内容不同 → 采纳远端，不批量判冲突', () async {
+    // 本地已有一条同 id 但内容不同的条目；远端也有一条。设备从未同步过（无基线）。
+    final repo = await _repo();
+    await repo.saveEntry(_sample('e1', '本地内容'));
+    const path = 'entries/2026/08/2026-08-17-e1.md';
+    final rawRemote = serializeEntryFile(_sample('e1', '远端内容'));
+    remote.objects[path] = Uint8List.fromList(utf8.encode(rawRemote));
+    remote.manifest = SyncManifest(
+      deviceId: 'desktop',
+      files: [
+        SyncFile(path: path, hash: 'ignored', size: rawRemote.length, updated: 1),
+      ],
+      generatedAt: 1,
+    );
+
+    final engine = SyncEngine(vault, remote, 'mobile');
+    final res = await engine.sync();
+
+    // 不产生任何冲突；以远端为准下载。
+    expect(res.conflicts, isEmpty);
+    expect(res.downloaded, contains(path));
+    // 本地版本保留为安全副本（.replaced，不进入待解决列表）。
+    expect(await vault.exists('conflicts/2026-08-17-e1.replaced.md'), isTrue);
+    expect((await vault.readText(path)).contains('远端内容'), isTrue);
+  });
+
+  test('只有一侧编辑 → 上传/下载，绝不误报冲突', () async {
+    final repo = await _repo();
+    await repo.saveEntry(_sample('e1', '原始内容'));
+    const path = 'entries/2026/08/2026-08-17-e1.md';
+    final engine = SyncEngine(vault, remote, 'mobile');
+    await engine.sync(); // 建立基线
+
+    // 仅本地编辑 → 上传，无冲突。
+    await repo.saveEntry(_sample('e1', '本地修改'));
+    final res1 = await engine.sync();
+    expect(res1.conflicts, isEmpty);
+    expect(res1.uploaded, contains(path));
+
+    // 仅远端编辑（模拟桌面端）→ 下载，无冲突。
+    final rawRemote = serializeEntryFile(_sample('e1', '远端修改'));
+    remote.objects[path] = Uint8List.fromList(utf8.encode(rawRemote));
+    remote.manifest = SyncManifest(
+      deviceId: 'desktop',
+      files: [
+        SyncFile(path: path, hash: sha256Hex(utf8.encode(rawRemote)),
+            size: rawRemote.length, updated: 2),
+      ],
+      generatedAt: 2,
+    );
+    final res2 = await engine.sync();
+    expect(res2.conflicts, isEmpty);
+    expect(res2.downloaded, contains(path));
+    expect((await vault.readText(path)).contains('远端修改'), isTrue);
+  });
+
+  test('冲突保持待解决，不被自动覆盖；解决后不再复发', () async {
+    final repo = await _repo();
+    await repo.saveEntry(_sample('e1', '原始内容'));
+    const path = 'entries/2026/08/2026-08-17-e1.md';
+    final engine = SyncEngine(vault, remote, 'mobile');
+    await engine.sync(); // 建立基线
+
+    // 两侧同时编辑 → 冲突。
+    await repo.saveEntry(_sample('e1', '本地修改'));
+    final rawRemote = serializeEntryFile(_sample('e1', '远端修改'));
+    remote.objects[path] = Uint8List.fromList(rawRemote.codeUnits);
+    remote.manifest = SyncManifest(
+      deviceId: 'desktop',
+      files: [
+        SyncFile(path: path, hash: 'remotehash',
+            size: rawRemote.length, updated: 2),
+      ],
+      generatedAt: 2,
+    );
+    final res1 = await engine.sync();
+    expect(res1.conflicts, hasLength(1));
+
+    // 未解决前再次同步：不得把本地较新的编辑覆盖成远端。
+    final res2 = await engine.sync();
+    expect(res2.conflicts, isEmpty); // 不重复上报
+    expect(res2.downloaded, isNot(contains(path)));
+    expect((await vault.readText(path)).contains('本地修改'), isTrue);
+    expect(await vault.exists('conflicts/2026-08-17-e1.local.md'), isTrue);
+
+    // 用户选择「保留本地」→ 解决；再次同步不再出现冲突，也不会把文件改回去。
+    await engine.resolveConflict(path, ConflictResolution.local);
+    final res3 = await engine.sync();
+    expect(res3.conflicts, isEmpty);
+    expect(res3.downloaded, isNot(contains(path)));
+    expect((await vault.readText(path)).contains('本地修改'), isTrue);
+    expect(await vault.exists('conflicts/2026-08-17-e1.local.md'), isFalse);
   });
 }

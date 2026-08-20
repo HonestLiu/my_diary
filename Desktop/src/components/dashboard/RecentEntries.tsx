@@ -14,6 +14,7 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
   const navigate = useNavigate();
   const openEntry = useAppStore((s) => s.openEntry);
   const unsyncedPaths = useAppStore((s) => s.unsyncedPaths);
+  const conflictPaths = useAppStore((s) => s.conflictPaths);
 
   const open = (e: JournalEntry) => {
     openEntry(e.id, e.date);
@@ -49,6 +50,14 @@ export function RecentEntries({ entries }: RecentEntriesProps) {
               unsynced={unsyncedPaths.has(
                 entryFilePath({ id: e.id, date: e.date }),
               )}
+              conflict={conflictPaths.has(
+                entryFilePath({ id: e.id, date: e.date }),
+              )}
+              conflictPath={
+                conflictPaths.has(entryFilePath({ id: e.id, date: e.date }))
+                  ? entryFilePath({ id: e.id, date: e.date })
+                  : undefined
+              }
               onClick={() => open(e)}
             />
           </motion.div>

@@ -34,6 +34,7 @@ export function EntryNavigator({
 }: Props) {
   const groups = useMemo(() => groupByDate(entries), [entries]);
   const unsyncedPaths = useAppStore((s) => s.unsyncedPaths);
+  const conflictPaths = useAppStore((s) => s.conflictPaths);
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-3">
@@ -80,6 +81,14 @@ export function EntryNavigator({
                       unsynced={unsyncedPaths.has(
                         entryFilePath({ id: e.id, date: e.date }),
                       )}
+                      conflict={conflictPaths.has(
+                        entryFilePath({ id: e.id, date: e.date }),
+                      )}
+                      conflictPath={
+                        conflictPaths.has(entryFilePath({ id: e.id, date: e.date }))
+                          ? entryFilePath({ id: e.id, date: e.date })
+                          : undefined
+                      }
                       onClick={() => onSelect(e)}
                     />
                     <button

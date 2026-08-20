@@ -14,7 +14,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             media::compress_image,
             media::compress_video,
-            sync::sync_vault
+            sync::sync_vault,
+            sync::resolve_conflict
         ])
         .setup(|app| {
             #[cfg(debug_assertions)]

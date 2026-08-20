@@ -63,19 +63,36 @@ class AppStore extends ChangeNotifier {
   String get deviceId => _deviceId;
   bool get syncEnabled => _settings.sync.enabled;
 
-  /// 当前待解决的冲突（本地冲突副本存在即视为待处理）。返回条目文件相对路径。
+  /// 当前待解决的冲突路径列表。优先从权威索引 `metadata/conflicts.json` 读取
+  /// （SyncEngine 在检测到冲突时写入，resolveConflict 解决时移除）。若索引缺失，
+  /// 回退到扫描 `conflicts/*.local.md`（兼容旧版本）。
   Future<List<String>> pendingConflictPaths() async {
+    // 优先读取权威索引——路径完整，不丢失信息。
+    if (await repo.storage.exists(VaultLayout.conflictsIndex)) {
+      try {
+        final raw = await repo.storage.readText(VaultLayout.conflictsIndex);
+        final list = (jsonDecode(raw) as List<dynamic>? ?? [])
+            .whereType<String>()
+            .toList();
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
+    }
+    // 回退：扫描冲突副本文件（仅能恢复条目路径，非条目路径无法逆推，跳过）。
     final files = await repo.storage.list('conflicts/');
-    final bases = <String>{};
+    final results = <String>[];
     for (final f in files) {
       final m = RegExp(r'conflicts/([^/]+)\.local\.md$').firstMatch(f);
-      if (m != null) bases.add(m.group(1)!);
-    }
-    return bases.map((base) {
+      if (m == null) continue;
+      final base = m.group(1)!;
       final dm = RegExp(r'(\d{4})-(\d{2})-\d{2}-').firstMatch(base);
-      if (dm != null) return 'entries/${dm.group(1)}/${dm.group(2)}/$base.md';
-      return 'entries/$base.md';
-    }).toList();
+      if (dm != null) {
+        results.add(
+            'entries/${dm.group(1)}/${dm.group(2)}/$base.md');
+      }
+      // 非条目冲突（versions/assets/profile）无法从扁平化的 base 名逆推，
+      // 但 SyncEngine 会在下次同步时把它们写入 metadata/conflicts.json 索引。
+    }
+    return results;
   }
 
   /// 首帧前预载设置：先初始化 vault 并读取 settings.json，让 MaterialApp

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/appStore";
 import { CommandPalette } from "@/components/CommandPalette";
 import { ExportDialog } from "@/components/export/ExportDialog";
+import { ConflictResolveDialog } from "@/components/ConflictResolveDialog";
 import { applyAppearance } from "@/lib/personalization";
 import { formatDateKey } from "@/lib/utils";
 import type { Theme } from "@/types/journal";
@@ -185,6 +186,7 @@ export function AppLayout() {
         open={useAppStore((s) => s.exportOpen)}
         onOpenChange={(open) => useAppStore.getState().setExportOpen(open)}
       />
+      <ConflictResolveDialog />
     </div>
   );
 }

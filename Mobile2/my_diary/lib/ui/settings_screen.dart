@@ -153,7 +153,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _resolve(String path, ConflictResolution r) async {
     final store = context.read<AppStore>();
-    await store.resolveConflict(path, r);
+    try {
+      await store.resolveConflict(path, r);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('解决失败：$e'),
+          backgroundColor: Theme.of(context).colorScheme.error));
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _conflicts = store.pendingConflictPaths();
@@ -161,7 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(r == ConflictResolution.local
             ? '已保留本地版本'
-            : '已采用远程版本')));
+            : '已采用远端版本')));
   }
 
   /// 导出完整备份：流式生成 zip 到临时目录后走系统分享面板。

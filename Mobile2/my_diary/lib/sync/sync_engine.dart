@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:my_diary_mobile/models/sync_types.dart';
 import 'package:my_diary_mobile/sync/auth_service.dart';
@@ -14,16 +15,24 @@ import 'package:path/path.dart' as p;
 
 /// 本地优先同步引擎。双向、冲突感知、绝不静默覆盖。
 ///
-/// 协议（与桌面端 `engine.ts` 一致）：
+/// 协议（与桌面端 Rust `sync_vault` / `resolve_conflict` 一致）：
 ///   1. 扫描本地文件，计算 SHA-256 + size
 ///   2. 获取远程清单（metadata/sync.json）
-///   3. 对比本地基线（上次同步）+ 当前本地
-///   4. 上传 / 下载新文件
-///   5. 某文件自上次同步起两侧都被修改 → 冲突（写 conflicts/<...>.{local,remote}.md）
+///   3. 对比本机基线（上次同步）+ 当前本地
+///   4. 上传 / 下载差异文件
+///   5. 某文件自上次同步起两侧都被修改 → 冲突（写 conflicts/<...>.{local,remote}.md，
+///      记录到 metadata/conflicts.json 待解决列表，保持本地为主文件，由用户显式解决）
 ///
-/// 内容范围：仅同步日记数据（entries/、assets/、versions/），
-/// 排除 settings.json、metadata/index.json、metadata/sync.json、conflicts/，
-/// 避免设备专属配置、凭据与本机基线跨设备互覆。
+/// 健壮性设计（此前「动不动就冲突」的根因修复）：
+///   - 远端清单始终反映「桶内真实对象」，绝不写入单台设备的本地视图 —— 避免两台
+///     设备互相踩踏清单、产生虚假冲突。
+///   - 首次同步（无本机基线）不判冲突：没有共同基线就谈不上「两侧各自变更」，
+///     以远端为准采纳，本地不同版本保留为冲突安全副本。
+///   - 只对「成功对账」的路径推进基线；清单推送失败时回退上传路径的基线，下次同步
+///     重传并自愈，绝不把自己刚上传的内容再下载回来覆盖。
+///
+/// 内容范围：仅同步日记数据（entries/、assets/、versions/、profile/），
+/// 排除 settings.json、metadata/*、conflicts/，避免设备专属配置、凭据与本机基线跨设备互覆。
 class SyncEngine {
   final LocalVault storage;
   final RemoteStorage remote;
@@ -40,6 +49,7 @@ class SyncEngine {
     if (path == VaultLayout.index) return false;
     if (path == VaultLayout.sync) return false;
     if (path == VaultLayout.hashCache) return false; // 本地哈希缓存，不进同步
+    if (path == VaultLayout.conflictsIndex) return false; // 待解决冲突索引，设备本地
     if (path.startsWith('${VaultLayout.conflicts}/')) return false;
     return true;
   }
@@ -116,6 +126,8 @@ class SyncEngine {
   /// 判定：本地清单中某文件的 hash 与「本机基线」（metadata/sync.json，
   /// 上次同步完成时的本地状态）不一致，即自上次同步以来有改动、待上传；
   /// 基线中不存在的新文件（新条目/新资产）同样视为未同步。
+  /// 待解决冲突的路径不计入（它们不是「未同步」，而是需要用户显式解决，同步不会
+  /// 清除），避免出现「无论怎么同步都显示未同步」的假象。
   /// 仅本地计算，不发起任何网络请求。
   Future<Set<String>> unsyncedPaths() async {
     final local = await buildLocalManifest();
@@ -123,9 +135,10 @@ class SyncEngine {
     final baseHash = {
       for (final f in baseline?.files ?? []) f.path: f.hash,
     };
+    final pending = await _loadPendingConflicts();
     return {
       for (final f in local.files)
-        if (baseHash[f.path] != f.hash) f.path,
+        if (baseHash[f.path] != f.hash && !pending.contains(f.path)) f.path,
     };
   }
 
@@ -178,17 +191,32 @@ class SyncEngine {
 
   Future<SyncResult> sync() async {
     final local = await buildLocalManifest();
-    final remoteObjects =
-        (await remote.list('')).where(shouldSync).toList();
+    final remoteObjects = (await remote.list('')).where(shouldSync).toSet();
     final remoteManifest = await remote.fetchManifest();
-    final remoteHash = Map.fromEntries(
-      (remoteManifest?.files ?? []).map((f) => MapEntry(f.path, f.hash)),
+
+    // 上次推送的远程清单：只用作「远端上次记录的状态」参照。同步循环之后，我们
+    // 重新从「桶内真实对象 + 本次确认结果」构建新清单，绝不把单台设备的本地视图
+    // 原样写回 —— 那正是此前两台设备互相踩踏、误报冲突的根源。
+    final oldManifestHash = Map<String, String>.fromEntries(
+      (remoteManifest?.files ?? [])
+          .where((f) => shouldSync(f.path))
+          .map((f) => MapEntry(f.path, f.hash)),
     );
     final baseline = await readLocalBaseline();
+    final oldBaselineMap = Map<String, SyncFile>.fromEntries(
+        (baseline?.files ?? []).map((f) => MapEntry(f.path, f)));
+    final pendingConflicts = await _loadPendingConflicts();
 
     final localMap = Map.fromEntries(local.files.map((f) => MapEntry(f.path, f)));
-    final baseMap = Map.fromEntries(
-        (baseline?.files ?? []).map((f) => MapEntry(f.path, f)));
+
+    // 本次同步后的「正确远端状态」：始终反映桶内真实对象。
+    final newManifestHash = <String, String>{};
+    // 本次同步后的本机基线：只推进「成功对账」的路径；失败路径保留旧值以便重试。
+    final newBaseline = Map<String, SyncFile>.from(oldBaselineMap);
+    // 本次成功上传的路径：若清单推送失败，需回退这些路径的基线，否则下次同步会把
+    // 自己刚上传的内容误判成「远端变更」再下载回来覆盖。
+    final uploadedPaths = <String>[];
+    var changed = false;
 
     final result = SyncResult();
     final allPaths = <String>{...localMap.keys, ...remoteObjects};
@@ -196,43 +224,96 @@ class SyncEngine {
     for (final path in allPaths) {
       if (!shouldSync(path)) continue;
       final l = localMap[path];
-      final rExists = remoteObjects.contains(path);
-      final rHash = remoteHash[path];
-      final b = baseMap[path];
+      final exists = remoteObjects.contains(path);
+      final prevR = oldManifestHash[path];
+      final prevB = oldBaselineMap[path];
+      // 冲突尚未解决：保持本地为主文件（冲突副本已保存两侧），绝不自动覆盖。
+      if (l != null && exists && pendingConflicts.contains(path)) {
+        continue;
+      }
       try {
-        if (l != null && !rExists) {
+        if (l != null && !exists) {
           // 本地新增 → 上传。
           await remote.upload(path, await storage.readBytes(path));
+          newBaseline[path] = l;
+          newManifestHash[path] = l.hash;
+          uploadedPaths.add(path);
           result.uploaded.add(path);
-        } else if (l == null && rExists) {
-          // 远程新增 → 下载（远程在此处为准）。
-          await _downloadAndStore(path);
+          changed = true;
+        } else if (l == null && exists) {
+          // 远端新增 → 下载。
+          final data = await remote.download(path);
+          await storage.writeBytes(path, data);
+          final h = sha256Hex(data);
+          newBaseline[path] = _syncFile(path, h, data.length);
+          newManifestHash[path] = h;
           result.downloaded.add(path);
-        } else if (l != null && rExists) {
-          if (rHash != null && l.hash == rHash) continue; // 内容相同
-          final localChanged = b == null || b.hash != l.hash;
-          // 无远程清单条目时，无法证明远程未变，保守假定其已变，避免静默覆盖并暴露冲突。
-          final remoteChanged =
-              rHash == null || b == null || b.hash != rHash;
+          changed = true;
+        } else if (l != null && exists) {
+          // 两侧都存在：与远端清单记录一致 → 未变更。
+          if (prevR == l.hash) {
+            newBaseline[path] = l;
+            newManifestHash[path] = l.hash;
+            continue;
+          }
+          if (prevB == null) {
+            // 本机从未同步过该路径（首次采纳）：没有共同基线，就谈不上「两侧各自
+            // 变更」，绝不能一上来就批量判冲突。以远端为准下载；本地版本若不同则
+            // 保留为冲突安全副本（conflicts/ 不参与同步，不会污染其他设备），但不
+            // 作为需要人工处理的冲突上报。
+            final localData = await storage.readBytes(path);
+            final data = await remote.download(path);
+            final h = sha256Hex(data);
+            if (h != sha256Hex(localData)) {
+              // 保留本地版本为安全副本（conflicts/ 不参与同步）。用 .replaced 后缀，
+              // 避免被移动端「待解决冲突」列表误判成需要人工处理的冲突。
+              await _writeConflictSide(path, 'replaced', localData);
+            }
+            await storage.writeBytes(path, data);
+            newBaseline[path] = _syncFile(path, h, data.length);
+            newManifestHash[path] = h;
+            result.downloaded.add(path);
+            changed = true;
+            continue;
+          }
+          final localChanged = prevB.hash != l.hash;
+          // 远端是否变更 = 本次清单哈希 与 本机基线哈希 是否不同；清单缺失时无法
+          // 证明远端未变，保守视为已变（避免静默覆盖），但这只影响单个文件。
+          final remoteChanged = prevR == null || prevB.hash != prevR;
           if (localChanged && remoteChanged) {
-            // 两侧自上次同步起都改了 → 冲突（不覆盖）。
-            await _writeConflict(path);
+            // 两侧自上次同步起都变更 → 冲突：写冲突副本，绝不覆盖。
+            final localData = await storage.readBytes(path);
+            final remoteData = await remote.download(path);
+            final key = conflictKeyFromPath(path);
+            await storage.writeBytes(conflictFilePath(key, 'local'), localData);
+            await storage.writeBytes(conflictFilePath(key, 'remote'), remoteData);
+            // 清单必须反映桶内真实状态：记远端哈希，而不是被踩踏成本地视图。
+            final rh = sha256Hex(remoteData);
+            newBaseline[path] = l;
+            newManifestHash[path] = rh;
+            pendingConflicts.add(path);
             result.conflicts.add(SyncConflict(
               path: path,
               local: l,
-              remote: SyncFile(
-                path: path,
-                hash: rHash ?? '',
-                size: 0,
-                updated: DateTime.now().millisecondsSinceEpoch,
-              ),
+              remote: _syncFile(path, rh, remoteData.length),
             ));
+            changed = true;
           } else if (localChanged) {
             await remote.upload(path, await storage.readBytes(path));
+            newBaseline[path] = l;
+            newManifestHash[path] = l.hash;
+            uploadedPaths.add(path);
             result.uploaded.add(path);
+            changed = true;
           } else {
-            await _downloadAndStore(path);
+            // 仅远端变更（或清单缺失但本机有基线）→ 下载，远端在此处为准。
+            final data = await remote.download(path);
+            await storage.writeBytes(path, data);
+            final h = sha256Hex(data);
+            newBaseline[path] = _syncFile(path, h, data.length);
+            newManifestHash[path] = h;
             result.downloaded.add(path);
+            changed = true;
           }
         }
       } catch (e) {
@@ -240,14 +321,103 @@ class SyncEngine {
       }
     }
 
-    // 基线变为当前本地状态；远程更新清单。
-    await writeLocalBaseline(local);
-    try {
-      await remote.pushManifest(local);
-    } catch (e) {
-      result.errors.add('manifest: $e');
+    // 清单保持「桶内全量」：对本次未触碰的远端对象，沿用上次已知哈希。
+    for (final p in remoteObjects) {
+      if (!newManifestHash.containsKey(p)) {
+        final h = oldManifestHash[p];
+        if (h != null) newManifestHash[p] = h;
+      }
     }
+
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (changed) {
+      // 先推清单、再落基线：清单写成功，上传路径的远端状态才算被确认，基线可完整
+      // 推进；清单写失败则回退上传路径的基线，让下次同步重传并自愈。
+      final newManifest = SyncManifest(
+        deviceId: deviceId,
+        files: [
+          for (final e in newManifestHash.entries)
+            SyncFile(path: e.key, hash: e.value, size: 0, updated: nowMs),
+        ],
+        generatedAt: nowMs,
+      );
+      try {
+        await remote.pushManifest(newManifest);
+        await _writeBaseline(newBaseline, nowMs);
+      } catch (e) {
+        result.errors.add('manifest: $e');
+        final reverted = Map<String, SyncFile>.from(newBaseline);
+        for (final p in uploadedPaths) {
+          final ob = oldBaselineMap[p];
+          if (ob != null) {
+            reverted[p] = ob;
+          } else {
+            reverted.remove(p);
+          }
+        }
+        await _writeBaseline(reverted, nowMs);
+      }
+    } else if (!_sameBaseline(newBaseline, oldBaselineMap)) {
+      // 没有上传/下载/冲突，但可能记录了「首次采纳」的基线（本地与远端一致的路径），
+      // 仅在确有差异时落盘。
+      await _writeBaseline(newBaseline, nowMs);
+    }
+    await _savePendingConflicts(pendingConflicts);
     return result;
+  }
+
+  Future<Set<String>> _loadPendingConflicts() async {
+    if (!(await storage.exists(VaultLayout.conflictsIndex))) return {};
+    try {
+      final raw = await storage.readText(VaultLayout.conflictsIndex);
+      final list = (jsonDecode(raw) as List<dynamic>? ?? [])
+          .whereType<String>()
+          .toList();
+      return list.toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _savePendingConflicts(Set<String> pending) async {
+    try {
+      await storage.writeText(
+        VaultLayout.conflictsIndex,
+        jsonEncode(pending.toList()..sort()),
+      );
+    } catch (_) {/* 待解决索引写失败不影响主流程，下次同步会重新记录 */}
+  }
+
+  SyncFile _syncFile(String path, String hash, int size) => SyncFile(
+        path: path,
+        hash: hash,
+        size: size,
+        updated: DateTime.now().millisecondsSinceEpoch,
+      );
+
+  Future<void> _writeBaseline(Map<String, SyncFile> map, int nowMs) async {
+    await writeLocalBaseline(SyncManifest(
+      deviceId: deviceId,
+      files: map.values.toList(),
+      generatedAt: nowMs,
+    ));
+  }
+
+  bool _sameBaseline(Map<String, SyncFile> a, Map<String, SyncFile> b) {
+    if (a.length != b.length) return false;
+    for (final e in a.entries) {
+      final o = b[e.key];
+      if (o == null || o.hash != e.value.hash || o.size != e.value.size) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<void> _writeConflictSide(
+      String path, String side, Uint8List data) async {
+    final key = conflictKeyFromPath(path);
+    await storage.writeBytes(conflictFilePath(key, side), data);
   }
 
   Future<void> _downloadAndStore(String path) async {
@@ -255,17 +425,9 @@ class SyncEngine {
     await storage.writeBytes(path, data);
   }
 
-  Future<void> _writeConflict(String path) async {
-    // 以条目文件（而非日期）作 key：同一天多条条目冲突副本不互相覆盖。
-    final key = conflictKeyFromPath(path);
-    final localData = await storage.readBytes(path);
-    final remoteData = await remote.download(path);
-    await storage.writeBytes(conflictFilePath(key, 'local'), localData);
-    await storage.writeBytes(conflictFilePath(key, 'remote'), remoteData);
-  }
-
   /// 解决已检测到的冲突。"local" 推送本地副本；"remote" 用远程副本覆盖本地。
-  /// 冲突副本被移除，该路径的基线被刷新。
+  /// 冲突副本被移除，该路径从待解决列表摘除，基线与本机可见的远端清单都刷新为
+  /// 已解决状态，避免下次同步又把该路径误判成冲突或覆盖回去。
   Future<void> resolveConflict(String path, ConflictResolution resolution) async {
     if (resolution == ConflictResolution.local) {
       await remote.upload(path, await storage.readBytes(path));
@@ -277,6 +439,10 @@ class SyncEngine {
       final cf = conflictFilePath(key, side);
       if (await storage.exists(cf)) await storage.delete(cf);
     }
+    final pending = await _loadPendingConflicts();
+    pending.remove(path);
+    await _savePendingConflicts(pending);
+
     final baseline = await readLocalBaseline() ??
         SyncManifest(
           deviceId: deviceId,
@@ -285,17 +451,33 @@ class SyncEngine {
         );
     final map = Map.fromEntries(baseline.files.map((f) => MapEntry(f.path, f)));
     final bytes = await storage.readBytes(path);
-    map[path] = SyncFile(
+    final resolved = SyncFile(
       path: path,
       hash: sha256Hex(bytes),
       size: bytes.length,
       updated: DateTime.now().millisecondsSinceEpoch,
     );
+    map[path] = resolved;
     await writeLocalBaseline(SyncManifest(
       deviceId: baseline.deviceId,
       files: map.values.toList(),
       generatedAt: DateTime.now().millisecondsSinceEpoch,
     ));
+
+    // 让远端清单也反映已解决状态（否则下次同步会以为远端又变了）。
+    // 清单推送失败不阻塞本地解决流程——本地已收敛到选定版本，清单下次同步会自愈。
+    try {
+      final manifest = await remote.fetchManifest();
+      final files = (manifest?.files ?? []).where((f) => f.path != path).toList()
+        ..add(resolved);
+      await remote.pushManifest(SyncManifest(
+        deviceId: deviceId,
+        files: files,
+        generatedAt: DateTime.now().millisecondsSinceEpoch,
+      ));
+    } catch (_) {
+      // 静默：本地基线已更新，下次同步会自愈。
+    }
   }
 }
 

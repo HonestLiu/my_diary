@@ -31,6 +31,7 @@ export default function Search() {
   const entries = useAppStore((s) => s.entries);
   const openEntry = useAppStore((s) => s.openEntry);
   const unsyncedPaths = useAppStore((s) => s.unsyncedPaths);
+  const conflictPaths = useAppStore((s) => s.conflictPaths);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -242,6 +243,14 @@ export default function Search() {
                   unsynced={unsyncedPaths.has(
                     entryFilePath({ id: e.id, date: e.date }),
                   )}
+                  conflict={conflictPaths.has(
+                    entryFilePath({ id: e.id, date: e.date }),
+                  )}
+                  conflictPath={
+                    conflictPaths.has(entryFilePath({ id: e.id, date: e.date }))
+                      ? entryFilePath({ id: e.id, date: e.date })
+                      : undefined
+                  }
                   onClick={() => open(e)}
                 />
               </motion.div>

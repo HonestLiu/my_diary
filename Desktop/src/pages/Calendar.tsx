@@ -19,6 +19,7 @@ export default function Calendar() {
   const activeDate = useAppStore((s) => s.activeDate);
   const openEntry = useAppStore((s) => s.openEntry);
   const unsyncedPaths = useAppStore((s) => s.unsyncedPaths);
+  const conflictPaths = useAppStore((s) => s.conflictPaths);
   const weekStartsOn = useAppStore((s) => s.settings.weekStartsOn);
   const navigate = useNavigate();
 
@@ -189,6 +190,14 @@ export default function Calendar() {
                   unsynced={unsyncedPaths.has(
                     entryFilePath({ id: e.id, date: e.date }),
                   )}
+                  conflict={conflictPaths.has(
+                    entryFilePath({ id: e.id, date: e.date }),
+                  )}
+                  conflictPath={
+                    conflictPaths.has(entryFilePath({ id: e.id, date: e.date }))
+                      ? entryFilePath({ id: e.id, date: e.date })
+                      : undefined
+                  }
                   onClick={() => open(e)}
                 />
               ))}

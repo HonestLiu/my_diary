@@ -161,6 +161,36 @@ export default function Settings() {
     }
   };
 
+  const [resolving, setResolving] = useState<string | null>(null);
+
+  const resolveConflict = async (path: string, resolution: "local" | "remote") => {
+    if (!isTauri()) {
+      setError("云同步仅在桌面端（Tauri）可用。");
+      return;
+    }
+    const vaultRoot = useAppStore.getState().repo.vaultRoot;
+    if (!vaultRoot) {
+      setError("未找到 vault 根目录。");
+      return;
+    }
+    setError(null);
+    setResolving(path);
+    try {
+      await invoke("resolve_conflict", {
+        vaultRoot,
+        config: form,
+        path,
+        resolution,
+      });
+      // 重新同步刷新结果与条目列表。
+      await runSync();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResolving(null);
+    }
+  };
+
   const field = (key: keyof SyncConfig) => ({
     value: typeof form[key] === "string" ? (form[key] as string) : "",
     onChange: (e: ChangeEvent<HTMLInputElement>) =>
@@ -481,9 +511,32 @@ export default function Settings() {
               {result.conflicts.map((c) => (
                 <div
                   key={c}
-                  className="flex items-center justify-between rounded-xl bg-accent px-3 py-2 text-sm text-primary"
+                  className="rounded-xl bg-accent px-3 py-2 text-sm text-primary"
                 >
-                  <span className="truncate">⚠ 冲突：{c}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate">⚠ 冲突：{c}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={resolving === c}
+                      onClick={() => resolveConflict(c, "local")}
+                      className="rounded-lg bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                    >
+                      {resolving === c ? "处理中…" : "保留本地"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={resolving === c}
+                      onClick={() => resolveConflict(c, "remote")}
+                      className="rounded-lg border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-60"
+                    >
+                      采用远端
+                    </button>
+                    <span className="text-[11px] leading-5 text-muted-foreground">
+                      两侧副本已存于 conflicts/
+                    </span>
+                  </div>
                 </div>
               ))}
               {result.errors.length > 0 && (

@@ -19,6 +19,9 @@ class VaultLayout {
   static const String sync = 'metadata/sync.json';
   /// 本地哈希缓存（size+mtime→hash，仅本机使用，不进同步）。
   static const String hashCache = 'metadata/hashes.json';
+  /// 待解决的冲突路径列表（仅本机使用，不进同步）：冲突发生后保持本地为主文件，
+  /// 直到用户在 UI 中显式解决，避免自动同步把较新的一侧静默覆盖掉。
+  static const String conflictsIndex = 'metadata/conflicts.json';
   static const String entries = 'entries';
   static const String assets = 'assets';
   static const String versions = 'versions';

@@ -36,6 +36,8 @@ interface AppState {
    */
   activeEntryId: string | null;
   exportOpen: boolean;
+  /** 当前需要解决的冲突条目路径（null = 无对话框）。由 ConflictResolveDialog 读取。 */
+  resolveConflictPath: string | null;
 
   /* ---- Sync (P7)：共享「正在同步 / 上次同步」状态，供顶栏按钮与设置页复用 ---- */
   syncing: boolean;
@@ -44,8 +46,15 @@ interface AppState {
   /**
    * 尚未同步到云端的条目文件路径（相对 vault 根）。每次 refresh 后按
    * 本地基线（metadata/sync.json）与当前文件哈希比对得出；未配置同步时为空。
+   * 待解决冲突的路径不计入（它们不是「未同步」，而是「冲突待解决」，见
+   * conflictPaths），避免出现「无论怎么同步都显示未同步」的假象。
    */
   unsyncedPaths: Set<string>;
+  /**
+   * 待解决冲突的条目文件路径（metadata/conflicts.json，设备本地、不进同步）。
+   * 这类条目由用户在设置页显式解决（保留本地 / 采用远端），不是同步能清除的。
+   */
+  conflictPaths: Set<string>;
 
   /* ---- Data (backed by the real repository) ---- */
   repo: JournalRepository;
@@ -68,6 +77,8 @@ interface AppState {
   /** Start a brand-new (unsaved) entry, optionally on a given day. */
   startNewEntry: (date?: string) => void;
   setExportOpen: (open: boolean) => void;
+  /** 设置需要解决的冲突路径（null = 无对话框）。触发后由 AppLayout 渲染确认对话框。 */
+  setResolveConflictPath: (path: string | null) => void;
   upsertEntry: (entry: JournalEntry) => Promise<void>;
   removeEntry: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -183,8 +194,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeDate: formatDateKey(),
   activeEntryId: null,
   exportOpen: false,
+  resolveConflictPath: null as string | null,
   syncing: false,
   unsyncedPaths: new Set<string>(),
+  conflictPaths: new Set<string>(),
 
   repo: getRepository(),
   entries: [],
@@ -260,6 +273,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setActiveDate: (activeDate) => set({ activeDate }),
   setExportOpen: (exportOpen) => set({ exportOpen }),
+  setResolveConflictPath: (path) => set({ resolveConflictPath: path }),
 
   openEntry: (id, date) => {
     const known = date ?? get().entries.find((e) => e.id === id)?.date;
@@ -329,10 +343,25 @@ export const useAppStore = create<AppState>((set, get) => ({
       !!cfg.accessKey &&
       !!cfg.secretKey;
     if (!configured) {
-      if (s.unsyncedPaths.size > 0) set({ unsyncedPaths: new Set() });
+      if (s.unsyncedPaths.size > 0 || s.conflictPaths.size > 0) {
+        set({ unsyncedPaths: new Set(), conflictPaths: new Set() });
+      }
       return;
     }
     const repo = s.repo;
+    // 待解决冲突（metadata/conflicts.json，设备本地、不进同步）：这类路径不是
+    // 「未同步」，而是「冲突待解决」，需在设置页显式处理。
+    let conflictPaths = new Set<string>();
+    try {
+      if (await repo.storageAdapter.exists("metadata/conflicts.json")) {
+        const list = JSON.parse(
+          await repo.storageAdapter.readText("metadata/conflicts.json"),
+        ) as string[];
+        conflictPaths = new Set(list);
+      }
+    } catch {
+      conflictPaths = new Set();
+    }
     // 本地基线（Rust 每次同步后写入）：path -> 上次已同步的 sha256。
     let baseline: Record<string, string> = {};
     try {
@@ -354,13 +383,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         try {
           const bytes = await repo.storageAdapter.readBytes(path);
           const hash = await sha256Hex(bytes);
-          if (hash !== baseline[path]) unsynced.add(path);
+          if (hash !== baseline[path] && !conflictPaths.has(path)) {
+            unsynced.add(path);
+          }
         } catch {
           /* 文件缺失（如旧版路径）——无法比对，跳过 */
         }
       }),
     );
-    set({ unsyncedPaths: unsynced });
+    set({ unsyncedPaths: unsynced, conflictPaths });
   },
 
   syncNow: async () => {

@@ -1,9 +1,10 @@
-import { CloudOff, Heart, MapPin } from "lucide-react";
+import { AlertTriangle, CloudOff, Heart, MapPin } from "lucide-react";
 import type { ReactNode } from "react";
 import { MoodGlyph } from "@/components/MoodGlyph";
 import { WeatherGlyph } from "@/components/WeatherGlyph";
 import { EntryCover } from "@/components/EntryCover";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store/appStore";
 import type { AssetRef, Mood, Weather } from "@/types/journal";
 
 /**
@@ -25,6 +26,10 @@ interface EntryCardProps {
   favorite?: boolean;
   /** 尚未同步到云端：标题行右侧显示「未同步」标识。 */
   unsynced?: boolean;
+  /** 待解决冲突：标题行右侧显示「冲突待解决」（需在设置页显式处理，同步不会清除）。 */
+  conflict?: boolean;
+  /** 冲突条目文件路径：点击冲突徽章时触发 resolveConflictPath 对话框。 */
+  conflictPath?: string;
   /** 封面资产（图片优先，其次视频）；缺省不显示封面。 */
   cover?: AssetRef | null;
   onClick?: () => void;
@@ -42,6 +47,8 @@ export function EntryCard({
   cover,
   favorite,
   unsynced,
+  conflict,
+  conflictPath,
   onClick,
   className,
 }: EntryCardProps) {
@@ -87,9 +94,25 @@ export function EntryCard({
           {favorite && (
             <Heart className="h-[15px] w-[15px] shrink-0 fill-red-500 text-red-500" />
           )}
-          {(unsynced || meta) && (
+          {(unsynced || conflict || meta) && (
             <div className="ml-auto flex shrink-0 items-center gap-2">
-              {unsynced && (
+              {conflict && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 transition-colors hover:bg-amber-200"
+                  title="点击解决：保留本地版本 / 采用远端版本"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (conflictPath) {
+                      useAppStore.getState().setResolveConflictPath(conflictPath);
+                    }
+                  }}
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                  冲突待解决
+                </button>
+              )}
+              {unsynced && !conflict && (
                 <span
                   className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
                   title="尚未同步到云端"
