@@ -8,6 +8,7 @@ import 'package:my_diary_mobile/models/settings.dart';
 import 'package:my_diary_mobile/repository/journal_repository.dart';
 import 'package:my_diary_mobile/models/sync_types.dart';
 import 'package:my_diary_mobile/repository/version.dart';
+import 'package:my_diary_mobile/services/widget_service.dart';
 import 'package:my_diary_mobile/sync/auth_service.dart';
 import 'package:my_diary_mobile/sync/sync_engine.dart';
 import 'package:my_diary_mobile/vault/vault_layout.dart';
@@ -138,6 +139,8 @@ class AppStore extends ChangeNotifier {
     // 「未同步」计算走后台 isolate（含增量哈希缓存），不阻塞列表渲染；
     // 完成后单独通知，卡片上的标识随后出现/消失。
     unawaited(_refreshUnsynced());
+    // 桌面小组件数据随条目变化刷新（fire-and-forget）。
+    unawaited(WidgetService.updateEntries(_entries));
   }
 
   /// 后台刷新「未同步」路径集合（见 SyncEngine.unsyncedPaths）。

@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_diary_mobile/models/journal_entry.dart';
 import 'package:my_diary_mobile/repository/journal_repository.dart';
+import 'package:my_diary_mobile/services/widget_service.dart';
 import 'package:my_diary_mobile/sync/crypto.dart';
 import 'package:my_diary_mobile/vault/local_vault.dart';
 import 'package:my_diary_mobile/vault/markdown_codec.dart';
@@ -264,6 +265,54 @@ updated_at: "2026-08-17T01:00:00.000Z"
       expect(page.first.body, contains('正文内容'));
 
       await Directory(root).delete(recursive: true);
+    });
+  });
+
+  group('WidgetService.compute（桌面小组件数据）', () {
+    JournalEntry _e(String id, String date, String title, Mood mood,
+            {String body = ''}) =>
+        JournalEntry(
+          id: id,
+          date: date,
+          title: title,
+          mood: mood,
+          weather: Weather.sunny,
+          tags: const [],
+          assets: const [],
+          createdAt: '2026-08-19T00:00:00.000Z',
+          updatedAt: '2026-08-19T00:00:00.000Z',
+          body: body,
+        );
+
+    test('今日速览 + 最近一条（最新在前）', () {
+      final now = DateTime(2026, 8, 19, 12);
+      final entries = [
+        _e('b', '2026-08-19', '今天的日记', Mood.happy,
+            body: '**今天**去了公园，还买了牛奶。'),
+        _e('a', '2026-08-19', '今天另一条', Mood.happy),
+        _e('old', '2026-08-17', '旧日记', Mood.tired),
+      ];
+      final d = WidgetService.compute(now, entries);
+      expect(d.todayCount, 2);
+      expect(d.todayMood, '开心');
+      expect(d.latestTitle, '今天的日记');
+      expect(d.latestPreview, contains('今天去了公园'));
+      expect(d.dateLabel, contains('8月19日'));
+    });
+
+    test('空库给出占位数据', () {
+      final d = WidgetService.compute(DateTime(2026, 8, 19), const []);
+      expect(d.todayCount, 0);
+      expect(d.todayMood, '');
+      expect(d.latestTitle, '');
+      expect(d.latestPreview, '');
+    });
+
+    test('isQuickNew 识别写日记入口 URI', () {
+      expect(WidgetService.isQuickNew(WidgetService.quickNewUri()), isTrue);
+      expect(
+          WidgetService.isQuickNew(Uri.parse('mydiary://other')), isFalse);
+      expect(WidgetService.isQuickNew(null), isFalse);
     });
   });
 }

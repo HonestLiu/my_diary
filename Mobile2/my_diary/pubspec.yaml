@@ -51,6 +51,7 @@ dependencies:
   flutter_image_compress: ^2.5.1
   # 视频压缩（100% 原生，非 ffmpeg）；按质量预设压缩并抽取封面帧
   video_compress: ^3.1.4
+  home_widget: ^0.9.3
 
 dev_dependencies:
   flutter_test:

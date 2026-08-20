@@ -78,7 +78,17 @@ enum Mood {
   static const _moodfontFamily = 'moodfont';
 
   /// 用于 [Icon] widget：呈现自定义心情表情（透明矢量，色随主题）。
-  IconData get iconData => IconData(_iconCode, fontFamily: _moodfontFamily);
+  /// 注意：codepoint 必须是编译期常量（字面量），否则 release 构建的
+  /// tree-shake-icons 无法静态分析而报错。
+  IconData get iconData => switch (this) {
+        Mood.happy => const IconData(0xe61f, fontFamily: _moodfontFamily),
+        Mood.excited => const IconData(0xe613, fontFamily: _moodfontFamily),
+        Mood.calm => const IconData(0xe616, fontFamily: _moodfontFamily),
+        Mood.neutral => const IconData(0xe621, fontFamily: _moodfontFamily),
+        Mood.tired => const IconData(0xe614, fontFamily: _moodfontFamily),
+        Mood.sad => const IconData(0xe603, fontFamily: _moodfontFamily),
+        Mood.angry => const IconData(0xe61e, fontFamily: _moodfontFamily),
+      };
 
   /// 用于 [Text] / [TextSpan]（混排场景）：在 `fontFamily: moodfont`
   /// 样式下渲染表情字符。
@@ -172,7 +182,17 @@ enum Weather {
   static const _iconfontFamily = 'iconfont';
 
   /// 用于 [Icon] widget：呈现自定义天气图标（透明矢量，色随主题）。
-  IconData get iconData => IconData(_iconCode, fontFamily: _iconfontFamily);
+  /// 注意：codepoint 必须是编译期常量（字面量），否则 release 构建的
+  /// tree-shake-icons 无法静态分析而报错。
+  IconData get iconData => switch (this) {
+        Weather.sunny => const IconData(0xe90d, fontFamily: _iconfontFamily),
+        Weather.cloudy => const IconData(0xe949, fontFamily: _iconfontFamily),
+        Weather.rainy => const IconData(0xe912, fontFamily: _iconfontFamily),
+        Weather.snowy => const IconData(0xe91a, fontFamily: _iconfontFamily),
+        Weather.foggy => const IconData(0xe929, fontFamily: _iconfontFamily),
+        Weather.windy => const IconData(0xe934, fontFamily: _iconfontFamily),
+        Weather.unknown => const IconData(0xe948, fontFamily: _iconfontFamily),
+      };
 
   /// 用于 [Text] / [TextSpan]（混排场景如 MetaLine）：在 `fontFamily: iconfont`
   /// 样式下渲染图标字符。

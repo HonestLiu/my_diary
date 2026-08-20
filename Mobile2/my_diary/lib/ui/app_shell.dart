@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:my_diary_mobile/services/widget_service.dart';
 import 'package:my_diary_mobile/ui/app_store.dart';
 import 'package:my_diary_mobile/ui/calendar_screen.dart';
 import 'package:my_diary_mobile/ui/editor_screen.dart';
@@ -20,6 +23,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
   final _homeKey = GlobalKey<HomeScreenState>();
+  StreamSubscription<Uri?>? _widgetSub; // 小组件点击事件订阅
 
   /// 首页主列表滚动控制器：驱动 FAB 在「写日记」与「回到顶部」间切换。
   final _homeScroll = ScrollController();
@@ -30,10 +34,23 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     _homeScroll.addListener(_onHomeScroll);
+    // 桌面小组件「写日记」：
+    // - 热启动（app 已在后台）→ 事件流推送；
+    // - 冷启动（app 由小组件按钮拉起）→ 首帧后检测初始 intent。
+    _widgetSub = WidgetService.widgetClicked.listen((uri) {
+      if (!mounted || !WidgetService.isQuickNew(uri)) return;
+      _openEditor(context.read<AppStore>());
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (mounted && WidgetService.isQuickNew(await WidgetService.initiallyLaunched())) {
+        _openEditor(context.read<AppStore>());
+      }
+    });
   }
 
   @override
   void dispose() {
+    _widgetSub?.cancel();
     _homeScroll.dispose();
     super.dispose();
   }
