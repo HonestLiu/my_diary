@@ -2,7 +2,7 @@ name: my_diary_mobile
 description: "MyDiary 配套移动端 —— 本地优先、开放格式、与桌面端通过对象存储同步互通的日记 App。"
 publish_to: 'none'
 
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ^3.12.2
